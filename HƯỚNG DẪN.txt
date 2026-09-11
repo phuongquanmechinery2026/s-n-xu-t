@@ -1,0 +1,68 @@
+╔══════════════════════════════════════════════════════════════════╗
+║        NHÀ MÁY SẢN XUẤT PHƯƠNG QUÂN  —  BẢN CHẠY TRÊN MÁY         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+App này chạy HOÀN TOÀN trên máy tính của anh:
+  • Không cần đăng nhập Claude, không cần mạng.
+  • Dữ liệu nằm ngay trong máy (thư mục  data\ ), KHÔNG bao giờ mất.
+  • Mỗi lần sửa đều được tự động sao lưu vào thư mục  backups\ .
+
+
+──────────────────────────────────────────────────────────────────
+1. MỞ APP
+──────────────────────────────────────────────────────────────────
+  • Bấm đúp vào biểu tượng  "Nha May San Xuat"  trên Màn hình nền
+    (Desktop) — có thể bấm F2 đổi tên tuỳ ý.
+  • Hoặc mở thư mục này, bấm đúp file  "Mo Nha May.bat" .
+
+  Lần đầu Windows có thể hỏi "Windows protected your PC":
+     bấm  More info  →  Run anyway .  (Chỉ hỏi 1 lần.)
+
+  Trình duyệt sẽ tự mở địa chỉ:  http://localhost:8756/
+  Sẽ có 1 cửa sổ đen nhỏ hiện ra và thu xuống thanh tác vụ — đó là
+  "máy chủ" của app. CỨ ĐỂ YÊN, đừng đóng khi đang dùng app.
+
+
+──────────────────────────────────────────────────────────────────
+2. TẮT APP
+──────────────────────────────────────────────────────────────────
+  • Đóng cửa sổ đen nhỏ đó,  HOẶC
+  • Bấm đúp file  "Dung Nha May.bat" .
+  (Đóng tab trình duyệt thôi thì máy chủ vẫn chạy ngầm — không sao.)
+
+
+──────────────────────────────────────────────────────────────────
+3. DỮ LIỆU & SAO LƯU
+──────────────────────────────────────────────────────────────────
+  data\orders.json   →  toàn bộ đơn hàng
+  data\meta.json     →  cấu hình
+  backups\           →  bản sao tự động (giữ 60 bản gần nhất mỗi loại)
+
+  ► Muốn tự sao lưu cho chắc: copy cả thư mục  data\  ra USB / ổ khác.
+
+  ► Lỡ sửa hỏng, muốn quay lại bản cũ:
+      1. Tắt app (mục 2).
+      2. Vào  backups\ , tìm file  orders-<ngày giờ>.json  muốn khôi phục.
+      3. Copy đè nó vào  data\orders.json  (đổi tên thành orders.json).
+      4. Mở lại app.
+
+
+──────────────────────────────────────────────────────────────────
+4. DÙNG TRÊN NHIỀU MÁY / NHIỀU NGƯỜI
+──────────────────────────────────────────────────────────────────
+  Bản này gắn với 1 máy. Nếu cần nhiều người trong xưởng cùng nhập
+  một lúc, nhắn em — em chỉ cần đổi địa chỉ máy chủ sang máy chung
+  trong mạng LAN, các máy khác vào bằng IP máy đó.
+
+
+──────────────────────────────────────────────────────────────────
+5. LƯU Ý
+──────────────────────────────────────────────────────────────────
+  • Nút "Đồng bộ Sheet" (lấy từ Google Sheet gốc) KHÔNG chạy ở bản
+    này — tính năng đó cần Claude. Mọi thứ khác chạy đầy đủ.
+  • Nút "Kiểm tra hệ thống" phải báo XANH hết các bước (1→6).
+  • Cổng dùng: 8756. Nếu máy anh có phần mềm khác chiếm cổng này,
+    nhắn em đổi số khác.
+
+  BẢN DỰNG APP:  2026-09-05c-may  (dữ liệu: 95 đơn hàng lấy từ bản
+  trên claude.ai lúc dựng)
