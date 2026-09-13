@@ -9,9 +9,43 @@
    ================================================================ */
 'use strict';
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
+
+// Sheet Dien cong khai (khong can dang nhap) - Render tu tai truc tiep tu
+// Google, khoi phai dua file .xlsx 48MB vao git. Sheet Co khi la rieng tu,
+// KHONG the tai kieu nay (van phai tha file thu cong nhu truoc).
+const ELECTRIC_SHEET_ID = '1wANQ2lRELrHSlTb5QcwQVOXEeqTZgCogv0iW6ptpCok';
+function fetchToFile(url, destPath, redirectsLeft) {
+  redirectsLeft = redirectsLeft == null ? 5 : redirectsLeft;
+  return new Promise(function (resolve, reject) {
+    https.get(url, function (res) {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
+        res.resume();
+        return resolve(fetchToFile(res.headers.location, destPath, redirectsLeft - 1));
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' tu Google'));
+      }
+      const tmp = destPath + '.downloading';
+      const out = fs.createWriteStream(tmp);
+      let bytes = 0;
+      res.on('data', function (c) { bytes += c.length; });
+      res.pipe(out);
+      out.on('finish', function () {
+        out.close(function () {
+          try { fs.renameSync(tmp, destPath); } catch (e) { return reject(e); }
+          resolve(bytes);
+        });
+      });
+      out.on('error', reject);
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
 
 const PORT = process.env.PORT || 8756;
 const ROOT = __dirname;
@@ -122,6 +156,21 @@ const server = http.createServer(function (req, res) {
     }
 
     if (p === '/api/ping') return sendJson(res, 200, { ok: true, app: 'nmsx-pq', port: PORT, env: 'render' });
+
+    // Tai lai Sheet Dien truc tiep tu Google (cong khai, khong can dang nhap)
+    // xuong dung vi tri /_local/electric.xlsx tren may chu Render — de nut
+    // "Nap tu file co san tren may chu" trong app hoat dong y het ban may.
+    if (p === '/api/fetch-electric' && (method === 'POST' || method === 'GET')) {
+      try {
+        const bytes = await fetchToFile(
+          'https://docs.google.com/spreadsheets/d/' + ELECTRIC_SHEET_ID + '/export?format=xlsx',
+          path.join(ROOT, 'electric.xlsx')
+        );
+        return sendJson(res, 200, { ok: true, bytes: bytes });
+      } catch (e) {
+        return sendJson(res, 500, { ok: false, error: String((e && e.message) || e) });
+      }
+    }
 
     let m;
     if ((m = p.match(/^\/api\/rev\/([^/]+)$/))) return sendJson(res, 200, { rev: getRev(m[1]) });
