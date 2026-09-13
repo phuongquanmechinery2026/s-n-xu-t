@@ -659,7 +659,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-09-11a-may';
+  var BUILD_ID = '2026-09-13a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3990,9 +3990,13 @@
   function parseLichTrinh(wb){
     var shName = wb.SheetNames.find(function(n){ return norm(n).indexOf('lich trinh')!==-1; });
     if (!shName) return {orders:[]};
-    var rows = window.XLSX.utils.sheet_to_json(wb.Sheets[shName], {header:1, raw:true, defval:null});
+    var sh = wb.Sheets[shName];
+    var rows = window.XLSX.utils.sheet_to_json(sh, {header:1, raw:true, defval:null});
     var hIdx = findHeaderRow(rows, ['ma so don hang']);
     if (hIdx<0) return {orders:[]};
+    // Hàng nào anh ẨN trong Google Sheet (bấm chuột phải "Ẩn hàng") coi như đã
+    // làm xong, dù cột KẾT QUẢ chưa kịp đổi — theo đúng cách anh dùng sheet.
+    var rowMeta = sh['!rows'] || [];
     var C = {code:1, info:2, equip:3, req:4, banve:5, vattu:6, tien:7, date:8, status:10, note:11};
     var orders = []; var cur=null, curCluster=null;
     function flush(){ if (cur) orders.push(cur); cur=null; }
@@ -4003,6 +4007,9 @@
       var equip = row[C.equip]!=null ? String(row[C.equip]).trim() : null;
       var req = row[C.req]!=null ? String(row[C.req]).trim().toUpperCase() : null;
       var status = row[C.status]!=null ? String(row[C.status]).trim().toUpperCase() : null;
+      if (rowMeta[r] && rowMeta[r].hidden && status!=='ĐÃ GIAO' && status!=='SẢN XUẤT XONG'){
+        status = 'SẢN XUẤT XONG';
+      }
       var note = row[C.note]!=null ? String(row[C.note]).trim() : null;
       var banve = pctVal(row[C.banve]), vattu = pctVal(row[C.vattu]), tien = pctVal(row[C.tien]);
       var date = excelDateToISO(row[C.date]);
@@ -4158,7 +4165,7 @@
     }).then(function(buf){
       body.innerHTML = '<span class="spinner"></span> Đang đọc dữ liệu Excel…';
       return loadXlsx().then(function(XLSXLib){
-        var wb = XLSXLib.read(new Uint8Array(buf), {type:'array'});
+        var wb = XLSXLib.read(new Uint8Array(buf), {type:'array', cellStyles:true});
         applySheetWorkbook(wb, body);
       });
     }).catch(function(localErr){
@@ -4179,7 +4186,7 @@
             var binStr = atob(payload.content);
             var bytes = new Uint8Array(binStr.length);
             for (var i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
-            var wb = XLSXLib.read(bytes, {type:'array'});
+            var wb = XLSXLib.read(bytes, {type:'array', cellStyles:true});
             applySheetWorkbook(wb, body);
           });
         });
