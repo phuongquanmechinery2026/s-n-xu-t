@@ -156,6 +156,14 @@
   .banner-danger{background:var(--bad-soft);color:var(--bad);border-bottom:2px solid var(--bad);padding:11px 20px;font-size:13.5px;}
   .banner-danger b{font-weight:800;}
 
+  /* Nhóm tab cấp 1 (Tổng quan / Đơn hàng / Vật tư & Kho / Kế hoạch / Sheets
+     tham khảo) — bấm 1 nhóm mới hiện hàng tab con của đúng nhóm đó bên dưới,
+     đỡ dàn hàng ngang 10 tab một lượt như trước ("khi nào đó sẽ có sheet tổng
+     quan rồi mới mở ra những yêu cầu nhỏ" — theo đúng ý anh Quốc). */
+  .tabs-groups{display:flex;gap:6px;flex-wrap:wrap;padding:10px 20px 0;background:var(--surface);}
+  .tab-group{padding:8px 16px;border-radius:99px;font-weight:800;font-size:13px;color:var(--text-muted);cursor:pointer;border:1px solid var(--border-strong);background:var(--bg);white-space:nowrap;}
+  .tab-group:hover:not(.active){color:var(--text);}
+  .tab-group.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
   .tabs{display:flex;gap:4px;padding:10px 20px 0;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;}
   .tab{
     padding:9px 14px;border-radius:var(--radius-m) var(--radius-m) 0 0;font-weight:700;font-size:13px;color:var(--text-muted);
@@ -628,17 +636,24 @@
     <button class="btn btn-primary" id="btnNewOrder">+ Đơn hàng mới</button>
   </div>
   <div id="banner"></div>
+  <div class="tabs-groups" id="tabGroups">
+    <div class="tab-group active" data-group="tongquan">Tổng quan</div>
+    <div class="tab-group" data-group="donhang">Đơn hàng</div>
+    <div class="tab-group" data-group="vattukho">Vật tư &amp; Kho</div>
+    <div class="tab-group" data-group="kehoach">Kế hoạch</div>
+    <div class="tab-group" data-group="sheets">Sheets tham khảo</div>
+  </div>
   <div class="tabs" id="tabs">
-    <div class="tab active" data-view="dashboard">Tổng quan</div>
-    <div class="tab" data-view="current">Công việc hiện tại <span class="count" id="countCurrent">0</span></div>
-    <div class="tab" data-view="yearly">Tổng đơn hàng trong năm <span class="count" id="countYearly">0</span></div>
-    <div class="tab" data-view="mrp">Vật tư cần mua</div>
-    <div class="tab" data-view="reqdate">Vật tư theo ngày yêu cầu</div>
-    <div class="tab" data-view="plan">Kế hoạch</div>
-    <div class="tab" data-view="lich">Lịch tháng</div>
-    <div class="tab" data-view="tiendo">Báo cáo tiến độ</div>
-    <div class="tab" data-view="kho">Kho &amp; Chất lượng</div>
-    <div class="tab" data-view="electric">Sheets tham khảo</div>
+    <div class="tab active" data-view="dashboard" data-group="tongquan">Tổng quan</div>
+    <div class="tab" data-view="current" data-group="donhang">Công việc hiện tại <span class="count" id="countCurrent">0</span></div>
+    <div class="tab" data-view="yearly" data-group="donhang">Tổng đơn hàng trong năm <span class="count" id="countYearly">0</span></div>
+    <div class="tab" data-view="mrp" data-group="vattukho">Vật tư cần mua</div>
+    <div class="tab" data-view="reqdate" data-group="vattukho">Vật tư theo ngày yêu cầu</div>
+    <div class="tab" data-view="kho" data-group="vattukho">Kho &amp; Chất lượng</div>
+    <div class="tab" data-view="plan" data-group="kehoach">Kế hoạch</div>
+    <div class="tab" data-view="lich" data-group="kehoach">Lịch tháng</div>
+    <div class="tab" data-view="tiendo" data-group="kehoach">Báo cáo tiến độ</div>
+    <div class="tab" data-view="electric" data-group="sheets">Sheets tham khảo</div>
   </div>
   <main id="main"></main>
 </div>
@@ -659,7 +674,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-09-13a-may';
+  var BUILD_ID = '2026-09-13b-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -713,7 +728,8 @@
     lichYM: null,            // {y, m} tháng đang xem ở tab Lịch (m: 1-12)
     lichDay: null,           // ngày đang chọn trong lịch (yyyy-mm-dd)
     tdPeriod: 'month',       // báo cáo tiến độ: 'week' | 'month' | 'year'
-    tdRef: null              // mốc ISO 'yyyy-mm-dd' — kỳ đang xem suy ra từ đây
+    tdRef: null,             // mốc ISO 'yyyy-mm-dd' — kỳ đang xem suy ra từ đây
+    navGroup: null           // nhóm tab cấp 1 đang mở ('tongquan'/'donhang'/...)
   };
 
   var STATUS_OPTIONS = [
@@ -1020,7 +1036,23 @@
 
   function ordersList(){ return Object.keys(STATE.orders).map(function(k){return STATE.orders[k];}); }
   function activeOrders(){ return ordersList().filter(function(o){return !o.legacy;}); }
-  function currentWorkOrders(){ return activeOrders().filter(function(o){return rollupStatus(o)!=='ĐÃ GIAO';}); }
+  // "Công việc hiện tại" = đơn còn hạng mục nào đó THẬT SỰ chưa xong sản xuất.
+  // Trước đây chỉ loại đơn có rollupStatus==='ĐÃ GIAO' (tức là loại khi TẤT
+  // CẢ hạng mục đều "Đã giao") — nên 1 đơn mà mọi hạng mục đã "Sản xuất xong"
+  // (chỉ còn thiếu bấm "Đã giao" xác nhận) vẫn nằm lì trong "Công việc hiện
+  // tại", trong khi ở xưởng coi như xong việc rồi (phản hồi 2026-09-13: sheet
+  // đếm 18 đơn đang làm, app hiện lại tới 36 — vì nhiều đơn đã ẩn/xong hết
+  // hạng mục trên Sheet nhưng chưa ai bấm "Đã giao"). Nay loại thêm cả đơn mà
+  // MỌI hạng mục đã "Sản xuất xong" hoặc "Đã giao" (không còn gì phải làm).
+  function currentWorkOrders(){
+    return activeOrders().filter(function(o){
+      if (rollupStatus(o)==='ĐÃ GIAO') return false;
+      var items = namedItems(o.items||[]);
+      if (!items.length) return true;
+      var allDone = items.every(function(it){ return it.status==='SẢN XUẤT XONG' || it.status==='ĐÃ GIAO'; });
+      return !allDone;
+    });
+  }
 
   function saveOrder(order){
     STATE.orders[order.id] = order;
@@ -1303,8 +1335,36 @@
     })();
   }
 
+  /* ============ NHÓM TAB CẤP 1 ============ */
+  var NAV_GROUPS = [
+    {key:'tongquan', label:'Tổng quan', views:['dashboard']},
+    {key:'donhang',  label:'Đơn hàng',  views:['current','yearly']},
+    {key:'vattukho', label:'Vật tư & Kho', views:['mrp','reqdate','kho']},
+    {key:'kehoach',  label:'Kế hoạch', views:['plan','lich','tiendo']},
+    {key:'sheets',   label:'Sheets tham khảo', views:['electric']}
+  ];
+  function groupOfView(v){
+    for (var i=0;i<NAV_GROUPS.length;i++){ if (NAV_GROUPS[i].views.indexOf(v)>=0) return NAV_GROUPS[i].key; }
+    return null;
+  }
+  function updateNavUI(v){
+    var g = groupOfView(v) || STATE.navGroup || 'tongquan';
+    STATE.navGroup = g;
+    var grp = null;
+    for (var i=0;i<NAV_GROUPS.length;i++){ if (NAV_GROUPS[i].key===g) grp = NAV_GROUPS[i]; }
+    document.querySelectorAll('.tab-group').forEach(function(el){ el.classList.toggle('active', el.getAttribute('data-group')===g); });
+    var tabsEl = document.getElementById('tabs');
+    var multi = !!(grp && grp.views.length>1);
+    if (tabsEl) tabsEl.style.display = multi ? '' : 'none';
+    document.querySelectorAll('#tabs .tab').forEach(function(t){
+      t.style.display = (t.getAttribute('data-group')===g) ? '' : 'none';
+      t.classList.toggle('active', t.getAttribute('data-view')===v);
+    });
+  }
+
   /* ============ RENDER: SHELL ============ */
   function renderAll(){
+    updateNavUI(STATE.view);
     document.getElementById('countCurrent').textContent = currentWorkOrders().length;
     document.getElementById('countYearly').textContent = ordersList().length;
     var main = document.getElementById('main');
@@ -1351,13 +1411,11 @@
   }
   function setView(v){
     STATE.view = v; STATE.currentOrderId = null;
-    document.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-view')===v); });
     renderAll();
     window.scrollTo(0,0);
   }
   function openOrder(id, tab){
     STATE.view='order'; STATE.currentOrderId=id; STATE.orderTab = tab||'vt';
-    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
     renderAll();
     window.scrollTo(0,0);
   }
@@ -4744,6 +4802,17 @@
 
   document.getElementById('tabs').addEventListener('click', function(e){
     var t = e.target.closest('.tab'); if (!t) return; setView(t.getAttribute('data-view'));
+  });
+  document.getElementById('tabGroups').addEventListener('click', function(e){
+    var g = e.target.closest('.tab-group'); if (!g) return;
+    var key = g.getAttribute('data-group');
+    var grp = null;
+    for (var i=0;i<NAV_GROUPS.length;i++){ if (NAV_GROUPS[i].key===key) grp = NAV_GROUPS[i]; }
+    if (!grp) return;
+    // Đang ở nhóm này rồi (và nhóm có vài tab con) -> chỉ mở/giữ hàng tab con,
+    // khỏi nhảy về tab đầu tiên nếu đã chọn 1 tab con khác trong nhóm.
+    if (grp.views.indexOf(STATE.view)>=0) { STATE.navGroup = key; renderAll(); return; }
+    setView(grp.views[0]);
   });
   document.getElementById('brandHome').addEventListener('click', function(){ setView('dashboard'); });
   document.getElementById('btnNewOrder').addEventListener('click', openNewOrderModal);
