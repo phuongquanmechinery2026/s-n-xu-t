@@ -1,0 +1,13 @@
+{
+  "name": "nha-may-san-xuat-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nha May San Xuat Phuong Quan - ban chay tren web (Render)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
