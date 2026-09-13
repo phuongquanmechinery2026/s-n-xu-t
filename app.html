@@ -674,7 +674,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-09-13b-may';
+  var BUILD_ID = '2026-09-13c-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -4065,6 +4065,11 @@
       var equip = row[C.equip]!=null ? String(row[C.equip]).trim() : null;
       var req = row[C.req]!=null ? String(row[C.req]).trim().toUpperCase() : null;
       var status = row[C.status]!=null ? String(row[C.status]).trim().toUpperCase() : null;
+      // Sheet ghi tắt "S.XUẤT XONG" thay vì "SẢN XUẤT XONG" ở khá nhiều dòng
+      // (xác nhận thực tế: 31 dòng) — không quy về đúng chữ thì app không
+      // khớp được với STATUS_OPTIONS, ô "Kết quả" hiện trống trơn dù Sheet đã
+      // ghi rõ là xong việc rồi (đúng lỗi anh Quốc báo 2026-09-13).
+      if (status === 'S.XUẤT XONG' || status === 'S XUẤT XONG' || status === 'S.XUẤT XONG.') status = 'SẢN XUẤT XONG';
       if (rowMeta[r] && rowMeta[r].hidden && status!=='ĐÃ GIAO' && status!=='SẢN XUẤT XONG'){
         status = 'SẢN XUẤT XONG';
       }
