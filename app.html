@@ -674,7 +674,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-09-13c-may';
+  var BUILD_ID = '2026-09-13d-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1036,23 +1036,14 @@
 
   function ordersList(){ return Object.keys(STATE.orders).map(function(k){return STATE.orders[k];}); }
   function activeOrders(){ return ordersList().filter(function(o){return !o.legacy;}); }
-  // "Công việc hiện tại" = đơn còn hạng mục nào đó THẬT SỰ chưa xong sản xuất.
-  // Trước đây chỉ loại đơn có rollupStatus==='ĐÃ GIAO' (tức là loại khi TẤT
-  // CẢ hạng mục đều "Đã giao") — nên 1 đơn mà mọi hạng mục đã "Sản xuất xong"
-  // (chỉ còn thiếu bấm "Đã giao" xác nhận) vẫn nằm lì trong "Công việc hiện
-  // tại", trong khi ở xưởng coi như xong việc rồi (phản hồi 2026-09-13: sheet
-  // đếm 18 đơn đang làm, app hiện lại tới 36 — vì nhiều đơn đã ẩn/xong hết
-  // hạng mục trên Sheet nhưng chưa ai bấm "Đã giao"). Nay loại thêm cả đơn mà
-  // MỌI hạng mục đã "Sản xuất xong" hoặc "Đã giao" (không còn gì phải làm).
-  function currentWorkOrders(){
-    return activeOrders().filter(function(o){
-      if (rollupStatus(o)==='ĐÃ GIAO') return false;
-      var items = namedItems(o.items||[]);
-      if (!items.length) return true;
-      var allDone = items.every(function(it){ return it.status==='SẢN XUẤT XONG' || it.status==='ĐÃ GIAO'; });
-      return !allDone;
-    });
-  }
+  // "Công việc hiện tại" = đơn chưa "Đã giao" (giữ ĐÚNG quy tắc gốc — không tự
+  // suy diễn thêm "mọi hạng mục Sản xuất xong thì coi như xong đơn", vì đó là
+  // phán đoán riêng của phần mềm, không phải điều anh Quốc yêu cầu, và đã gây
+  // lệch số so với cách anh đếm tay trên Sheet). Tín hiệu "đơn đã xong hẳn"
+  // CHỈ đến từ đúng 1 chỗ: parseLichTrinh() tự đánh dấu "ĐÃ GIAO" khi TOÀN BỘ
+  // hạng mục của 1 đơn đã bị ẨN trên Sheet (ẩn cả cụm — không phải ẩn lẻ vài
+  // dòng), lúc đó rollupStatus() ở đây tự nhiên trả về 'ĐÃ GIAO' rồi.
+  function currentWorkOrders(){ return activeOrders().filter(function(o){return rollupStatus(o)!=='ĐÃ GIAO';}); }
 
   function saveOrder(order){
     STATE.orders[order.id] = order;
@@ -4057,7 +4048,21 @@
     var rowMeta = sh['!rows'] || [];
     var C = {code:1, info:2, equip:3, req:4, banve:5, vattu:6, tien:7, date:8, status:10, note:11};
     var orders = []; var cur=null, curCluster=null;
-    function flush(){ if (cur) orders.push(cur); cur=null; }
+    // Đơn mà TOÀN BỘ hạng mục đều bị ẨN (anh Quốc ẩn cả cụm khi xong hẳn, không
+    // phải ẩn lẻ vài dòng) coi như đã xong hoàn toàn -> đánh dấu "ĐÃ GIAO" để
+    // tự rời khỏi "Công việc hiện tại". Đơn CHỈ ẨN MỘT PHẦN (còn hạng mục nào
+    // đó vẫn hiện) vẫn tính là đang làm — không tự suy diễn "sản xuất xong
+    // hết thì coi như xong đơn", tránh đúng lỗi bị nhắc "tự ý chỉnh sửa".
+    function flush(){
+      if (cur){
+        if (cur._itemCount>0 && cur._hiddenCount===cur._itemCount){
+          cur.items.forEach(function(it){ it.status = 'ĐÃ GIAO'; });
+        }
+        delete cur._itemCount; delete cur._hiddenCount;
+        orders.push(cur);
+      }
+      cur=null;
+    }
     for (var r=hIdx+1; r<rows.length; r++){
       var row = rows[r]||[];
       var code = row[C.code]!=null ? String(row[C.code]).trim().replace(/\s+/g,'') : null;
@@ -4070,7 +4075,8 @@
       // khớp được với STATUS_OPTIONS, ô "Kết quả" hiện trống trơn dù Sheet đã
       // ghi rõ là xong việc rồi (đúng lỗi anh Quốc báo 2026-09-13).
       if (status === 'S.XUẤT XONG' || status === 'S XUẤT XONG' || status === 'S.XUẤT XONG.') status = 'SẢN XUẤT XONG';
-      if (rowMeta[r] && rowMeta[r].hidden && status!=='ĐÃ GIAO' && status!=='SẢN XUẤT XONG'){
+      var isHiddenRow = !!(rowMeta[r] && rowMeta[r].hidden);
+      if (isHiddenRow && status!=='ĐÃ GIAO' && status!=='SẢN XUẤT XONG'){
         status = 'SẢN XUẤT XONG';
       }
       var note = row[C.note]!=null ? String(row[C.note]).trim() : null;
@@ -4082,12 +4088,13 @@
       if (isNewOrder){
         flush();
         cur = {code:code, customerInfo:info, requirement:req, note:note, items:[], progressSnapshots:[]};
+        cur._itemCount = 0; cur._hiddenCount = 0;
         curCluster = null;
         if (req===null && equip){
           curCluster = equip;
           if (hasSnap) cur.progressSnapshots.push({cluster:curCluster, banve:banve, vattu:vattu, tien:tien, deliveryDate:date});
         } else {
-          if (equip) cur.items.push({name:equip, requirement:req, status:status, note:note, cluster:null, qc:null});
+          if (equip){ cur.items.push({name:equip, requirement:req, status:status, note:note, cluster:null, qc:null}); cur._itemCount++; if (isHiddenRow) cur._hiddenCount++; }
           if (hasSnap) cur.progressSnapshots.push({cluster:null, banve:banve, vattu:vattu, tien:tien, deliveryDate:date});
         }
       } else {
@@ -4096,7 +4103,7 @@
           if (equip) curCluster = equip;
           if (hasSnap) cur.progressSnapshots.push({cluster:curCluster, banve:banve, vattu:vattu, tien:tien, deliveryDate:date});
         } else {
-          if (equip) cur.items.push({name:equip, requirement:req, status:status, note:note, cluster:curCluster, qc:null});
+          if (equip){ cur.items.push({name:equip, requirement:req, status:status, note:note, cluster:curCluster, qc:null}); cur._itemCount++; if (isHiddenRow) cur._hiddenCount++; }
           if (hasSnap) cur.progressSnapshots.push({cluster:curCluster, banve:banve, vattu:vattu, tien:tien, deliveryDate:date});
         }
       }
