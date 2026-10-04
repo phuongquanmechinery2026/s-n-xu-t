@@ -631,7 +631,7 @@
     --accent:#1d4f7c; --accent-ink:#ffffff; --accent-soft:#e3edf6;
     --good:#0b6e5f; --good-soft:#dcf1ec;
     --warn:#8a5a00; --warn-soft:#fbeccb;
-    --bad:#b3261e; --bad-soft:#fbe3e0;
+    --bad:#c0362c; --bad-soft:#fbe6e3;
     --info:#1d4f7c; --info-soft:#e3edf6;
     --shadow-1:0 0 0 rgba(0,0,0,0);
     --shadow-2:0 8px 24px rgba(22,32,43,0.16);
@@ -640,14 +640,14 @@
     --font-body:'Be Vietnam Pro','Segoe UI',system-ui,sans-serif;
     --font-mono:'JetBrains Mono',Consolas,ui-monospace,monospace;
     --excel-head1:#e9ebe8; --excel-head2:#f3f4f2; --excel-head-fg:#55616d;
-    --cluster-bg:#16202b; --cluster-fg:#eef1f3;
-    --st-chuasx-bg:#e9ebe8; --st-chuasx-fg:#55616d;
-    --st-dangsx-bg:#1d4f7c; --st-dangsx-fg:#ffffff;
-    --st-xuatxong-bg:#0b6e5f; --st-xuatxong-fg:#ffffff;
-    --st-daogiao-bg:#0a3f38; --st-daogiao-fg:#ffffff;
+    --cluster-bg:#dde6ee; --cluster-fg:#16202b;
+    --st-chuasx-bg:#d3d7d2; --st-chuasx-fg:#55616d;
+    --st-dangsx-bg:#2f6ea3; --st-dangsx-fg:#ffffff;
+    --st-xuatxong-bg:#1f8a78; --st-xuatxong-fg:#ffffff;
+    --st-daogiao-bg:#0b6e5f; --st-daogiao-fg:#ffffff;
     --st-tamhoan-bg:#e8930c; --st-tamhoan-fg:#16202b;
     --st-none-bg:#f3f4f2; --st-none-fg:#6f7a84;
-    --st-bad-bg:#b3261e; --st-bad-fg:#ffffff;
+    --st-bad-bg:#c0362c; --st-bad-fg:#ffffff;
     --grid-line:#d3d7d2;
     --pq-accent:#e8930c; --pq-on-accent:#16202b;
   }
@@ -663,7 +663,7 @@
       --info:#7db4e6; --info-soft:#1c2f42;
       --shadow-1:0 0 0 rgba(0,0,0,0); --shadow-2:0 8px 24px rgba(0,0,0,0.5);
       --excel-head1:#0d1114; --excel-head2:#151a1f; --excel-head-fg:#a3adb6;
-      --cluster-bg:#2e363e; --cluster-fg:#eef1f3;
+      --cluster-bg:#25323f; --cluster-fg:#eef1f3;
       --st-chuasx-bg:#232b33; --st-chuasx-fg:#a3adb6;
       --st-dangsx-bg:#7db4e6; --st-dangsx-fg:#0d1114;
       --st-xuatxong-bg:#5fd0b8; --st-xuatxong-fg:#0d1114;
@@ -686,7 +686,7 @@
     --info:#7db4e6; --info-soft:#1c2f42;
     --shadow-1:0 0 0 rgba(0,0,0,0); --shadow-2:0 8px 24px rgba(0,0,0,0.5);
     --excel-head1:#0d1114; --excel-head2:#151a1f; --excel-head-fg:#a3adb6;
-    --cluster-bg:#2e363e; --cluster-fg:#eef1f3;
+    --cluster-bg:#25323f; --cluster-fg:#eef1f3;
     --st-chuasx-bg:#232b33; --st-chuasx-fg:#a3adb6;
     --st-dangsx-bg:#7db4e6; --st-dangsx-fg:#0d1114;
     --st-xuatxong-bg:#5fd0b8; --st-xuatxong-fg:#0d1114;
@@ -758,6 +758,28 @@
     .topbar{padding:8px 16px;}
     main{padding:16px;}
   }
+  /* ----- Hài hoà màu (BUILD 2026-10-04d): bỏ các mảng đặc tối, dùng nền nhạt + chữ màu ----- */
+  .plan-week-head{background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-bottom:none;font-weight:700;}
+  .plan-week-head.overdue{background:var(--bad-soft);color:var(--bad);border-color:var(--border);}
+  .dept-btn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+  select.status-cell.st-chuasx{background:var(--surface-2);color:var(--text-muted);}
+  select.status-cell.st-dangsx{background:var(--accent-soft);color:var(--accent);}
+  select.status-cell.st-xuatxong{background:var(--good-soft);color:var(--good);}
+  select.status-cell.st-daogiao{background:var(--good);color:var(--surface);}
+  select.status-cell.st-tamhoan{background:var(--warn-soft);color:var(--warn);}
+  select.status-cell option{background:var(--surface);color:var(--text);}
+  input.mat-status-input.mst-good{background:var(--good-soft)!important;color:var(--good)!important;}
+  input.mat-status-input.mst-info{background:var(--accent-soft)!important;color:var(--accent)!important;}
+  input.mat-status-input.mst-warn{background:var(--warn-soft)!important;color:var(--warn)!important;}
+  input.mat-status-input.mst-bad{background:var(--bad-soft)!important;color:var(--bad)!important;}
+  input.mat-status-input.mst-neutral{background:var(--surface-2)!important;color:var(--text-muted)!important;}
+  table.mat-table tr.mat-section td.mat-sec-act .btn{background:var(--surface);color:var(--text);border-color:var(--border-strong);}
+  .cluster-name-input{background:var(--surface);border-color:var(--border);}
+  table.esheet td.section-divider-cell{color:var(--text);}
+  .cal-chip.lc-wait,.lc-dot.lc-wait{color:var(--text);}
+  table.mat-table tr.mat-section input::placeholder{color:var(--text-muted);}
+  table.mat-table tr.mat-section input:hover,table.mat-table tr.mat-section input:focus{border-color:var(--border-strong);background:var(--surface);}
+  table.mat-table tr.mat-section td.mat-sec-act .btn:hover{background:var(--surface-2);}
 </style>
 
 <div id="app">
@@ -826,7 +848,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-04c-may';
+  var BUILD_ID = '2026-10-04d-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
