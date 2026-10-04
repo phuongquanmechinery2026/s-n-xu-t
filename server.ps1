@@ -151,6 +151,19 @@ while ($listener.IsListening) {
       } else { Send-Text $ctx 404 'no sheet file' }
       continue
     }
+    if ($path -eq '/api/fetch-electric') {
+      # Tai ban moi nhat cua Sheet Dien (cong khai) ve _local\electric.xlsx
+      try {
+        $dst = Find-File '_local\electric.xlsx' 'electric.xlsx'
+        $tmp = $dst + '.tmp'
+        $ProgressPreference = 'SilentlyContinue'
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -UseBasicParsing -Uri 'https://docs.google.com/spreadsheets/d/1wANQ2lRELrHSlTb5QcwQVOXEeqTZgCogv0iW6ptpCok/export?format=xlsx' -OutFile $tmp -TimeoutSec 180
+        if ((Get-Item $tmp).Length -gt 100000) { Move-Item -Force $tmp $dst; Send-Json $ctx 200 @{ ok = $true; bytes = (Get-Item $dst).Length } }
+        else { Remove-Item -Force $tmp; Send-Json $ctx 200 @{ ok = $false; error = 'file too small' } }
+      } catch { try { Send-Json $ctx 200 @{ ok = $false; error = ("$_") } } catch {} }
+      continue
+    }
     if ($path -eq '/favicon.ico' -or $path -eq '/_local/icon.png') {
       if ($ICON_BYTES) { Send-Bytes $ctx 200 'image/png' $ICON_BYTES } else { Send-Text $ctx 404 'no icon' }
       continue

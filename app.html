@@ -164,6 +164,12 @@
   .tab-group{padding:8px 16px;border-radius:99px;font-weight:800;font-size:13px;color:var(--text-muted);cursor:pointer;border:1px solid var(--border-strong);background:var(--bg);white-space:nowrap;}
   .tab-group:hover:not(.active){color:var(--text);}
   .tab-group.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  /* Công tắc bộ phận Cơ khí | Điện — đổi là toàn bộ các tab chỉ hiện đơn của bộ phận đó */
+  .dept-bar{display:flex;align-items:center;gap:6px;padding:10px 20px 0;background:var(--surface);}
+  .dept-lbl{font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px;}
+  .dept-btn{padding:6px 18px;border-radius:var(--radius-m);font-weight:800;font-size:13px;cursor:pointer;border:2px solid var(--border-strong);background:var(--bg);color:var(--text-muted);}
+  .dept-btn.active{background:var(--text);color:var(--surface);border-color:var(--text);}
+  .dept-btn[data-dept="dien"].active{background:#c98a00;border-color:#c98a00;color:#fff;}
   .tabs{display:flex;gap:4px;padding:10px 20px 0;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;}
   .tab{
     padding:9px 14px;border-radius:var(--radius-m) var(--radius-m) 0 0;font-weight:700;font-size:13px;color:var(--text-muted);
@@ -636,6 +642,7 @@
     <button class="btn btn-primary" id="btnNewOrder">+ Đơn hàng mới</button>
   </div>
   <div id="banner"></div>
+  <div class="dept-bar" id="deptBar"><span class="dept-lbl">Bộ phận:</span><button type="button" class="dept-btn active" data-dept="cokhi">Cơ khí</button><button type="button" class="dept-btn" data-dept="dien">Điện</button></div>
   <div class="tabs-groups" id="tabGroups">
     <div class="tab-group active" data-group="tongquan">Tổng quan</div>
     <div class="tab-group" data-group="donhang">Đơn hàng</div>
@@ -674,7 +681,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-09-13d-may';
+  var BUILD_ID = '2026-10-04a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -729,8 +736,10 @@
     lichDay: null,           // ngày đang chọn trong lịch (yyyy-mm-dd)
     tdPeriod: 'month',       // báo cáo tiến độ: 'week' | 'month' | 'year'
     tdRef: null,             // mốc ISO 'yyyy-mm-dd' — kỳ đang xem suy ra từ đây
-    navGroup: null           // nhóm tab cấp 1 đang mở ('tongquan'/'donhang'/...)
+    navGroup: null,          // nhóm tab cấp 1 đang mở ('tongquan'/'donhang'/...)
+    dept: 'cokhi'            // bộ phận đang xem: 'cokhi' | 'dien' (đơn Điện có dept:'dien', id bắt đầu "D-")
   };
+  try{ if (localStorage.getItem('nmsx_dept')==='dien'){ STATE.dept='dien'; STATE.sheetNs='electric'; } else { STATE.sheetNs='cokhi'; } }catch(e){}
 
   var STATUS_OPTIONS = [
     ['CHƯA SẢN XUẤT','Chưa sản xuất'],
@@ -1034,7 +1043,12 @@
     flushWriteQueue(id);
   }
 
-  function ordersList(){ return Object.keys(STATE.orders).map(function(k){return STATE.orders[k];}); }
+  // Chỉ trả đơn của BỘ PHẬN đang chọn (Cơ khí | Điện). Đơn cũ chưa có dept = Cơ khí.
+  function orderDept(o){ return (o && o.dept==='dien') ? 'dien' : 'cokhi'; }
+  function ordersList(){
+    var want = STATE.dept;
+    return Object.keys(STATE.orders).map(function(k){return STATE.orders[k];}).filter(function(o){ return orderDept(o)===want; });
+  }
   function activeOrders(){ return ordersList().filter(function(o){return !o.legacy;}); }
   // "Công việc hiện tại" = đơn chưa "Đã giao" (giữ ĐÚNG quy tắc gốc — không tự
   // suy diễn thêm "mọi hạng mục Sản xuất xong thì coi như xong đơn", vì đó là
@@ -1354,8 +1368,29 @@
   }
 
   /* ============ RENDER: SHELL ============ */
+  function updateDeptUI(){
+    document.querySelectorAll('#deptBar .dept-btn').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-dept')===STATE.dept); });
+    var sb = document.getElementById('btnSync');
+    if (sb) sb.title = STATE.dept==='dien' ? 'Đồng bộ đơn Điện từ Google Sheet Điện' : 'Đồng bộ đơn Cơ khí từ Google Sheet Cơ khí';
+  }
+  function setDept(d){
+    d = (d==='dien') ? 'dien' : 'cokhi';
+    if (STATE.dept===d) return;
+    STATE.dept = d;
+    try{ localStorage.setItem('nmsx_dept', d); }catch(e){}
+    // trang "Sheets tham khảo" mở đúng sheet của bộ phận
+    STATE.sheetNs = (d==='dien') ? 'electric' : 'cokhi';
+    STATE.electric = null; STATE._eleMetaTried = false; STATE.electricSheet = 0; STATE._eleResults = null; STATE._eleQ = '';
+    STATE.statusFilter = 'ALL';
+    var si = document.getElementById('searchInput'); if (si) si.value = ''; STATE.search = '';
+    STATE.currentOrderId = null;
+    if (STATE.view==='order') STATE.view = 'dashboard';
+    renderAll();
+    window.scrollTo(0,0);
+  }
   function renderAll(){
     updateNavUI(STATE.view);
+    updateDeptUI();
     document.getElementById('countCurrent').textContent = currentWorkOrders().length;
     document.getElementById('countYearly').textContent = ordersList().length;
     var main = document.getElementById('main');
@@ -3193,13 +3228,14 @@
       var customer = document.getElementById('nfCustomer').value.trim();
       var date = document.getElementById('nfDate').value;
       if (!code || !customer || !date){ toast('Vui lòng nhập đủ Mã đơn hàng, Thông tin khách hàng và Ngày giao.'); return; }
-      var id = sanitizeCode(code);
+      var id = (STATE.dept==='dien' ? 'D-' : '') + sanitizeCode(code);
       if (STATE.orders[id]){ toast('Mã đơn hàng này đã tồn tại.'); return; }
       var req = document.getElementById('nfReq').value || null;
       var status = document.getElementById('nfStatus2').value || null;
       var equipName = document.getElementById('nfEquipment').value.trim();
       var order = {
         id:id, code:code, legacy:false, customerInfo:composeCustomerInfo(customer, equipName), requirement:req, note:null,
+        dept: (STATE.dept==='dien' ? 'dien' : undefined),
         items: [],
         progressSnapshots: date ? [{cluster:null, banve:null, vattu:null, tien:null, deliveryDate:date}] : [],
         materials:[], progress:[], sourceSheets:[]
@@ -4152,6 +4188,7 @@
   }
 
   function runSheetSync(){
+    if (STATE.dept==='dien') return runElectricSync();
     showConfirmModal(
       'Đồng bộ sẽ lấy dữ liệu mới nhất từ Google Sheet gốc và GHI ĐÈ thông tin, danh sách hạng mục & vật tư của các đơn hàng khớp mã (đúng như đã thống nhất: sheet Excel là nguồn chính trong giai đoạn thử nghiệm). Đơn hàng chỉ có trong app (chưa có trong Sheet) sẽ được giữ nguyên. Tiếp tục?',
       doRunSheetSync,
@@ -4270,6 +4307,200 @@
       else if (code==='tool_error') msg = 'Google Drive báo lỗi khi đọc file: ' + (err.message||'');
       else if (err && err.message) msg = 'Lỗi: '+err.message;
       body.innerHTML = '⚠️ '+esc(msg);
+    });
+  }
+
+  /* ============ ĐỒNG BỘ BỘ PHẬN ĐIỆN ============
+     Sheet Điện: "ĐƠN HÀNG 2026" (mỗi dòng 1 đơn) + các sheet vật tư riêng của từng đơn.
+     Đơn Điện lưu với dept:'dien', id "D-<mã>", tách hẳn khỏi đơn Cơ khí. */
+  function eleFirstLine(v){
+    if (v==null) return '';
+    var parts = String(v).split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean);
+    return parts[0] || '';
+  }
+  function eleStatusMap(raw){
+    var t = norm(raw);
+    if (t.indexOf('hoan thien')!==-1) return 'ĐÃ GIAO';
+    if (t.indexOf('dang trien khai')!==-1) return 'ĐANG SẢN XUẤT';
+    if (t.indexOf('chua trien khai')!==-1) return 'CHƯA SẢN XUẤT';
+    if (t.indexOf('hoan')!==-1 && t.indexOf('tam')!==-1) return 'TẠM HOÃN';
+    return 'CHƯA SẢN XUẤT';
+  }
+  function eleParseOrders(wb){
+    var shName = wb.SheetNames.find(function(n){ return norm(n)==='don hang 2026'; });
+    if (!shName) return [];
+    var rows = window.XLSX.utils.sheet_to_json(wb.Sheets[shName], {header:1, raw:true, defval:null});
+    var hIdx = findHeaderRow(rows, ['ma don hang','trang thai']);
+    if (hIdx<0) return [];
+    var h = rows[hIdx];
+    var C = {
+      stt: colIndexByHeader(h,['stt']), code: colIndexByHeader(h,['ma don hang']), name: -1,
+      lh: colIndexByHeader(h,['lh']), date: colIndexByHeader(h,['thoi gian giao']), status: colIndexByHeader(h,['trang thai']),
+      prog: colIndexByHeader(h,['tien do']), cust: colIndexByHeader(h,['khach hang']), note: colIndexByHeader(h,['ghi chu'])
+    };
+    // cột tên đơn: tiêu đề đúng là "ĐƠN HÀNG" (khác cột "MÃ ĐƠN HÀNG")
+    for (var c=0;c<h.length;c++){ if (norm(h[c])==='don hang'){ C.name=c; break; } }
+    var out = [], used = {};
+    for (var r=hIdx+1; r<rows.length; r++){
+      var row = rows[r]||[];
+      var name = C.name>=0 && row[C.name]!=null ? String(row[C.name]).split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean).join(' / ') : '';
+      if (!name) continue;
+      var stt = C.stt>=0 && row[C.stt]!=null ? parseInt(row[C.stt],10) : null;
+      var codeRaw = C.code>=0 ? eleFirstLine(row[C.code]) : '';
+      var code = codeRaw ? codeRaw.replace(/\s+/g,'') : ('DIEN-' + (stt!=null && !isNaN(stt) ? ('0'+stt).slice(-2) : (r+1)));
+      var id = 'D-' + sanitizeCode(code.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D'));
+      if (used[id]) id = id + '-' + (stt||r);
+      used[id] = true;
+      var cust = C.cust>=0 && row[C.cust]!=null ? String(row[C.cust]).trim() : '';
+      var lh = C.lh>=0 && row[C.lh]!=null ? String(row[C.lh]).trim().replace(/\s*\n\s*/g,' · ') : '';
+      var info = [cust, lh ? ('LH: '+lh) : ''].filter(Boolean).join('\n');
+      var note = C.note>=0 && row[C.note]!=null ? String(row[C.note]).trim() : null;
+      var prog = C.prog>=0 ? pctVal(row[C.prog]) : null;
+      var date = C.date>=0 ? excelDateToISO(row[C.date]) : null;
+      var status = eleStatusMap(C.status>=0 ? row[C.status] : '');
+      out.push({
+        id:id, code:code, name:name, customerInfo: info || null, note: note || null, status:status,
+        snap: (prog!==null || date) ? [{cluster:null, banve:null, vattu:null, tien:prog, deliveryDate:date}] : [],
+        sheetNames: []
+      });
+    }
+    return out;
+  }
+  // Tìm sheet vật tư của 1 đơn: trùng tên đơn, hoặc tên sheet chứa mã đơn dạng 2026-xxx
+  function eleMatchSheets(sheetNames, ord){
+    var nm = norm(ord.name);
+    var cd = /^\d{4}[-.]\d+/.test(ord.code) ? norm(ord.code).replace(/\s+/g,'') : '';
+    return sheetNames.filter(function(n){
+      var k = norm(n);
+      if (k===nm) return true;
+      return !!cd && k.replace(/\s+/g,'').indexOf(cd)!==-1;
+    });
+  }
+  function eleParseMaterialSheet(wb, shName){
+    var rows = window.XLSX.utils.sheet_to_json(wb.Sheets[shName], {header:1, raw:true, defval:null});
+    var hIdx = findHeaderRow(rows, ['ten thiet bi']);
+    if (hIdx<0) return [];
+    var h = rows[hIdx];
+    var C = {
+      no: colIndexByHeader(h,['stt']), name: colIndexByHeader(h,['ten thiet bi']), code: colIndexByHeader(h,['ma thiet bi']),
+      brand: colIndexByHeader(h,['hang san xuat']), qty: colIndexByHeader(h,['sl','so luong']), unit: colIndexByHeader(h,['dvt']),
+      note: colIndexByHeader(h,['ghi chu']), stat: colIndexByHeader(h,['tinh trang']), sup: colIndexByHeader(h,['nha cung cap']),
+      extra: colIndexByHeader(h,['ngay de xuat','thay the'])
+    };
+    function cell(row,c){ return c>=0 && row[c]!=null && String(row[c]).trim()!=='' ? String(row[c]).trim() : null; }
+    var lines = [];
+    for (var r=hIdx+1; r<rows.length; r++){
+      var row = rows[r]||[];
+      var name = cell(row,C.name);
+      if (!name) continue;
+      var qtyRaw = C.qty>=0 ? row[C.qty] : null;
+      var qty = typeof qtyRaw==='number' ? qtyRaw : (qtyRaw!=null ? (parseFloat(String(qtyRaw).replace(',','.'))||null) : null);
+      var code = cell(row,C.code), brand = cell(row,C.brand), unit = cell(row,C.unit), stat = cell(row,C.stat), sup = cell(row,C.sup);
+      var no = cell(row,C.no);
+      if (qty===null && !code && !brand && !unit && !stat && !sup){
+        lines.push({no:no, name:name, section:true});
+        continue;
+      }
+      if (stat && norm(stat)==='dat hang') stat = 'Đã đặt';
+      var note = [cell(row,C.note), cell(row,C.extra)].filter(Boolean).join(' | ') || null;
+      lines.push({
+        no:no, name:name, spec:[code,brand].filter(Boolean).join(' — ') || null, unit:unit, qty:qty,
+        status:stat, supplier:sup, issuedTo:null, note:note
+      });
+    }
+    return lines;
+  }
+  function runElectricSync(){
+    showConfirmModal(
+      'Đồng bộ BỘ PHẬN ĐIỆN: lấy file Google Sheet Điện mới nhất, GHI ĐÈ thông tin & vật tư của các đơn Điện khớp mã (sheet "ĐƠN HÀNG 2026" + sheet vật tư tương ứng). Chỉ đụng tới đơn Điện — đơn Cơ khí giữ nguyên. Tiếp tục?',
+      doRunElectricSync,
+      {title:'Đồng bộ Sheet Điện', yesLabel:'Đồng bộ ngay'}
+    );
+  }
+  function applyElectricWorkbook(buf, body){
+    return loadXlsx().then(function(XLSXLib){
+      var u8 = new Uint8Array(buf);
+      // File Điện rất nặng (~48MB): đọc danh sách sheet trước, rồi chỉ đọc sheet cần.
+      var names = XLSXLib.read(u8, {type:'array', bookSheets:true}).SheetNames;
+      var orderSheet = names.filter(function(n){ return norm(n)==='don hang 2026'; });
+      if (!orderSheet.length) throw new Error('Không thấy sheet "ĐƠN HÀNG 2026" trong file Điện.');
+      var wb1 = XLSXLib.read(u8, {type:'array', sheets:orderSheet});
+      var ords = eleParseOrders(wb1);
+      if (!ords.length) throw new Error('Sheet "ĐƠN HÀNG 2026" không có đơn nào.');
+      var need = {};
+      ords.forEach(function(o){ o.sheetNames = eleMatchSheets(names, o); o.sheetNames.forEach(function(n){ need[n]=1; }); });
+      var needList = Object.keys(need);
+      body.innerHTML = '<span class="spinner"></span> Đang đọc '+ords.length+' đơn Điện & '+needList.length+' sheet vật tư…';
+      var wb2 = needList.length ? XLSXLib.read(u8, {type:'array', sheets:needList}) : {Sheets:{}, SheetNames:[]};
+      var updated=0, added=0, matSynced=0, log=[];
+      ords.forEach(function(o){
+        var mats = null;
+        if (o.sheetNames.length){
+          mats = [];
+          o.sheetNames.forEach(function(n){
+            var ls = eleParseMaterialSheet(wb2, n);
+            if (o.sheetNames.length>1 && ls.length) mats.push({no:null, name:n, section:true});
+            mats = mats.concat(ls);
+          });
+        }
+        var patch = {
+          dept:'dien', customerInfo:o.customerInfo, requirement:null, note:o.note,
+          items:[{name:o.name, requirement:null, status:o.status, note:null, cluster:null, qc:null}],
+          progressSnapshots:o.snap
+        };
+        if (mats && mats.length){ patch.materials = mats; matSynced++; }
+        if (STATE.orders[o.id]){ Object.assign(STATE.orders[o.id], patch); updated++; }
+        else {
+          STATE.orders[o.id] = Object.assign({id:o.id, code:o.code, legacy:false, materials:mats||[], progress:[], sourceSheets:[]}, patch);
+          added++; log.push('+ Đơn mới: '+o.code+' — '+o.name);
+        }
+        if (typeof normalizeOrder==='function'){ try{ normalizeOrder(STATE.orders[o.id]); }catch(e){} }
+        markDirty(o.id);
+      });
+      renderAll();
+      body.innerHTML = '<span class="spinner"></span> Đang lưu '+(updated+added)+' đơn Điện xuống máy chủ…';
+      var finishMsg = '✓ Đồng bộ Điện xong.<div class="sync-log" style="margin-top:10px;">Đơn cập nhật: '+updated+'\nĐơn mới thêm: '+added+'\nĐơn có vật tư: '+matSynced+(log.length? '\n\n'+log.join('\n') : '')+'</div>';
+      function done(){
+        Object.keys(DIRTY).forEach(function(k){ delete DIRTY[k]; }); lsPersist();
+        body.innerHTML = finishMsg;
+        toast('Đồng bộ Sheet Điện xong: '+updated+' đơn cập nhật, '+added+' đơn mới.');
+      }
+      if (db && STATE.dbWritable && db.collection('orders').setAll){
+        return db.collection('orders').setAll(STATE.orders, {merge:true}).then(done, function(e){
+          body.innerHTML = '⚠️ Cập nhật xong trên màn hình nhưng LƯU máy chủ lỗi: '+esc(e&&e.message||'')+'. Thử bấm "Đồng bộ" lại.';
+        });
+      }
+      var ids = ords.map(function(o){return o.id;});
+      return new Promise(function(resolve){
+        (function step(i){
+          if (i>=ids.length){ done(); resolve(); return; }
+          Promise.all(ids.slice(i,i+10).map(function(id){ return db && STATE.dbWritable ? db.collection('orders').doc(id).set(STATE.orders[id]).catch(function(){}) : null; }))
+            .then(function(){ setTimeout(function(){ step(i+10); }, 400); });
+        })(0);
+      });
+    });
+  }
+  function doRunElectricSync(){
+    closeAnyOpenModal();
+    var backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = '<div class="modal"><h3>Đồng bộ từ Sheet Điện</h3><div id="syncBody"><span class="spinner"></span> Đang tải file Điện mới nhất từ Google Sheet…</div><div class="modal-actions"><button class="btn btn-ghost" id="syncClose">Đóng</button></div></div>';
+    document.body.appendChild(backdrop);
+    var body = document.getElementById('syncBody');
+    document.getElementById('syncClose').onclick = function(){ backdrop.remove(); };
+    // 1) nhờ máy chủ tải bản mới nhất từ Google (sheet Điện công khai); lỗi thì dùng bản đã có
+    fetch('/api/fetch-electric', {method:'POST', cache:'no-store'}).catch(function(){})
+    .then(function(){
+      body.innerHTML = '<span class="spinner"></span> Đang tải file Điện trên máy chủ…';
+      return fetch('/_local/electric.xlsx', {cache:'no-store'});
+    }).then(function(res){
+      if (!res.ok) throw new Error('Chưa có file Điện trên máy chủ (_local/electric.xlsx). Vào tab "Sheets tham khảo" → Sheet Điện để nạp file.');
+      return res.arrayBuffer();
+    }).then(function(buf){
+      body.innerHTML = '<span class="spinner"></span> Đang đọc dữ liệu Excel (file Điện khá nặng, chờ chút)…';
+      return applyElectricWorkbook(buf, body);
+    }).catch(function(err){
+      body.innerHTML = '⚠️ Đồng bộ Điện thất bại: '+esc((err && err.message) || 'lỗi không rõ');
     });
   }
 
@@ -4814,6 +5045,9 @@
 
   document.getElementById('tabs').addEventListener('click', function(e){
     var t = e.target.closest('.tab'); if (!t) return; setView(t.getAttribute('data-view'));
+  });
+  document.getElementById('deptBar').addEventListener('click', function(e){
+    var b = e.target.closest('.dept-btn'); if (!b) return; setDept(b.getAttribute('data-dept'));
   });
   document.getElementById('tabGroups').addEventListener('click', function(e){
     var g = e.target.closest('.tab-group'); if (!g) return;
