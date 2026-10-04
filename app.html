@@ -1142,7 +1142,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-04n-may';
+  var BUILD_ID = '2026-10-04p-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2931,6 +2931,10 @@
   }
   function renderPlan(){
     var act = activeOrders().filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO'; });
+    // Đơn đã sản xuất xong, chờ giao: đưa xuống cuối trang, việc cần làm nằm trên.
+    var waiting = act.filter(orderProdDone).map(function(o){ return {o:o, snap: headlineSnapshot(o)}; });
+    waiting.sort(function(a,b){ var da = a.snap && a.snap.deliveryDate ? a.snap.deliveryDate : '9999', db2 = b.snap && b.snap.deliveryDate ? b.snap.deliveryDate : '9999'; return da<db2 ? -1 : (da>db2 ? 1 : 0); });
+    act = act.filter(function(o){ return !orderProdDone(o); });
     var withHead = act.map(function(o){ return {o:o, snap: headlineSnapshot(o)}; });
     var buckets = {}; var noDate = [];
     withHead.forEach(function(x){
@@ -2961,8 +2965,17 @@
       });
       html += '</div></div>';
     }
-    if (!keys.length && !noDate.length){
+    if (!keys.length && !noDate.length && !waiting.length){
       html += '<div class="panel"><div class="empty-note">Không có đơn nào đang chạy để lập kế hoạch.</div></div>';
+    } else if (!keys.length && !noDate.length){
+      html += '<div class="panel"><div class="empty-note">Không còn việc sản xuất nào cần làm. Các đơn bên dưới đã làm xong, chỉ chờ giao.</div></div>';
+    }
+    if (waiting.length){
+      html += '<div class="plan-week"><div class="plan-week-head">Đã sản xuất xong · chờ giao <span style="font-weight:600;opacity:.85;">('+waiting.length+' mục)</span></div><div class="plan-week-body">';
+      waiting.forEach(function(x){
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+remainingPillForOrder(x.o)+'</div>';
+      });
+      html += '</div></div>';
     }
     return html;
   }
