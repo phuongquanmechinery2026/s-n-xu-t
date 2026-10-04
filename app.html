@@ -681,7 +681,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-04a-may';
+  var BUILD_ID = '2026-10-04b-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -4195,10 +4195,35 @@
       {title:'Đồng bộ từ Google Sheet', yesLabel:'Đồng bộ ngay'}
     );
   }
+  // Sheet "Danh sách đơn hàng": đơn nào anh ẨN hàng ở đó = anh coi là xong. Chỉ áp cho
+  // đơn mà MỌI hạng mục trong "Lịch trình làm việc" đã SẢN XUẤT XONG / ĐÃ GIAO
+  // (không đóng đơn đang làm dở) -> chuyển thành ĐÃ GIAO để rời Kế hoạch / Việc đang làm.
+  function hiddenOrderListCodes(wb){
+    var out = {};
+    var shName = wb.SheetNames.find(function(n){ return norm(n)==='danh sach don hang'; });
+    if (!shName) return out;
+    var sh = wb.Sheets[shName];
+    var rowMeta = sh['!rows'] || [];
+    var rows = window.XLSX.utils.sheet_to_json(sh, {header:1, raw:true, defval:null});
+    for (var r=0; r<rows.length; r++){
+      if (!(rowMeta[r] && rowMeta[r].hidden)) continue;
+      var c = rows[r] && rows[r][1];
+      if (c==null) continue;
+      c = String(c).trim().replace(/\s+/g,'');
+      if (/^\d{4}-/.test(c)) out[c] = true;
+    }
+    return out;
+  }
   // Áp dữ liệu 1 workbook (đã đọc bằng XLSX) vào kho đơn hàng. Dùng chung cho
   // cả 2 nguồn: file trên máy chủ (/_local/cokhi.xlsx) và Google Drive.
   function applySheetWorkbook(wb, body){
     var parsed = parseLichTrinh(wb);
+    var hiddenDone = hiddenOrderListCodes(wb);
+    parsed.orders.forEach(function(row){
+      if (!hiddenDone[row.code] || !row.items.length) return;
+      var allDone = row.items.every(function(it){ return it.status==='SẢN XUẤT XONG' || it.status==='ĐÃ GIAO'; });
+      if (allDone) row.items.forEach(function(it){ it.status = 'ĐÃ GIAO'; });
+    });
     if (!parsed.orders.length){
       body.innerHTML = '⚠️ Không tìm thấy sheet "Lịch trình làm việc" (hoặc sheet rỗng) trong file. Kiểm tra lại file Cơ khí trên máy chủ.';
       return;
