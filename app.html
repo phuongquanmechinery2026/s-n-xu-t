@@ -780,6 +780,77 @@
   table.mat-table tr.mat-section input::placeholder{color:var(--text-muted);}
   table.mat-table tr.mat-section input:hover,table.mat-table tr.mat-section input:focus{border-color:var(--border-strong);background:var(--surface);}
   table.mat-table tr.mat-section td.mat-sec-act .btn:hover{background:var(--surface-2);}
+  /* ----- Dashboard + Đề nghị mua + Cấp phát (BUILD 2026-10-04e) ----- */
+  .pqd-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+  .pqd-head h1{font-size:22px;line-height:28px;}
+  .pqd-sub{color:var(--text-muted);margin-top:2px;font-size:13px;}
+  .pqd-meta,.pqd-cap{font-size:12px;color:var(--text-muted);font-weight:400;}
+  .pqd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px;}
+  .pqd-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-l);padding:16px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:center;}
+  .pqd-kpi[data-pq],.pqd-kpi[data-goto-mrp]{cursor:pointer;}
+  .pqd-kpi[data-pq]:hover,.pqd-kpi[data-goto-mrp]:hover{border-color:var(--border-strong);}
+  .pqd-ic{grid-row:span 3;width:44px;height:44px;border-radius:var(--radius-l);display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);}
+  .pqd-ic.bad{background:var(--bad-soft);color:var(--bad);}.pqd-ic.warn{background:var(--warn-soft);color:var(--warn);}.pqd-ic.good{background:var(--good-soft);color:var(--good);}
+  .pqd-kl{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);}
+  .pqd-kv{font-family:var(--font-body);font-size:28px;line-height:34px;font-weight:700;}
+  .pqd-delta{font-size:12px;color:var(--text-muted);}
+  .pqd-delta.up{color:var(--good);}.pqd-delta.down{color:var(--bad);}
+  .pqd-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;align-items:stretch;}
+  .pqd-grid>.s4{grid-column:span 4;}.pqd-grid>.s6{grid-column:span 6;}.pqd-grid>.s8{grid-column:span 8;}
+  .pqd-grid>div{min-width:0;display:flex;}
+  .pqd-card{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .pqd-pad{padding:16px 18px;}
+  .pqd-svg{width:100%;height:auto;display:block;}
+  .pqd-gl{stroke:var(--border);stroke-width:1;}
+  .pqd-ax{font:400 11px var(--font-mono);fill:var(--text-muted);}
+  .pqd-axb{font-weight:600;fill:var(--text);}
+  .pqd-cur{fill:var(--surface-2);}
+  .pqd-f-good{fill:var(--good);}.pqd-f-bad{fill:var(--bad);}.pqd-f-acc{fill:var(--accent);}
+  .pqd-donut{display:flex;gap:20px;align-items:center;justify-content:center;flex-wrap:wrap;padding:18px;flex:1;}
+  .pqd-donut .donut{width:150px;height:150px;}
+  .pqd-donut .donut-hole{inset:24px;}
+  .pqd-donut .donut-hole b{font-size:28px;}
+  .pqd-donut .donut-legend{font-size:13px;gap:8px;}
+  .pqd-donut .donut-legend .dl b{font-size:14px;}
+  .pqd-donut .donut-legend .dl i{width:10px;height:10px;border-radius:2px;}
+  .pqd-rank{width:22px;height:22px;border-radius:50%;background:var(--surface-2);color:var(--text-muted);font:600 11px var(--font-mono);display:grid;place-items:center;flex:none;}
+  .pqd-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;}
+  .pqd-cal-h{font-size:11px;font-weight:600;color:var(--text-muted);text-align:center;padding-bottom:2px;}
+  .pqd-cal-d{position:relative;height:34px;border-radius:var(--radius-m);display:grid;place-items:center;font:500 12px var(--font-mono);color:var(--text);border:1px solid transparent;}
+  .pqd-cal-d i{position:absolute;top:1px;right:3px;font:600 9px var(--font-mono);font-style:normal;}
+  .pqd-cal-d.late{background:var(--bad-soft);color:var(--bad);border-color:var(--bad);}
+  .pqd-cal-d.plan{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
+  .pqd-cal-d.done{background:var(--good-soft);color:var(--good);border-color:var(--good);}
+  .pqd-cal-d.today{outline:2px solid var(--text);outline-offset:1px;font-weight:700;}
+  .pqd-hb{margin-bottom:12px;}
+  .pqd-hb-l{display:flex;justify-content:space-between;gap:8px;font-size:13px;margin-bottom:4px;}
+  .pqd-hb-t{height:10px;border-radius:var(--radius-s);background:var(--accent-soft);overflow:hidden;min-width:8px;}
+  .pqd-hb-t i{display:block;height:100%;background:var(--accent);border-radius:var(--radius-s);}
+  .pqd-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 18px;}
+  .pqd-foot{padding:10px 18px;font-size:12px;color:var(--text-muted);}
+  .pqd-inp{font:400 14px/20px var(--font-body);height:36px;padding:0 12px;border:1px solid var(--border-strong);border-radius:var(--radius-m);background:var(--surface);color:var(--text);width:100%;}
+  .pqd-qty{width:110px;height:30px;text-align:right;}
+  .pqd-err{font-size:13px;color:var(--bad);}
+  .pqd-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:16px 18px 4px;}
+  .pqd-form .field.span2{grid-column:span 2;}
+  .pqd-form .field label{display:block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;}
+  table.pqd-table{width:100%;}
+  table.pqd-table th.r,table.pqd-table td.r{text-align:right;}
+  table.pqd-table tr.pqd-click{cursor:pointer;}
+  table.pqd-table tr.pqd-on td{background:var(--accent-soft);}
+  table.pqd-table input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);pointer-events:none;}
+  .pqd-slip{border-bottom:1px solid var(--border);}
+  .pqd-slip:last-child{border-bottom:none;}
+  .pqd-slip summary{display:flex;gap:12px;align-items:center;padding:11px 18px;cursor:pointer;list-style:none;}
+  .pqd-slip summary::-webkit-details-marker{display:none;}
+  .pqd-slip summary:hover{background:var(--surface-2);}
+  .pqd-id{font-weight:600;min-width:104px;}
+  .pqd-slip summary>.pqd-cap,.pqd-slip summary>.pill,.pqd-slip summary>.pqd-id{flex:none;}
+  table.pqd-table td .pqd-cap{display:block;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pqd-grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pqd-slip-body{padding:4px 18px 16px;}
+  @media (max-width:1100px){.pqd-grid>.s4,.pqd-grid>.s6,.pqd-grid>.s8{grid-column:span 12;}}
+  @media (max-width:640px){.pqd-form .field.span2{grid-column:span 1;}.pqd-slip summary{flex-wrap:wrap;}}
 </style>
 
 <div id="app">
@@ -800,6 +871,8 @@
       <div class="pq-navlbl">Vật tư &amp; Kho</div>
       <div class="tab" data-view="mrp" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/></svg>Vật tư cần mua</div>
       <div class="tab" data-view="reqdate" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-9-9"/></svg>Vật tư theo ngày yêu cầu</div>
+      <div class="tab" data-view="pr" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"/></svg>Đề nghị mua</div>
+      <div class="tab" data-view="issue" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Cấp phát vật tư</div>
       <div class="tab" data-view="kho" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10l8-6 8 6v10H4zM9 20v-6h6v6"/></svg>Kho &amp; Chất lượng</div>
       <div class="pq-navlbl">Kế hoạch</div>
       <div class="tab" data-view="plan" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"/></svg>Kế hoạch</div>
@@ -848,7 +921,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-04d-may';
+  var BUILD_ID = '2026-10-04e-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1511,7 +1584,7 @@
   var NAV_GROUPS = [
     {key:'tongquan', label:'Tổng quan', views:['dashboard']},
     {key:'donhang',  label:'Đơn hàng',  views:['current','yearly']},
-    {key:'vattukho', label:'Vật tư & Kho', views:['mrp','reqdate','kho']},
+    {key:'vattukho', label:'Vật tư & Kho', views:['mrp','reqdate','pr','issue','kho']},
     {key:'kehoach',  label:'Kế hoạch', views:['plan','lich','tiendo']},
     {key:'sheets',   label:'Sheets tham khảo', views:['electric']}
   ];
@@ -1562,8 +1635,8 @@
     document.getElementById('countYearly').textContent = ordersList().length;
     var main = document.getElementById('main');
     // Màn hình bảng/chi tiết -> rộng gần hết màn hình; Tổng quan/Kế hoạch -> vừa phải.
-    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo'].indexOf(STATE.view)>=0);
-    if (STATE.view==='dashboard') main.innerHTML = renderDashboard();
+    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo','pr','issue'].indexOf(STATE.view)>=0);
+    if (STATE.view==='dashboard') main.innerHTML = renderDashboardPQ();
     else if (STATE.view==='current'){
       // Khi lọc "Đã giao": phải hiện được các đơn ĐÃ giao (không thì bấm chip
       // "Đã giao" ra bảng trống — lỗi anh Quốc báo). Các lọc khác giữ nguyên
@@ -1580,6 +1653,8 @@
     else if (STATE.view==='lich') main.innerHTML = renderLich();
     else if (STATE.view==='tiendo') main.innerHTML = renderTienDo();
     else if (STATE.view==='kho') main.innerHTML = renderKho();
+    else if (STATE.view==='pr') main.innerHTML = renderPR();
+    else if (STATE.view==='issue') main.innerHTML = renderIssue();
     else if (STATE.view==='electric') main.innerHTML = renderElectric();
     wireDynamic();
     resyncStatusColors();
@@ -5297,6 +5372,470 @@
   document.getElementById('main').addEventListener('click', function(e){
     var chipEl = e.target.closest('.chip');
     if (chipEl){ STATE.statusFilter = chipEl.getAttribute('data-filter'); renderAll(); }
+  });
+
+  /* ==========================================================================
+     PQ MỞ RỘNG (BUILD 2026-10-04e): Tổng quan kiểu dashboard + Đề nghị mua vật tư
+     + Cấp phát vật tư. Dữ liệu mới nằm ở 2 ngăn riêng trong kho: "purchase"
+     (phiếu đề nghị mua) và "issues" (phiếu cấp phát), không đổi cấu trúc đơn hàng.
+     ========================================================================== */
+  var PQX = {pr:{}, iss:{}, sub:false, lsDone:false, sel:{}, prQ:'', issOrder:'', issDraft:{}, issForm:{}, kpi:{}, kpiTried:{}};
+  var PQX_LS = 'nmsx_pq_extra_v1';
+  function pqxLsSave(){ try{ localStorage.setItem(PQX_LS, JSON.stringify({pr:PQX.pr, iss:PQX.iss})); }catch(e){} }
+  function pqxTyping(){ var a = document.activeElement; return !!(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.closest && a.closest('#main')); }
+  function pqxInit(){
+    if (!PQX.lsDone){
+      PQX.lsDone = true;
+      try{ var o = JSON.parse(localStorage.getItem(PQX_LS)||'null'); if (o){ PQX.pr = o.pr||{}; PQX.iss = o.iss||{}; } }catch(e){}
+    }
+    if (PQX.sub || !db) return;
+    PQX.sub = true;
+    [['purchase','pr'],['issues','iss']].forEach(function(p){
+      try{
+        db.collection(p[0]).onSnapshot(function(qs){
+          var next = {};
+          qs.docs.forEach(function(d){ var x = d.data(); if (x) next[d.id] = x; });
+          Object.keys(PQX[p[1]]).forEach(function(id){ if (PQX[p[1]][id]._pending && !next[id]) next[id] = PQX[p[1]][id]; });
+          PQX[p[1]] = next; pqxLsSave();
+          if (['pr','issue','dashboard'].indexOf(STATE.view)>=0 && !pqxTyping() && !document.querySelector('.modal-backdrop')) renderAll();
+        }, function(){});
+      }catch(e){}
+    });
+  }
+  function pqxSave(kind, coll, doc){
+    PQX[kind][doc.id] = doc; pqxLsSave();
+    if (!db) return;
+    doc._pending = true;
+    var clean = JSON.parse(JSON.stringify(doc)); delete clean._pending;
+    db.collection(coll).doc(doc.id).set(clean).then(function(){ delete doc._pending; }, function(){ toast('Chưa lưu được lên máy chủ. Phiếu vẫn được giữ trên máy này.', 4000); });
+  }
+  function pqxDel(kind, coll, id){
+    delete PQX[kind][id]; pqxLsSave();
+    if (db){ try{ db.collection(coll).doc(id).delete().catch(function(){}); }catch(e){} }
+  }
+  function pqxList(kind){
+    return Object.keys(PQX[kind]).map(function(k){ return PQX[kind][k]; }).filter(function(d){ return (d.dept||'cokhi')===STATE.dept; });
+  }
+  function pqxNextId(kind, prefix){
+    var y = new Date().getFullYear(), mx = 0;
+    Object.keys(PQX[kind]).forEach(function(id){ var m = /^[A-Z]+-(\d{4})-(\d+)$/.exec(id); if (m && +m[1]===y) mx = Math.max(mx, +m[2]); });
+    return prefix+'-'+y+'-'+('00'+(mx+1)).slice(-3);
+  }
+  function pqxISO(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+  function pqxToday(){ return pqxISO(new Date()); }
+  // Khoá của từng dòng vật tư trong 1 đơn: tên + quy cách + thứ tự lần xuất hiện
+  // (một đơn có thể có 2 dòng trùng tên ở 2 cụm khác nhau).
+  function pqxKeys(o){
+    var seen = {};
+    return (o.materials||[]).map(function(m){
+      var base = o.id+'|'+stripDiacritics(m.name||'')+'|'+stripDiacritics(m.spec||'');
+      seen[base] = (seen[base]||0)+1;
+      return base+'|'+seen[base];
+    });
+  }
+  function pqxIco(d){ return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+d+'"/></svg>'; }
+  function pqxOrderLabel(o){ return (o.code||'đơn cũ')+' · '+orderTitle(o); }
+  function pqxModal(title, bodyHtml, okLabel, onOk){
+    closeAnyOpenModal();
+    var b = document.createElement('div');
+    b.className = 'modal-backdrop';
+    b.innerHTML = '<div class="modal"><h3>'+esc(title)+'</h3>'+bodyHtml+'<div class="modal-actions"><button class="btn btn-ghost" id="pqmNo">Huỷ</button><button class="btn btn-primary" id="pqmOk">'+esc(okLabel)+'</button></div></div>';
+    document.body.appendChild(b);
+    b.addEventListener('click', function(e){ if (e.target===b) b.remove(); });
+    document.getElementById('pqmNo').onclick = function(){ b.remove(); };
+    document.getElementById('pqmOk').onclick = function(){ if (onOk(b)!==false) b.remove(); };
+    var f = b.querySelector('input,textarea'); if (f) f.focus();
+  }
+
+  /* ---------------- ĐỀ NGHỊ MUA VẬT TƯ ---------------- */
+  var PR_ST = ['Chờ duyệt','Đã duyệt','Đã đặt','Đã về','Huỷ'];
+  function prPill(s){
+    var c = {'Chờ duyệt':'pill-warn','Đã duyệt':'pill-info','Đã đặt':'pill-info','Đã về':'pill-good','Huỷ':'pill-neutral'}[s] || 'pill-neutral';
+    return '<span class="pill '+c+'"><span class="pill-dot"></span>'+esc(s)+'</span>';
+  }
+  function prRequestedKeys(){
+    var k = {};
+    pqxList('pr').forEach(function(p){ if (p.status==='Huỷ') return; (p.lines||[]).forEach(function(l){ k[l.key] = p.id; }); });
+    return k;
+  }
+  function prCandidates(){
+    var req = prRequestedKeys(), rows = [];
+    currentWorkOrders().forEach(function(o){
+      var keys = pqxKeys(o);
+      (o.materials||[]).forEach(function(m, i){
+        if (!isRealMaterial(m)) return;
+        if (matStatusClass(m.status)!=='mst-bad') return;
+        var key = keys[i];
+        if (req[key]) return;
+        rows.push({o:o, m:m, key:key});
+      });
+    });
+    return rows;
+  }
+  function prShown(cand){
+    var q = stripDiacritics(PQX.prQ||'');
+    return cand.filter(function(r){ return !q || stripDiacritics((r.o.code||'')+' '+r.m.name+' '+(r.m.spec||'')+' '+orderTitle(r.o)).indexOf(q)>=0; });
+  }
+  function renderPR(){
+    pqxInit();
+    var cand = prCandidates(), shown = prShown(cand);
+    var nSel = cand.filter(function(r){ return PQX.sel[r.key]; }).length;
+    var list = pqxList('pr').sort(function(a,b){ return a.id<b.id ? 1 : -1; });
+    var cnt = function(s){ return list.filter(function(p){ return p.status===s; }).length; };
+    var h = '<div class="pqd-head"><div><h1>Đề nghị mua vật tư</h1><div class="pqd-sub">Chọn các dòng vật tư chưa có trong Công việc hiện tại, lập phiếu, rồi theo dõi từ lúc chờ duyệt đến khi hàng về.</div></div></div>';
+    h += '<div class="stat-grid">'+statCard('Dòng chưa đề nghị', cand.length, 'accent-warn')+statCard('Phiếu chờ duyệt', cnt('Chờ duyệt'), 'accent-warn')+statCard('Đã duyệt, chưa đặt', cnt('Đã duyệt'), 'accent-info')+statCard('Đã đặt, chờ hàng về', cnt('Đã đặt'), 'accent-info')+statCard('Đã về', cnt('Đã về'), 'accent-good')+'</div>';
+    h += '<div class="panel" style="margin-bottom:16px;"><div class="panel-head"><h2>Vật tư cần đề nghị mua</h2><span class="pqd-meta">'+shown.length+' / '+cand.length+' dòng</span></div>';
+    h += '<div class="pqd-bar"><input class="pqd-inp" id="pqPrQ" style="max-width:320px;" placeholder="Lọc theo mã đơn, tên vật tư…" value="'+esc(PQX.prQ||'')+'"><button class="btn btn-sm" data-pq="pr-all">Chọn tất cả đang hiện</button><button class="btn btn-sm" data-pq="pr-none">Bỏ chọn</button><span style="flex:1"></span><button class="btn btn-primary" data-pq="pr-new"'+(nSel?'':' disabled')+'>Lập phiếu đề nghị ('+nSel+' dòng)</button></div>';
+    if (!cand.length){
+      h += '<div class="empty-note">Không còn dòng vật tư nào cần đề nghị mua trong Công việc hiện tại.</div>';
+    } else if (!shown.length){
+      h += '<div class="empty-note">Không có dòng nào khớp ô lọc.</div>';
+    } else {
+      h += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:36px;"></th><th>Đơn hàng</th><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th><th>Ngày yêu cầu</th><th>Tình trạng</th></tr></thead><tbody>';
+      shown.slice(0,200).forEach(function(r){
+        var m = r.m;
+        h += '<tr data-pq="pr-toggle" data-key="'+esc(r.key)+'" class="pqd-click'+(PQX.sel[r.key]?' pqd-on':'')+'"><td><input type="checkbox" tabindex="-1" aria-label="Chọn dòng"'+(PQX.sel[r.key]?' checked':'')+'></td><td><span class="num">'+esc(r.o.code||'—')+'</span><div class="pqd-cap">'+esc(orderTitle(r.o))+'</div></td><td><b>'+esc(m.name)+'</b></td><td>'+esc(m.spec||'')+'</td><td class="r num">'+esc(fmtNum(m.qty))+'</td><td>'+esc(m.unit||'')+'</td><td class="num">'+(m.reqDate?esc(fmtDate(m.reqDate)):'<span class="pqd-cap">—</span>')+'</td><td><span class="pill pill-bad">'+esc(m.status||'Chưa xem')+'</span></td></tr>';
+      });
+      h += '</tbody></table></div>';
+      if (shown.length>200) h += '<div class="pqd-foot">Đang hiện 200 / '+shown.length+' dòng. Gõ vào ô lọc để thu hẹp.</div>';
+    }
+    h += '</div>';
+    h += '<div class="panel"><div class="panel-head"><h2>Phiếu đề nghị</h2><span class="pqd-meta">'+list.length+' phiếu</span></div><div class="panel-body">';
+    if (!list.length){
+      h += '<div class="empty-note">Chưa có phiếu nào. Tích chọn vật tư ở bảng trên rồi bấm "Lập phiếu đề nghị".</div>';
+    } else {
+      list.forEach(function(p){
+        h += '<details class="pqd-slip"><summary><span class="num pqd-id">'+esc(p.id)+'</span><span class="pqd-cap">'+esc(fmtDate(p.date))+'</span><span class="pqd-grow"><b>'+esc(p.by||'(chưa ghi người đề nghị)')+'</b>'+(p.supplier?' · '+esc(p.supplier):'')+(p.note?'<span class="pqd-cap"> · '+esc(p.note)+'</span>':'')+'</span><span class="pqd-cap">'+(p.lines||[]).length+' dòng</span>'+prPill(p.status)+'</summary>';
+        h += '<div class="pqd-slip-body"><div class="pqd-bar" style="padding:0 0 10px;"><label class="pqd-cap" for="prst-'+esc(p.id)+'">Chuyển trạng thái</label><select class="pqd-inp" style="width:150px;" id="prst-'+esc(p.id)+'" data-pq-prst="'+esc(p.id)+'">'+PR_ST.map(function(s){ return '<option'+(s===p.status?' selected':'')+'>'+s+'</option>'; }).join('')+'</select>'+(p.needDate?'<span class="pqd-cap">Cần trước '+esc(fmtDate(p.needDate))+'</span>':'')+'<span style="flex:1"></span><button class="btn btn-sm btn-danger" data-pq="pr-del" data-id="'+esc(p.id)+'">Xoá phiếu</button></div>';
+        h += '<table class="mrp-table pqd-table"><thead><tr><th>Đơn hàng</th><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th></tr></thead><tbody>';
+        (p.lines||[]).forEach(function(l){ h += '<tr><td class="num">'+esc(l.code||'—')+'</td><td>'+esc(l.name)+'</td><td>'+esc(l.spec||'')+'</td><td class="r num">'+esc(fmtNum(l.qty))+'</td><td>'+esc(l.unit||'')+'</td></tr>'; });
+        h += '</tbody></table><div class="pqd-cap" style="margin-top:8px;">Khi chuyển sang "Đã đặt", các dòng vật tư này trong đơn hàng tự đổi tình trạng thành "Đã đặt"; sang "Đã về" thì thành "Đã có".</div></div></details>';
+      });
+    }
+    h += '</div></div>';
+    return h;
+  }
+  function prCreate(){
+    var cand = prCandidates().filter(function(r){ return PQX.sel[r.key]; });
+    if (!cand.length) return;
+    var who = ''; try{ who = localStorage.getItem('nmsx_pq_who')||''; }catch(e){}
+    pqxModal('Lập phiếu đề nghị mua ('+cand.length+' dòng)',
+      '<div class="field"><label for="pqmBy">Người đề nghị *</label><input id="pqmBy" value="'+esc(who)+'" placeholder="VD: Anh Quốc"></div>'+
+      '<div class="field"><label for="pqmSup">Nhà cung cấp dự kiến</label><input id="pqmSup" list="pqmSupL" placeholder="Có thể để trống"><datalist id="pqmSupL">'+matSupplierOptions()+'</datalist></div>'+
+      '<div class="field"><label for="pqmNeed">Cần hàng trước ngày</label><input id="pqmNeed" type="date"></div>'+
+      '<div class="field"><label for="pqmNote">Ghi chú</label><textarea id="pqmNote" placeholder="VD: mua gấp cho đơn 2026-214"></textarea></div><div class="pqd-err" id="pqmErr"></div>',
+      'Lập phiếu', function(b){
+        var by = b.querySelector('#pqmBy').value.trim();
+        if (!by){ b.querySelector('#pqmErr').textContent = 'Chưa nhập người đề nghị.'; return false; }
+        try{ localStorage.setItem('nmsx_pq_who', by); }catch(e){}
+        var doc = {id:pqxNextId('pr','DN'), dept:STATE.dept, date:pqxToday(), by:by, supplier:b.querySelector('#pqmSup').value.trim(), needDate:b.querySelector('#pqmNeed').value, note:b.querySelector('#pqmNote').value.trim(), status:'Chờ duyệt', at:Date.now(),
+          lines:cand.map(function(r){ return {key:r.key, orderId:r.o.id, code:r.o.code||'', name:r.m.name, spec:r.m.spec||'', unit:r.m.unit||'', qty:(r.m.qty===undefined?null:r.m.qty)}; })};
+        pqxSave('pr','purchase',doc);
+        PQX.sel = {};
+        renderAll();
+        toast('Đã lập phiếu '+doc.id+' với '+doc.lines.length+' dòng.');
+      });
+  }
+  function prSetStatus(id, st){
+    var p = PQX.pr[id]; if (!p || p.status===st) return;
+    p.status = st; p.statusAt = Date.now();
+    pqxSave('pr','purchase',p);
+    var newMat = st==='Đã đặt' ? 'Đã đặt' : st==='Đã về' ? 'Đã có' : null, changed = 0;
+    if (newMat){
+      var byOrder = {};
+      (p.lines||[]).forEach(function(l){ (byOrder[l.orderId] = byOrder[l.orderId]||{})[l.key] = 1; });
+      Object.keys(byOrder).forEach(function(oid){
+        var o = STATE.orders[oid]; if (!o) return; var hit = false, keys = pqxKeys(o);
+        (o.materials||[]).forEach(function(m, i){
+          if (!byOrder[oid][keys[i]]) return;
+          if (/da co|da nhan/.test(stripDiacritics(m.status||'')) && newMat==='Đã đặt') return;
+          if (m.status!==newMat){ m.status = newMat; hit = true; changed++; }
+          if (p.supplier && !m.supplier){ m.supplier = p.supplier; hit = true; }
+        });
+        if (hit) patchOrder(oid, {materials:o.materials});
+      });
+    }
+    renderAll();
+    toast('Phiếu '+id+': '+st+(changed?'. Đã đổi tình trạng '+changed+' dòng vật tư thành "'+newMat+'".':'.'), 3600);
+  }
+
+  /* ---------------- CẤP PHÁT VẬT TƯ ---------------- */
+  function issuedMap(orderId){
+    var mp = {};
+    pqxList('iss').forEach(function(c){ if (c.orderId!==orderId) return; (c.lines||[]).forEach(function(l){ mp[l.key] = (mp[l.key]||0) + (+l.qty||0); }); });
+    return mp;
+  }
+  function issOrders(){
+    return currentWorkOrders().slice().sort(function(a,b){ return String(b.code||'')<String(a.code||'') ? -1 : 1; });
+  }
+  function renderIssue(){
+    pqxInit();
+    var cw = issOrders();
+    if (!PQX.issOrder || !STATE.orders[PQX.issOrder]) PQX.issOrder = (cw[0]||{}).id || '';
+    var o = STATE.orders[PQX.issOrder], all = pqxList('iss').sort(function(a,b){ return a.id<b.id ? 1 : -1; });
+    var ym = pqxToday().slice(0,7), F = PQX.issForm;
+    if (!F.date) F.date = pqxToday();
+    var ordersWith = {}; all.forEach(function(c){ ordersWith[c.orderId] = 1; });
+    var h = '<div class="pqd-head"><div><h1>Cấp phát vật tư</h1><div class="pqd-sub">Ghi lại vật tư đã giao cho đơn hàng nào, tổ đội nào, ai nhận và ngày nào. Số "Đã cấp" tự cộng dồn từ các phiếu.</div></div></div>';
+    h += '<div class="stat-grid">'+statCard('Phiếu cấp phát', all.length, '')+statCard('Phiếu trong tháng này', all.filter(function(c){ return (c.date||'').slice(0,7)===ym; }).length, 'accent-info')+statCard('Đơn đã có cấp phát', Object.keys(ordersWith).length, 'accent-good')+'</div>';
+    h += '<div class="panel" style="margin-bottom:16px;"><div class="panel-head"><h2>Lập phiếu cấp phát</h2></div><div class="pqd-form">';
+    h += '<div class="field span2"><label for="pqIssOrder">Đơn hàng</label><select id="pqIssOrder" class="pqd-inp">'+(cw.length?cw.map(function(x){ return '<option value="'+esc(x.id)+'"'+(x.id===PQX.issOrder?' selected':'')+'>'+esc(pqxOrderLabel(x))+'</option>'; }).join(''):'<option value="">(không có đơn đang làm)</option>')+'</select></div>';
+    h += '<div class="field"><label for="pqIssTeam">Tổ đội nhận</label><input id="pqIssTeam" class="pqd-inp" list="pqIssTeamL" data-pq-if="team" value="'+esc(F.team||'')+'" placeholder="VD: Cơ khí lắp đặt"><datalist id="pqIssTeamL">'+teamSuggestOptions()+'</datalist></div>';
+    h += '<div class="field"><label for="pqIssRecv">Người nhận *</label><input id="pqIssRecv" class="pqd-inp" data-pq-if="receiver" value="'+esc(F.receiver||'')+'"></div>';
+    h += '<div class="field"><label for="pqIssDate">Ngày cấp</label><input id="pqIssDate" class="pqd-inp" type="date" data-pq-if="date" value="'+esc(F.date)+'"></div>';
+    h += '<div class="field"><label for="pqIssNote">Ghi chú</label><input id="pqIssNote" class="pqd-inp" data-pq-if="note" value="'+esc(F.note||'')+'"></div></div>';
+    if (!o){
+      h += '<div class="empty-note">Chưa có đơn hàng nào đang làm để cấp phát.</div>';
+    } else {
+      var allKeys = pqxKeys(o), im = issuedMap(o.id);
+      var mats = (o.materials||[]).map(function(m, i){ return {m:m, key:allKeys[i]}; }).filter(function(x){ return isRealMaterial(x.m); });
+      if (!mats.length){
+        h += '<div class="empty-note">Đơn này chưa có dòng vật tư nào. Thêm vật tư trong trang chi tiết đơn trước.</div>';
+      } else {
+        h += '<div class="pqd-bar"><span class="pqd-cap">'+mats.length+' dòng vật tư. Nhập số lượng ở cột "Cấp lần này" cho những dòng cần cấp.</span><span style="flex:1"></span><button class="btn btn-sm" data-pq="iss-fill">Điền hết phần còn lại</button><button class="btn btn-sm" data-pq="iss-clear">Xoá số đã nhập</button></div>';
+        h += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th>Tình trạng</th><th class="r">SL cần</th><th class="r">Đã cấp</th><th class="r">Còn lại</th><th class="r" style="width:130px;">Cấp lần này</th></tr></thead><tbody>';
+        mats.forEach(function(x){
+          var m = x.m, key = x.key, got = im[key]||0, need = typeof m.qty==='number' ? m.qty : null, left = need===null ? null : Math.round((need-got)*1000)/1000;
+          h += '<tr><td><b>'+esc(m.name)+'</b></td><td>'+esc(m.spec||'')+'</td><td>'+esc(m.unit||'')+'</td><td><span class="pill '+({'mst-good':'pill-good','mst-info':'pill-info','mst-warn':'pill-warn','mst-bad':'pill-bad'}[matStatusClass(m.status)]||'pill-neutral')+'">'+esc(m.status||'Chưa xem')+'</span></td><td class="r num">'+(need===null?'—':esc(fmtNum(need)))+'</td><td class="r num">'+(got?esc(fmtNum(got)):'<span class="pqd-cap">0</span>')+'</td><td class="r num"'+(left!==null&&left<0?' style="color:var(--bad);"':'')+'>'+(left===null?'—':(left<=0&&got?'đủ'+(left<0?' (+'+fmtNum(-left)+')':''):esc(fmtNum(left))))+'</td><td class="r"><input class="pqd-inp num pqd-qty" inputmode="decimal" aria-label="Cấp lần này cho '+esc(m.name)+'" data-pq-iq="'+esc(key)+'" value="'+esc(PQX.issDraft[key]||'')+'"></td></tr>';
+        });
+        h += '</tbody></table></div><div class="pqd-bar"><span class="pqd-err" id="pqIssErr"></span><span style="flex:1"></span><button class="btn btn-primary" data-pq="iss-save">Lưu phiếu cấp phát</button></div>';
+      }
+    }
+    h += '</div>';
+    var hist = all.filter(function(c){ return !o || PQX.issAll || c.orderId===o.id; });
+    h += '<div class="panel"><div class="panel-head"><h2>Lịch sử cấp phát</h2><label class="pqd-cap" style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" data-pq-chk="iss-allorders"'+(PQX.issAll?' checked':'')+'> Xem tất cả đơn ('+all.length+' phiếu)</label></div><div class="panel-body">';
+    if (!hist.length){
+      h += '<div class="empty-note">'+(all.length?'Đơn này chưa có phiếu cấp phát nào.':'Chưa có phiếu cấp phát nào.')+'</div>';
+    } else {
+      hist.forEach(function(c){
+        h += '<details class="pqd-slip"><summary><span class="num pqd-id">'+esc(c.id)+'</span><span class="pqd-cap">'+esc(fmtDate(c.date))+'</span><span class="pqd-grow"><span class="num">'+esc(c.code||'—')+'</span> · <b>'+esc(c.receiver||'')+'</b>'+(c.team?' · '+esc(c.team):'')+(c.note?'<span class="pqd-cap"> · '+esc(c.note)+'</span>':'')+'</span><span class="pqd-cap">'+(c.lines||[]).length+' dòng</span></summary><div class="pqd-slip-body"><table class="mrp-table pqd-table"><thead><tr><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL cấp</th><th>ĐVT</th></tr></thead><tbody>';
+        (c.lines||[]).forEach(function(l){ h += '<tr><td>'+esc(l.name)+'</td><td>'+esc(l.spec||'')+'</td><td class="r num">'+esc(fmtNum(l.qty))+'</td><td>'+esc(l.unit||'')+'</td></tr>'; });
+        h += '</tbody></table><div class="pqd-bar" style="padding:10px 0 0;"><span style="flex:1"></span><button class="btn btn-sm btn-danger" data-pq="iss-del" data-id="'+esc(c.id)+'">Xoá phiếu</button></div></div></details>';
+      });
+    }
+    h += '</div></div>';
+    return h;
+  }
+  function issSave(){
+    var o = STATE.orders[PQX.issOrder], F = PQX.issForm, err = document.getElementById('pqIssErr');
+    if (!o) return;
+    var lines = [], bad = false;
+    var keys = pqxKeys(o);
+    (o.materials||[]).forEach(function(m, i){
+      if (!isRealMaterial(m)) return;
+      var key = keys[i], raw = String(PQX.issDraft[key]||'').trim().replace(',','.');
+      if (!raw) return;
+      var q = Number(raw);
+      if (isNaN(q) || q<=0){ bad = true; return; }
+      lines.push({key:key, name:m.name, spec:m.spec||'', unit:m.unit||'', qty:q});
+    });
+    var msg = bad ? 'Số lượng cấp phải là số lớn hơn 0.' : !lines.length ? 'Chưa nhập số lượng cho dòng nào.' : !(F.receiver||'').trim() ? 'Chưa nhập người nhận.' : '';
+    if (msg){ if (err) err.textContent = msg; return; }
+    var doc = {id:pqxNextId('iss','CP'), dept:STATE.dept, date:F.date||pqxToday(), orderId:o.id, code:o.code||'', team:(F.team||'').trim(), receiver:F.receiver.trim(), note:(F.note||'').trim(), at:Date.now(), lines:lines};
+    pqxSave('iss','issues',doc);
+    PQX.issDraft = {}; F.note = '';
+    renderAll();
+    toast('Đã lưu phiếu '+doc.id+' với '+lines.length+' dòng.');
+  }
+
+  /* ---------------- TỔNG QUAN KIỂU DASHBOARD ---------------- */
+  function pqdWeekStart(d){ var x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; }
+  function pqdParse(iso){ var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; }
+  function pqdHeadDate(o){ var s = headlineSnapshot(o); return s && s.deliveryDate ? s.deliveryDate : null; }
+  function pqdKpiLoad(){
+    var dept = STATE.dept;
+    if (PQX.kpiTried[dept]) return;
+    PQX.kpiTried[dept] = true;
+    var lsKey = 'nmsx_pq_kpi_'+dept, local = {};
+    try{ local = JSON.parse(localStorage.getItem(lsKey)||'{}')||{}; }catch(e){}
+    PQX.kpi[dept] = local;
+    if (!db) return;
+    try{
+      db.collection('meta').doc('kpihist-'+dept).get().then(function(s){
+        var d = s && s.exists && s.data() && s.data().days;
+        if (d){ Object.keys(local).forEach(function(k){ if (!d[k]) d[k] = local[k]; }); PQX.kpi[dept] = d; if (STATE.view==='dashboard' && !pqxTyping()) renderAll(); }
+        PQX.kpiLoaded = PQX.kpiLoaded||{}; PQX.kpiLoaded[dept] = true;
+      }, function(){});
+    }catch(e){}
+  }
+  function pqdKpiRecord(vals){
+    var dept = STATE.dept, days = PQX.kpi[dept] = PQX.kpi[dept]||{}, t = pqxToday();
+    if (!Object.keys(STATE.orders||{}).length) return;
+    var prev = days[t];
+    if (prev && JSON.stringify(prev)===JSON.stringify(vals)) return;
+    days[t] = vals;
+    var keys = Object.keys(days).sort(); while (keys.length>90){ delete days[keys.shift()]; }
+    try{ localStorage.setItem('nmsx_pq_kpi_'+dept, JSON.stringify(days)); }catch(e){}
+    if (db && STATE.dbWritable && PQX.kpiLoaded && PQX.kpiLoaded[dept]){
+      clearTimeout(pqdKpiRecord._h);
+      pqdKpiRecord._h = setTimeout(function(){ try{ db.collection('meta').doc('kpihist-'+dept).set({days:days}).catch(function(){}); }catch(e){} }, 4000);
+    }
+  }
+  function pqdPrev(field){
+    var days = PQX.kpi[STATE.dept]||{}, t = pqxToday(), keys = Object.keys(days).filter(function(k){ return k<t; }).sort();
+    if (!keys.length) return null;
+    var lim = pqxISO(new Date(Date.now()-7*86400000)), pick = null;
+    keys.forEach(function(k){ if (k<=lim) pick = k; });
+    if (!pick) pick = keys[0];
+    return (days[pick] && typeof days[pick][field]==='number') ? {date:pick, v:days[pick][field]} : null;
+  }
+  function pqdKpi(label, value, field, upIs, ico, tone, attrs){
+    var p = pqdPrev(field), d = '';
+    if (!p) d = '<span class="pqd-delta">Chưa có số kỳ trước</span>';
+    else {
+      var diff = value - p.v, cls = diff===0 ? '' : ((diff>0)===(upIs==='good') ? ' up' : (upIs==='none' ? '' : ' down'));
+      d = '<span class="pqd-delta'+cls+'">'+(diff===0?'Không đổi':(diff>0?'▲ ':'▼ ')+Math.abs(diff))+' so với '+esc(fmtDate(p.date).slice(0,5))+'</span>';
+    }
+    return '<div class="pqd-kpi"'+(attrs||'')+'><span class="pqd-ic '+(tone||'')+'">'+pqxIco(ico)+'</span><div class="pqd-kl">'+esc(label)+'</div><div class="pqd-kv num"'+(tone&&value?' style="color:var(--'+({bad:'bad',warn:'warn',good:'good'}[tone]||'text')+');"':'')+'>'+value+'</div>'+d+'</div>';
+  }
+  function pqdTrend(act){
+    var w0 = pqdWeekStart(new Date()), today = new Date(); today.setHours(0,0,0,0);
+    var B = []; for (var i=-8;i<=3;i++){ var s = new Date(w0); s.setDate(w0.getDate()+i*7); B.push({s:s, done:0, late:0, plan:0}); }
+    act.forEach(function(o){
+      var dt = pqdParse(pqdHeadDate(o)); if (!dt) return;
+      var idx = Math.round((pqdWeekStart(dt)-w0)/(7*86400000)) + 8;
+      if (idx<0 || idx>=B.length) return;
+      if (rollupStatus(o)==='ĐÃ GIAO') B[idx].done++; else if (dt<today) B[idx].late++; else B[idx].plan++;
+    });
+    var mx = Math.max(4, Math.max.apply(null, B.map(function(b){ return b.done+b.late+b.plan; }))); mx = Math.ceil(mx/2)*2;
+    var W = 720, H = 240, L = 34, T = 12, BT = 34, pw = (W-L-8)/B.length, ph = H-T-BT, y = function(v){ return T+ph-(v/mx)*ph; };
+    var g = '<svg viewBox="0 0 '+W+' '+H+'" class="pqd-svg" role="img" aria-label="Số đơn đến hạn giao theo tuần">';
+    [0, mx/2, mx].forEach(function(v){ g += '<line x1="'+L+'" x2="'+(W-8)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="pqd-gl"/><text x="'+(L-8)+'" y="'+(y(v)+4)+'" text-anchor="end" class="pqd-ax">'+v+'</text>'; });
+    B.forEach(function(b, i){
+      var x = L+i*pw, bw = Math.min(34, pw-14), bx = x+(pw-bw)/2, yy = T+ph, cur = i===8;
+      if (cur) g += '<rect x="'+(x+2)+'" y="'+T+'" width="'+(pw-4)+'" height="'+ph+'" class="pqd-cur"/>';
+      [['done','pqd-f-good','Đã giao'],['late','pqd-f-bad','Trễ, chưa giao'],['plan','pqd-f-acc','Sắp giao']].forEach(function(k){
+        var n = b[k[0]]; if (!n) return;
+        var hh = (n/mx)*ph; yy -= hh;
+        g += '<rect x="'+bx+'" y="'+(yy+1)+'" width="'+bw+'" height="'+Math.max(1,hh-2)+'" rx="3" class="'+k[1]+'"><title>Tuần '+fmtDMShort(b.s)+': '+n+' đơn '+k[2].toLowerCase()+'</title></rect>';
+      });
+      var tot = b.done+b.late+b.plan;
+      if (tot) g += '<text x="'+(x+pw/2)+'" y="'+(yy-5)+'" text-anchor="middle" class="pqd-ax pqd-axb">'+tot+'</text>';
+      g += '<text x="'+(x+pw/2)+'" y="'+(H-14)+'" text-anchor="middle" class="pqd-ax'+(cur?' pqd-axb':'')+'">'+fmtDMShort(b.s)+'</text>';
+      if (cur) g += '<text x="'+(x+pw/2)+'" y="'+(H-2)+'" text-anchor="middle" class="pqd-ax pqd-axb">tuần này</text>';
+    });
+    g += '</svg>';
+    var sum = function(k){ return B.reduce(function(a,b){ return a+b[k]; }, 0); };
+    return '<div class="panel pqd-card"><div class="panel-head"><h2>Đơn đến hạn giao theo tuần</h2><span class="pqd-meta">8 tuần trước đến 3 tuần tới</span></div><div class="pqd-pad">'+g+'<div class="work-chart-legend"><span class="wcl-item"><i style="background:var(--good);"></i>Đã giao <b>'+sum('done')+'</b></span><span class="wcl-item"><i style="background:var(--bad);"></i>Trễ, chưa giao <b>'+sum('late')+'</b></span><span class="wcl-item"><i style="background:var(--accent);"></i>Sắp giao <b>'+sum('plan')+'</b></span></div></div></div>';
+  }
+  function pqdDonutCard(title, meta, segs, big, sub){
+    var total = segs.reduce(function(a,s){ return a+s.v; }, 0) || 1;
+    var lg = '<div class="donut-legend">'+segs.map(function(s){ return '<div class="dl"><i style="background:'+s.color+';"></i>'+esc(s.label)+' <b>'+s.v+'</b> <span class="wcl-pct">('+Math.round(s.v/total*100)+'%)</span></div>'; }).join('')+'</div>';
+    return '<div class="panel pqd-card"><div class="panel-head"><h2>'+esc(title)+'</h2><span class="pqd-meta">'+esc(meta)+'</span></div><div class="pqd-donut">'+donutSvg(segs, big, sub)+lg+'</div></div>';
+  }
+  function pqdMiniCal(act){
+    var now = new Date(), y = now.getFullYear(), m = now.getMonth(), first = new Date(y, m, 1), nDays = new Date(y, m+1, 0).getDate(), lead = (first.getDay()+6)%7, td = now.getDate();
+    var per = {};
+    act.forEach(function(o){
+      var dt = pqdParse(pqdHeadDate(o)); if (!dt || dt.getFullYear()!==y || dt.getMonth()!==m) return;
+      var k = dt.getDate(), st = rollupStatus(o)==='ĐÃ GIAO' ? 'done' : (k<td ? 'late' : 'plan');
+      per[k] = per[k] || {done:0, late:0, plan:0, names:[]}; per[k][st]++; per[k].names.push((o.code||'')+' '+orderTitle(o));
+    });
+    var h = '<div class="pqd-cal">'+['T2','T3','T4','T5','T6','T7','CN'].map(function(d){ return '<span class="pqd-cal-h">'+d+'</span>'; }).join('');
+    for (var i=0;i<lead;i++) h += '<span></span>';
+    for (var d=1; d<=nDays; d++){
+      var p = per[d], cls = p ? (p.late ? ' late' : p.plan ? ' plan' : ' done') : '';
+      h += '<span class="pqd-cal-d'+cls+(d===td?' today':'')+'"'+(p?' title="'+esc(p.names.join('\n'))+'"':'')+'>'+d+(p?'<i>'+(p.done+p.late+p.plan)+'</i>':'')+'</span>';
+    }
+    h += '</div>';
+    return '<div class="panel pqd-card"><div class="panel-head"><h2>Lịch giao tháng '+(m+1)+'/'+y+'</h2><button class="btn btn-sm" data-pq="go-lich">Mở lịch tháng</button></div><div class="pqd-pad">'+h+'<div class="work-chart-legend" style="margin-top:12px;"><span class="wcl-item"><i style="background:var(--bad-soft);border:1px solid var(--bad);"></i>Trễ</span><span class="wcl-item"><i style="background:var(--accent-soft);border:1px solid var(--accent);"></i>Sắp giao</span><span class="wcl-item"><i style="background:var(--good-soft);border:1px solid var(--good);"></i>Đã giao</span></div></div></div>';
+  }
+  function renderDashboardPQ(){
+    pqxInit(); pqdKpiLoad();
+    var act = activeOrders(), cur = currentWorkOrders();
+    var producing = cur.filter(function(o){ return rollupStatus(o)==='ĐANG SẢN XUẤT'; }).length;
+    var withDate = cur.map(function(o){ return {o:o, d:pqdHeadDate(o)}; }).filter(function(x){ return x.d; });
+    var overdue = withDate.filter(function(x){ var r = daysRemaining(x.d); return r!==null && r<0; }).sort(function(a,b){ return daysRemaining(a.d)-daysRemaining(b.d); });
+    var wk = weekRangeNow();
+    var thisWeek = withDate.filter(function(x){ var dt = pqdParse(x.d); return dt && dt>=wk.mon && dt<=wk.sun; });
+    var matRows = [], mc = {'mst-good':0,'mst-info':0,'mst-warn':0,'mst-bad':0,'mst-neutral':0};
+    cur.forEach(function(o){ (o.materials||[]).forEach(function(m){ if (!isRealMaterial(m)) return; var c = matStatusClass(m.status); mc[c] = (mc[c]||0)+1; if (c==='mst-bad') matRows.push({o:o, m:m}); }); });
+    var items = []; cur.forEach(function(o){ (o.items||[]).forEach(function(it){ items.push(it); }); });
+    var ic = function(s){ return items.filter(function(it){ return (it.status||'CHƯA SẢN XUẤT')===s; }).length; };
+    var doneWait = ic('SẢN XUẤT XONG')+ic('ĐÃ GIAO'), pctDone = items.length ? Math.round(doneWait/items.length*100) : 0;
+    var prOpen = pqxList('pr').filter(function(p){ return p.status==='Chờ duyệt' || p.status==='Đã duyệt'; }).length;
+    pqdKpiRecord({run:cur.length, prod:producing, late:overdue.length, week:thisWeek.length, mat:matRows.length});
+    var now = new Date(), dn = ['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'][now.getDay()];
+    var h = '<div class="pqd-head"><div><h1>Tổng quan sản xuất</h1><div class="pqd-sub">'+dn+', '+esc(fmtDate(pqxToday()))+' · Bộ phận '+(STATE.dept==='dien'?'Điện':'Cơ khí')+' · '+act.length+' đơn trong năm</div></div><div class="pqd-bar" style="padding:0;"><button class="btn" data-pq="go-pr">Đề nghị mua'+(prOpen?' ('+prOpen+' phiếu đang mở)':'')+'</button><button class="btn" data-pq="go-issue">Cấp phát vật tư</button></div></div>';
+    h += '<div class="pqd-kpis">'+
+      pqdKpi('Đơn đang làm', cur.length, 'run', 'none', 'M7 3h10l3 4v14H4V7zM8 12h8M8 16h5', '', ' data-pq="go-current"')+
+      pqdKpi('Đang sản xuất', producing, 'prod', 'none', 'M4 20V10l6 4V10l6 4V6h4v14z', '')+
+      pqdKpi('Quá hạn giao', overdue.length, 'late', 'bad', 'M12 8v5M12 17h.01M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', 'bad', ' data-pq="go-plan"')+
+      pqdKpi('Giao trong tuần này', thisWeek.length, 'week', 'none', 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4', 'warn', ' data-pq="go-lich"')+
+      pqdKpi('Dòng vật tư cần mua', matRows.length, 'mat', 'bad', 'M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8', 'warn', ' data-goto-mrp="1"')+'</div>';
+    h += '<div class="pqd-grid"><div class="s8">'+pqdTrend(act)+'</div><div class="s4">'+pqdDonutCard('Hạng mục đang làm', items.length+' hạng mục · '+cur.length+' đơn', [
+        {v:doneWait, color:'var(--st-xuatxong-bg)', label:'Xong / chờ giao'},
+        {v:ic('ĐANG SẢN XUẤT'), color:'var(--st-dangsx-bg)', label:'Đang sản xuất'},
+        {v:ic('CHƯA SẢN XUẤT'), color:'var(--st-chuasx-bg)', label:'Chưa sản xuất'},
+        {v:ic('TẠM HOÃN'), color:'var(--st-tamhoan-bg)', label:'Tạm hoãn'}], pctDone+'%', 'đã xong')+'</div>';
+    // Top đơn trễ
+    var late = '<div class="panel pqd-card"><div class="panel-head"><h2>Đơn trễ nhiều nhất</h2><span class="pqd-meta">'+overdue.length+' đơn quá hạn</span></div><div class="panel-body">';
+    if (!overdue.length) late += '<div class="empty-note">Không có đơn nào quá hạn giao.</div>';
+    else overdue.slice(0,6).forEach(function(x, i){ late += '<div class="attention-row" data-goto-td="'+esc(x.o.id)+'"><span class="pqd-rank">'+(i+1)+'</span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+'</span><span class="pill pill-bad"><span class="pill-dot"></span>Trễ '+Math.abs(daysRemaining(x.d))+' ngày</span></div>'; });
+    late += '</div></div>';
+    var totalMat = Object.keys(mc).reduce(function(a,k){ return a+mc[k]; }, 0);
+    h += '<div class="s4">'+late+'</div><div class="s4">'+pqdDonutCard('Vật tư theo tình trạng', totalMat+' dòng · đơn đang làm', [
+        {v:mc['mst-good'], color:'var(--good)', label:'Đã có'},
+        {v:mc['mst-info'], color:'var(--st-dangsx-bg)', label:'Đã đặt'},
+        {v:mc['mst-warn'], color:'var(--st-tamhoan-bg)', label:'Đang gia công'},
+        {v:mc['mst-bad'], color:'var(--bad)', label:'Chưa xem / cần mua'},
+        {v:mc['mst-neutral'], color:'var(--st-chuasx-bg)', label:'Khác'}], (totalMat?Math.round(mc['mst-good']/totalMat*100):0)+'%', 'đã có')+'</div><div class="s4">'+pqdMiniCal(act)+'</div>';
+    // Vật tư cần mua gấp
+    var urg = matRows.slice().sort(function(a,b){ var x = a.m.reqDate||'9999', y2 = b.m.reqDate||'9999'; if (x!==y2) return x<y2?-1:1; var da = daysRemaining(pqdHeadDate(a.o)), dbb = daysRemaining(pqdHeadDate(b.o)); return (da===null?9e9:da)-(dbb===null?9e9:dbb); });
+    var um = '<div class="panel pqd-card"><div class="panel-head"><h2>Vật tư cần mua gấp</h2><button class="btn btn-sm" data-pq="go-pr">Lập phiếu đề nghị</button></div><div class="panel-body">';
+    if (!urg.length) um += '<div class="empty-note">Không có dòng vật tư nào đang chưa xem hoặc cần mua.</div>';
+    else urg.slice(0,7).forEach(function(r){ var dr = daysRemaining(pqdHeadDate(r.o)); um += '<div class="attention-row" data-goto-vt="'+esc(r.o.id)+'"><span class="code">'+esc(r.o.code||'—')+'</span><span class="title">'+esc(r.m.name)+'</span><span class="cluster-tag">'+(r.m.reqDate?'cần '+esc(fmtDate(r.m.reqDate)):(dr===null?'':(dr<0?'đơn trễ '+(-dr)+' ngày':'đơn còn '+dr+' ngày')))+'</span><span class="pill pill-bad">'+esc(r.m.status||'Chưa xem')+'</span></div>'; });
+    if (urg.length>7) um += '<div class="pqd-foot"><button class="btn btn-sm" data-goto-mrp="1">Xem tất cả '+urg.length+' dòng →</button></div>';
+    um += '</div></div>';
+    // Theo tổ đội
+    var teams = {}; cur.forEach(function(o){ (o.items||[]).forEach(function(it){ var t = (it.team||'').trim(); if (!t) return; teams[t] = teams[t]||{n:0, d:0}; teams[t].n++; if (it.status==='SẢN XUẤT XONG'||it.status==='ĐÃ GIAO') teams[t].d++; }); });
+    var tk = Object.keys(teams).sort(function(a,b){ return teams[b].n-teams[a].n; }).slice(0,7), tmax = tk.length ? teams[tk[0]].n : 1;
+    var tm = '<div class="panel pqd-card"><div class="panel-head"><h2>Hạng mục theo tổ đội</h2><span class="pqd-meta">đã xong / được giao</span></div><div class="pqd-pad">';
+    if (!tk.length) tm += '<div class="empty-note" style="padding:12px 0;">Chưa hạng mục nào ghi tổ đội. Điền cột "Tổ đội thực hiện" trong trang chi tiết đơn để thấy biểu đồ này.</div>';
+    else tk.forEach(function(t){ var x = teams[t]; tm += '<div class="pqd-hb"><div class="pqd-hb-l"><span>'+esc(t)+'</span><span class="num">'+x.d+'/'+x.n+'</span></div><div class="pqd-hb-t" style="width:'+Math.max(8, x.n/tmax*100)+'%;"><i style="width:'+(x.n?x.d/x.n*100:0)+'%;"></i></div></div>'; });
+    tm += '</div></div>';
+    h += '<div class="s6">'+um+'</div><div class="s6">'+tm+'</div></div>';
+    return h;
+  }
+
+  /* ---------------- SỰ KIỆN CỦA PHẦN MỞ RỘNG ---------------- */
+  document.addEventListener('click', function(e){
+    var t = e.target.closest && e.target.closest('[data-pq]'); if (!t) return;
+    var a = t.getAttribute('data-pq'), id = t.getAttribute('data-id');
+    if (a==='go-pr') return setView('pr');
+    if (a==='go-issue') return setView('issue');
+    if (a==='go-lich') return setView('lich');
+    if (a==='go-plan') return setView('plan');
+    if (a==='go-current') return setView('current');
+    if (a==='pr-toggle'){ var k = t.getAttribute('data-key'); if (PQX.sel[k]) delete PQX.sel[k]; else PQX.sel[k] = 1; return renderAll(); }
+    if (a==='pr-all'){ prShown(prCandidates()).slice(0,200).forEach(function(r){ PQX.sel[r.key] = 1; }); return renderAll(); }
+    if (a==='pr-none'){ PQX.sel = {}; return renderAll(); }
+    if (a==='pr-new') return prCreate();
+    if (a==='pr-del') return showConfirmModal('Xoá phiếu '+id+'? Tình trạng các dòng vật tư trong đơn hàng giữ nguyên như hiện tại.', function(){ pqxDel('pr','purchase',id); renderAll(); toast('Đã xoá phiếu '+id+'.'); }, {danger:true, yesLabel:'Xoá phiếu'});
+    if (a==='iss-save') return issSave();
+    if (a==='iss-clear'){ PQX.issDraft = {}; return renderAll(); }
+    if (a==='iss-fill'){
+      var o = STATE.orders[PQX.issOrder]; if (!o) return; var im = issuedMap(o.id), ks = pqxKeys(o);
+      (o.materials||[]).forEach(function(m, i){ if (!isRealMaterial(m)) return; var key = ks[i]; if (typeof m.qty!=='number') return; var left = Math.round((m.qty-(im[key]||0))*1000)/1000; if (left>0) PQX.issDraft[key] = String(left); });
+      return renderAll();
+    }
+    if (a==='iss-del') return showConfirmModal('Xoá phiếu cấp phát '+id+'? Số "Đã cấp" của các dòng trong phiếu sẽ giảm lại.', function(){ pqxDel('iss','issues',id); renderAll(); toast('Đã xoá phiếu '+id+'.'); }, {danger:true, yesLabel:'Xoá phiếu'});
+  });
+  document.addEventListener('input', function(e){
+    var t = e.target; if (!t || !t.getAttribute) return;
+    if (t.id==='pqPrQ'){
+      PQX.prQ = t.value; var pos = t.selectionStart; renderAll();
+      var n = document.getElementById('pqPrQ'); if (n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(er){} }
+      return;
+    }
+    var k = t.getAttribute('data-pq-iq'); if (k){ PQX.issDraft[k] = t.value; return; }
+    var f = t.getAttribute('data-pq-if'); if (f){ PQX.issForm[f] = t.value; }
+  });
+  document.addEventListener('change', function(e){
+    var t = e.target; if (!t || !t.getAttribute) return;
+    var id = t.getAttribute('data-pq-prst'); if (id) return prSetStatus(id, t.value);
+    if (t.id==='pqIssOrder'){ PQX.issOrder = t.value; PQX.issDraft = {}; return renderAll(); }
+    if (t.getAttribute('data-pq-chk')==='iss-allorders'){ PQX.issAll = t.checked; return renderAll(); }
   });
 
   renderBanner();
