@@ -6736,7 +6736,7 @@
       '<table class="l"><thead><tr><th style="width:36px">STT</th><th style="width:90px">Đơn hàng</th><th>Tên vật tư</th><th>Quy cách</th><th style="width:56px">ĐVT</th><th style="width:64px">Số lượng</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '<p>Tổng cộng: <b>'+(p.lines||[]).length+'</b> dòng vật tư.</p>'+
       '<div class="sg"><div><b>Người đề nghị</b>'+esc(p.by||'')+'</div><div><b>Trưởng bộ phận</b></div><div><b>Kế toán</b></div><div><b>Giám đốc</b></div></div>'+
-      '</body></html>';
+      '</'+'body></'+'html>';
     var old = document.getElementById('pqPrintFrame'); if (old) old.remove();
     var f = document.createElement('iframe'); f.id = 'pqPrintFrame';
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
