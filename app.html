@@ -1141,7 +1141,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-04k-may';
+  var BUILD_ID = '2026-10-04m-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -6628,6 +6628,67 @@
   });
   window.addEventListener('resize', function(){ clearTimeout(pqVmApply._h); pqVmApply._h = setTimeout(function(){ var was = document.documentElement.classList.contains('pq-m'); pqVmApply(); if (was !== document.documentElement.classList.contains('pq-m')) renderAll(); }, 150); });
   pqVmApply();
+
+  /* ===== NHẬP TÊN TRƯỚC KHI SỬ DỤNG (BUILD 2026-10-04m) =====
+     Mỗi máy/trình duyệt nhập tên 1 lần (nhớ lại). Tên hiện ở thanh trên, bấm để đổi. */
+  var PQ_WHO_KEY = 'nmsx_user_name';
+  function pqWhoGet(){ try{ return (localStorage.getItem(PQ_WHO_KEY)||'').trim(); }catch(e){ return pqWhoGet._mem || ''; } }
+  function pqWhoSet(n){ pqWhoGet._mem = n; try{ localStorage.setItem(PQ_WHO_KEY, n); }catch(e){} }
+  (function pqWhoInit(){
+    var st = document.createElement('style');
+    st.textContent =
+      '#pqWho{position:fixed;inset:0;z-index:99999;background:rgba(20,28,36,.55);display:flex;align-items:center;justify-content:center;padding:16px;}'+
+      '#pqWho .pqw-box{background:#fff;color:#16202b;border-radius:14px;max-width:380px;width:100%;padding:24px 24px 20px;box-shadow:0 12px 40px rgba(0,0,0,.25);}'+
+      '#pqWho h2{margin:0 0 4px;font-size:18px;}#pqWho p{margin:0 0 14px;font-size:13.5px;color:#55616d;}'+
+      '#pqWho input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:10px 12px;border:1px solid #c9d0d6;border-radius:8px;}'+
+      '#pqWho input:focus{outline:2px solid #1f5fa8;border-color:#1f5fa8;}'+
+      '#pqWho .pqw-err{color:#c0362c;font-size:13px;min-height:18px;margin:6px 0 0;}'+
+      '#pqWho .pqw-act{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}'+
+      '#pqWhoChip{display:inline-flex;align-items:center;gap:6px;max-width:190px;}'+
+      '#pqWhoChip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}';
+    document.head.appendChild(st);
+    var top = document.querySelector('.topbar'), anchor = document.getElementById('btnGotoCurrent');
+    if (top){
+      var chip = document.createElement('button');
+      chip.className = 'btn'; chip.id = 'pqWhoChip'; chip.type = 'button'; chip.title = 'Người đang sử dụng — bấm để đổi tên';
+      chip.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg><span></span>';
+      top.insertBefore(chip, anchor || top.firstChild);
+      chip.addEventListener('click', function(){ pqWhoAsk(true); });
+    }
+  })();
+  function pqWhoShowName(){
+    var s = document.querySelector('#pqWhoChip span'); if (s) s.textContent = pqWhoGet() || 'Nhập tên';
+  }
+  function pqWhoAsk(canCancel){
+    if (document.getElementById('pqWho')) return;
+    var cur = pqWhoGet();
+    var ov = document.createElement('div'); ov.id = 'pqWho'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true');
+    ov.innerHTML = '<div class="pqw-box"><h2>'+(cur ? 'Đổi tên người sử dụng' : 'Xin chào, bạn tên gì?')+'</h2>'+
+      '<p>Nhập họ tên của bạn trước khi sử dụng để biết ai đang làm việc.</p>'+
+      '<input type="text" id="pqWhoIn" maxlength="40" autocomplete="name" placeholder="Ví dụ: Nguyễn Văn A" value="'+esc(cur)+'">'+
+      '<div class="pqw-err" id="pqWhoErr"></div>'+
+      '<div class="pqw-act">'+(canCancel && cur ? '<button type="button" class="btn" id="pqWhoNo">Huỷ</button>' : '')+'<button type="button" class="btn btn-primary" id="pqWhoOk">Vào sử dụng</button></div></div>';
+    document.body.appendChild(ov);
+    var inp = document.getElementById('pqWhoIn'), err = document.getElementById('pqWhoErr');
+    function close(){ ov.remove(); }
+    function submit(){
+      var v = (inp.value||'').replace(/\s+/g,' ').trim();
+      if (v.length < 2){ err.textContent = 'Nhập họ tên từ 2 ký tự trở lên.'; inp.focus(); return; }
+      pqWhoSet(v); pqWhoShowName(); close();
+      toast('Xin chào, '+v+'.');
+    }
+    document.getElementById('pqWhoOk').addEventListener('click', submit);
+    var no = document.getElementById('pqWhoNo'); if (no) no.addEventListener('click', close);
+    inp.addEventListener('input', function(){ err.textContent = ''; });
+    inp.addEventListener('keydown', function(e){
+      if (e.key==='Enter'){ e.preventDefault(); submit(); }
+      else if (e.key==='Escape' && canCancel && cur){ close(); }
+    });
+    setTimeout(function(){ inp.focus(); inp.select(); }, 30);
+  }
+  window.NMSX_USER = pqWhoGet;
+  pqWhoShowName();
+  if (!pqWhoGet()) pqWhoAsk(false);
 
   renderBanner();
   loadFromSeedOnly();
