@@ -1291,7 +1291,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05j-may';
+  var BUILD_ID = '2026-10-05k-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2600,7 +2600,7 @@
     html += '<button class="btn btn-sm" data-pdf-import="'+esc(o.id)+'">'+ICO.pdf+' Đọc PDF</button>';
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
-    html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:150px"><col style="width:13%"><col style="width:15%"><col style="width:44px"></colgroup><thead><tr>';
+    html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:164px"><col style="width:13%"><col style="width:14%"><col style="width:44px"></colgroup><thead><tr>';
     ['STT','Tên gọi','Quy cách','ĐVT','SL','Tình trạng','Ngày yêu cầu','Nhà cung cấp','Ghi chú',''].forEach(function(h){html+='<th>'+h+'</th>';});
     html += '</tr></thead><tbody>';
     if (mats.length===0){
@@ -4681,24 +4681,58 @@
     }
     return null;
   }
+  // So tên "mục" gần giống nhau: bỏ dấu/khoảng trắng/ký tự lạ; hoặc các từ của tên ngắn nằm trọn trong tên dài
+  // (VD "MÁY BÓC VỎ 20-25 TẤN" ~ "Máy bóc vỏ cây 20 - 25 tấn"; "1,2X7,5M" ~ "1,2 x 7,5m").
+  function secSimilar(a, b){
+    var ca = stripDiacritics(a).replace(/[^a-z0-9]+/g,''), cb = stripDiacritics(b).replace(/[^a-z0-9]+/g,'');
+    if (!ca || !cb) return false;
+    if (ca === cb) return true;
+    var ta = stripDiacritics(a).split(/[^a-z0-9]+/).filter(Boolean), tb = stripDiacritics(b).split(/[^a-z0-9]+/).filter(Boolean);
+    var sh = ta.length <= tb.length ? ta : tb, lo = ta.length <= tb.length ? tb : ta;
+    sh = sh.filter(function(w, i){ return sh.indexOf(w) === i; });   // bỏ từ lặp
+    if (sh.length < 3 || sh.length < 0.7 * lo.length) return false;
+    return sh.every(function(w){ return lo.indexOf(w) !== -1; });
+  }
   function syncVtSections(o){
     if (!o) return false;
     o.items = o.items || [];
     o.materials = o.materials || [];
-    var haveSec = {};
-    (o.noAutoSec||[]).forEach(function(k){ haveSec[k] = true; });   // mục anh đã xoá: không tự tạo lại
-    o.materials.forEach(function(m){ if (m && m.name && isMatSection(m)) haveSec[stripDiacritics(m.name)] = true; });
-    var maxNo = 0;
-    o.materials.forEach(function(m){ var n = parseInt(m && m.no, 10); if (!isNaN(n) && n > maxNo) maxNo = n; });
     var changed = false;
+    var nas = [];
+    (o.noAutoSec||[]).forEach(function(k){ if (nas.indexOf(k) === -1) nas.push(k); });
+    if (nas.length !== (o.noAutoSec||[]).length){ o.noAutoSec = nas; changed = true; }
+    // Dọn "mục" do app tự tạo (fromItem), còn TRỐNG, mà (a) anh đã xoá trước đó (máy khác/tab cũ ghi lại) hoặc
+    // (b) trùng với mục thật đã có từ Sheet -> xoá, để không bị trùng / không mọc lại.
+    var mats = o.materials;
+    for (var i = mats.length - 1; i >= 0; i--){
+      var m = mats[i];
+      if (!m || !m.fromItem || !isMatSection(m) || !m.name) continue;
+      var hasKids = (i + 1 < mats.length) && !isMatSection(mats[i+1]);
+      if (hasKids) continue;
+      var key = stripDiacritics(String(m.name).replace(/\s+/g,' ').trim());
+      var dead = nas.indexOf(key) !== -1;
+      if (!dead){
+        for (var j = 0; j < mats.length; j++){
+          if (j !== i && mats[j] && !mats[j].fromItem && isMatSection(mats[j]) && mats[j].name && secSimilar(mats[j].name, m.name)){ dead = true; break; }
+        }
+      }
+      if (dead){ mats.splice(i, 1); changed = true; }
+    }
+    var haveSec = {};
+    nas.forEach(function(k){ haveSec[k] = true; });   // mục anh đã xoá: không tự tạo lại
+    mats.forEach(function(m){ if (m && m.name && isMatSection(m)) haveSec[stripDiacritics(m.name)] = true; });
+    var maxNo = 0;
+    mats.forEach(function(m){ var n = parseInt(m && m.no, 10); if (!isNaN(n) && n > maxNo) maxNo = n; });
     o.items.forEach(function(it){
       var nm = String(it && it.name || '').replace(/\s+/g,' ').trim();
       if (!nm) return;
       var k = stripDiacritics(nm);
       if (haveSec[k]) return;
+      var dup = mats.some(function(m){ return m && m.name && isMatSection(m) && secSimilar(m.name, nm); });
+      if (dup){ haveSec[k] = true; return; }
       haveSec[k] = true;
       maxNo++;
-      o.materials.push({no:String(maxNo), name:nm, spec:null, unit:null, qty:null, status:null, supplier:null, note:null, reqDate:null, section:true, fromItem:true});
+      mats.push({no:String(maxNo), name:nm, spec:null, unit:null, qty:null, status:null, supplier:null, note:null, reqDate:null, section:true, fromItem:true});
       changed = true;
     });
     return changed;
@@ -7161,7 +7195,7 @@
       'html table.mat-table select.mat-sel{width:100%;height:34px;box-sizing:border-box;border:1px solid transparent;border-radius:6px;padding:0 6px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}'+
       'html table.mat-table select.mat-sel:hover,html table.mat-table select.mat-sel:focus{border-color:var(--border-strong,#b8c0c8);outline:none;}'+
       'html table.mat-table td.col-date{position:relative;white-space:nowrap;}'+
-      'html table.mat-table td.col-date input[type=date]{width:calc(100% - 26px);}'+
+      'html table.mat-table td.col-date input[type=date]{width:calc(100% - 24px);min-width:0;padding:4px 2px 4px 6px;font-size:13px;}'+
       'html table.mat-table .date-clear{border:0;background:none;color:var(--text-muted,#6f7a84);cursor:pointer;font-size:13px;width:24px;height:30px;vertical-align:middle;padding:0;}'+
       'html table.mat-table .date-clear:hover{color:var(--bad,#c0362c);}';
     document.head.appendChild(st);
