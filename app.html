@@ -1067,6 +1067,46 @@
   html.pq-m main table:not(.pc-table){display:block;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;}
   html.pq-m main div:has(> .btn),html.pq-m main div:has(> button.btn-sm){flex-wrap:wrap;}
   html.pq-m main .btn{max-width:100%;white-space:normal;}
+  /* ===== BUILD 2026-10-05e: rà soát giao diện ===== */
+  /* (2)(3)(6) Tiêu đề bảng khi cuộn: cả khối tiêu đề dính ngay dưới thanh trên, nền đặc, không còn lệch / đè */
+  #app main table.esheet thead th,#app main table.mrp-table thead th,#app main table.mat-table thead th,#app main table.pc-table thead th,#app main table.pqd-table thead th{position:static !important;top:auto !important;background:var(--surface-2);box-shadow:none !important;}
+  #app main table.esheet thead,#app main table.mrp-table thead,#app main table.mat-table thead,#app main table.pc-table thead,#app main table.pqd-table thead{position:sticky;top:var(--topbar-h,59px);z-index:12;background:var(--surface-2);box-shadow:0 1px 0 var(--border-strong),0 4px 8px rgba(19,33,50,.10);}
+  #app main .sheet-panel .filter-bar,#app main .dpane .toolbar-row,#app main .pc-search{position:static;}
+  #app main details table thead{position:static;box-shadow:none;}
+  @media (min-width:1500px){
+    html:not(.pq-m) #app main .table-wrap,html:not(.pq-m) #app main .esheet-wrap,html:not(.pq-m) #app main .panel:has(> .table-wrap),html:not(.pq-m) #app main .sheet-panel{overflow:visible;}
+  }
+  html.pq-m #app main table thead{position:static;box-shadow:none;}
+  /* (7) Thông tin khách hàng và các ô gộp nằm giữa theo chiều dọc */
+  table.esheet td.c-stt,table.esheet td.c-code,table.esheet td.c-customer,table.esheet td.c-pct,table.esheet td.c-date,table.esheet td.c-done,table.esheet td.c-open{vertical-align:middle;}
+  table.esheet td.c-customer .cust-link{text-align:center;}
+  /* (4) Đề nghị mua */
+  .panel[hidden]{display:none !important;}
+  .stat-card[data-pq]{cursor:pointer;position:relative;transition:border-color .12s,box-shadow .12s;}
+  .stat-card[data-pq]::after{content:"Bấm để xem ›";position:absolute;right:14px;bottom:12px;font-size:12px;color:var(--text-muted);}
+  .stat-card[data-pq]:hover{border-color:var(--accent);}
+  .stat-card[data-pq][aria-current=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .pr-tabs{margin:0 0 14px;}
+  .pr-stbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);}
+  .pr-stbar .sort-hint{margin-left:auto;}
+  .pqd-slip summary .pr-print-sm{margin-left:8px;}
+  /* (5) Lịch tháng: lịch gọn bên trái, chi tiết bên phải */
+  .lich-2col{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(340px,1fr);gap:16px;align-items:start;}
+  .lich-2col .cal-cell{min-height:78px;}
+  .lich-2col .cal-chip{font-weight:500;font-size:11px;padding:3px 6px;}
+  .lich-2col .cal-chip b{font-weight:700;}
+  .lich-legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:12.5px;color:var(--text-muted);padding:2px 2px 10px;}
+  .lich-legend span{display:inline-flex;align-items:center;gap:6px;}
+  .lich-legend .lc-dot{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .lich-legend .lc-dot.lc-wait{border:1px solid var(--border-strong);}
+  .lich-legend .lich-tip{margin-left:auto;font-style:italic;}
+  .lich-det{position:sticky;top:calc(var(--topbar-h,59px) + 12px);max-height:calc(100vh - var(--topbar-h,59px) - 28px);overflow:auto;}
+  @media (max-width:1250px){ .lich-2col{grid-template-columns:minmax(0,1fr);} .lich-det{position:static;max-height:none;} }
+  html.pq-m .lich-2col{grid-template-columns:minmax(0,1fr);}
+  html.pq-m .lich-det{position:static;max-height:none;}
+  html.pq-m .lich-2col .cal-cell{min-height:54px;padding:2px;}
+  html.pq-m .lich-2col .cal-chip{font-size:9px;padding:1px 2px;}
+  html.pq-m .lich-legend .lich-tip{margin-left:0;}
 </style>
 
 <div id="app">
@@ -1142,7 +1182,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05e-may';
+  var BUILD_ID = '2026-10-05f-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3056,7 +3096,7 @@
     html += statCard('Vật tư đã có', monMatDone, 'accent-good');
     html += '</div>';
 
-    html += '<div class="panel" style="overflow:visible;padding:12px;margin-bottom:16px;"><div class="cal-grid">';
+    html += '<div class="lich-2col"><div class="panel lich-cal" style="overflow:visible;padding:12px;"><div class="lich-legend"><span><i class="lc-dot lc-late"></i>Trễ hạn</span><span><i class="lc-dot lc-run"></i>Đang sản xuất</span><span><i class="lc-dot lc-wait"></i>Chưa sản xuất</span><span><i class="lc-dot lc-done"></i>Đã xong</span><span><i class="lc-dot lc-mat"></i>Vật tư phải về</span><span class="lich-tip">Bấm vào một ngày để xem chi tiết ở bên phải</span></div><div class="cal-grid">';
     ['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ nhật'].forEach(function(d){ html += '<div class="cal-dow">'+d+'</div>'; });
     for (var i=0;i<firstDow;i++) html += '<div class="cal-cell empty"></div>';
     for (var day=1; day<=daysInMonth; day++){
@@ -3066,7 +3106,7 @@
       html += '<div class="cal-cell'+(dk===todayIso?' today':'')+(has?' has':'')+(STATE.lichDay===dk?' sel':'')+'" data-lich-day="'+dk+'">';
       html += '<div class="cal-daynum">'+day+'</div>';
       ev.ords.slice(0,4).forEach(function(x){
-        html += '<div class="cal-chip '+lichChipCls(x.o, x.cluster, dk)+'" title="'+esc(orderTitle(x.o))+(x.cluster?' · '+esc(x.cluster):'')+'">'+esc(x.o.code||orderTitle(x.o))+(x.cluster?' · '+esc(x.cluster):'')+'</div>';
+        html += '<div class="cal-chip '+lichChipCls(x.o, x.cluster, dk)+'" title="'+esc(orderTitle(x.o))+(x.cluster?' · '+esc(x.cluster):'')+'"><b>'+esc(x.o.code||'')+'</b> '+esc(x.cluster||orderTitle(x.o))+'</div>';
       });
       if (ev.ords.length>4) html += '<div class="cal-more">+'+(ev.ords.length-4)+' đơn nữa</div>';
       if (ev.mats.length) html += '<div class="cal-chip lc-mat">Vật tư: '+ev.mats.length+' dòng</div>';
@@ -3077,7 +3117,7 @@
     // Chi tiết: ngày đang chọn, hoặc cả tháng
     var days = Object.keys(byDay).sort();
     var showDays = (STATE.lichDay && byDay[STATE.lichDay]) ? [STATE.lichDay] : days;
-    html += '<div class="panel"><div class="panel-head"><h2>'+(STATE.lichDay && byDay[STATE.lichDay] ? ('Chi tiết ngày '+fmtDate(STATE.lichDay)) : 'Chi tiết cả tháng')+'</h2>'+
+    html += '<div class="panel lich-det"><div class="panel-head"><h2>'+(STATE.lichDay && byDay[STATE.lichDay] ? ('Chi tiết ngày '+fmtDate(STATE.lichDay)) : 'Tất cả mốc trong tháng')+'</h2>'+
       (STATE.lichDay?'<button class="btn btn-sm" data-lich-day="">Xem cả tháng</button>':'')+'</div><div class="panel-body">';
     if (!showDays.length){
       html += '<div class="empty-note">Tháng '+m+'/'+y+' chưa có mốc giao hàng hoặc vật tư nào. Ngày giao đặt trong tab từng đơn (cụm) và ô "Ngày yêu cầu" của vật tư.</div>';
@@ -3094,7 +3134,7 @@
       });
       html += '</div>';
     });
-    html += '</div></div>';
+    html += '</div></div></div>';
     return html;
   }
 
@@ -5805,9 +5845,13 @@
     var nSel = cand.filter(function(r){ return PQX.sel[r.key]; }).length;
     var list = pqxList('pr').sort(function(a,b){ return a.id<b.id ? 1 : -1; });
     var cnt = function(s){ return list.filter(function(p){ return p.status===s; }).length; };
+    var tab = PQX.prTab==='slips' ? 'slips' : 'cand', fst = tab==='slips' ? (PQX.prSt||'') : null;
+    var listS = fst ? list.filter(function(p){ return p.status===fst; }) : list;
+    var kpiA = function(st){ return ' data-pq="pr-tab" data-v="slips" data-st="'+st+'" role="button" tabindex="0" title="Bấm để xem và in các phiếu này"'+(fst===st?' aria-current="true"':''); };
     var h = '<div class="pqd-head"><div><h1>Đề nghị mua vật tư</h1><div class="pqd-sub">Chọn các dòng vật tư chưa có trong Công việc hiện tại, lập phiếu, rồi theo dõi từ lúc chờ duyệt đến khi hàng về.</div></div></div>';
-    h += '<div class="stat-grid">'+statCard('Dòng chưa đề nghị', cand.length, 'accent-warn')+statCard('Phiếu chờ duyệt', cnt('Chờ duyệt'), 'accent-warn')+statCard('Đã duyệt, chưa đặt', cnt('Đã duyệt'), 'accent-info')+statCard('Đã đặt, chờ hàng về', cnt('Đã đặt'), 'accent-info')+statCard('Đã về', cnt('Đã về'), 'accent-good')+'</div>';
-    h += '<div class="panel" style="margin-bottom:16px;"><div class="panel-head"><h2>Vật tư cần đề nghị mua</h2><span class="pqd-meta">'+shown.length+' / '+cand.length+' dòng</span></div>';
+    h += '<div class="stat-grid">'+statCard('Dòng chưa đề nghị', cand.length, 'accent-warn', ' data-pq="pr-tab" data-v="cand" role="button" tabindex="0" title="Bấm để chọn vật tư và lập phiếu"'+(tab==='cand'?' aria-current="true"':''))+statCard('Phiếu chờ duyệt', cnt('Chờ duyệt'), 'accent-warn', kpiA('Chờ duyệt'))+statCard('Đã duyệt, chưa đặt', cnt('Đã duyệt'), 'accent-info', kpiA('Đã duyệt'))+statCard('Đã đặt, chờ hàng về', cnt('Đã đặt'), 'accent-info', kpiA('Đã đặt'))+statCard('Đã về', cnt('Đã về'), 'accent-good', kpiA('Đã về'))+'</div>';
+    h += '<div class="pc-modes pr-tabs" role="tablist"><button role="tab" aria-selected="'+(tab==='cand')+'" data-pq="pr-tab" data-v="cand">1. Chọn vật tư, lập phiếu ('+cand.length+' dòng)</button><button role="tab" aria-selected="'+(tab==='slips')+'" data-pq="pr-tab" data-v="slips">2. Phiếu đã lập: xem, in, đổi trạng thái ('+list.length+')</button></div>';
+    h += '<div class="panel"'+(tab==='cand'?'':' hidden')+' style="margin-bottom:16px;"><div class="panel-head"><h2>Vật tư cần đề nghị mua</h2><span class="pqd-meta">'+shown.length+' / '+cand.length+' dòng</span></div>';
     h += '<div class="pqd-bar"><input class="pqd-inp" id="pqPrQ" style="max-width:320px;" placeholder="Lọc theo mã đơn, tên vật tư…" value="'+esc(PQX.prQ||'')+'"><button class="btn btn-sm" data-pq="pr-all">Chọn tất cả đang hiện</button><button class="btn btn-sm" data-pq="pr-none">Bỏ chọn</button>'+pqcBar('pr')+'<span style="flex:1"></span><button class="btn btn-primary" data-pq="pr-new"'+(nSel?'':' disabled')+'>Lập phiếu đề nghị ('+nSel+' dòng)</button></div>';
     if (!cand.length){
       h += '<div class="empty-note">Không còn dòng vật tư nào cần đề nghị mua trong Công việc hiện tại.</div>';
@@ -5830,14 +5874,17 @@
       if (shown.length>200) h += '<div class="pqd-foot">Đang hiện 200 / '+shown.length+' dòng. Gõ vào ô lọc để thu hẹp.</div>';
     }
     h += '</div>';
-    h += '<div class="panel"><div class="panel-head"><h2>Phiếu đề nghị</h2><div class="pqd-bar" style="padding:0;"><span class="pqd-meta">'+list.length+' phiếu</span><button class="btn btn-sm'+(PQX.prBoard?'':' btn-primary')+'" data-pq="pr-view" data-v="list">Danh sách</button><button class="btn btn-sm'+(PQX.prBoard?' btn-primary':'')+'" data-pq="pr-view" data-v="board">Bảng theo trạng thái</button></div></div><div class="panel-body">';
-    if (list.length && PQX.prBoard){
-      h += prBoard(list);
+    h += '<div class="panel"'+(tab==='slips'?'':' hidden')+'><div class="panel-head"><h2>Phiếu đề nghị'+(fst?' · '+esc(fst):'')+'</h2><div class="pqd-bar" style="padding:0;"><span class="pqd-meta">'+listS.length+' phiếu</span><button class="btn btn-sm'+(PQX.prBoard?'':' btn-primary')+'" data-pq="pr-view" data-v="list">Danh sách</button><button class="btn btn-sm'+(PQX.prBoard?' btn-primary':'')+'" data-pq="pr-view" data-v="board">Bảng theo trạng thái</button></div></div><div class="panel-body">';
+    h += '<div class="filter-bar pr-stbar"><div class="chip'+(!fst?' active':'')+'" data-pq="pr-tab" data-v="slips" data-st="">Tất cả ('+list.length+')</div>'+PR_ST.map(function(s){ return '<div class="chip'+(fst===s?' active':'')+'" data-pq="pr-tab" data-v="slips" data-st="'+s+'">'+s+' ('+cnt(s)+')</div>'; }).join('')+'<span class="sort-hint">Bấm vào dòng phiếu để xem chi tiết; nút "In phiếu" ở cuối mỗi dòng.</span></div>';
+    if (listS.length && PQX.prBoard){
+      h += prBoard(listS);
     } else if (!list.length){
-      h += '<div class="empty-note">Chưa có phiếu nào. Tích chọn vật tư ở bảng trên rồi bấm "Lập phiếu đề nghị".</div>';
+      h += '<div class="empty-note">Chưa có phiếu nào. Sang thẻ "1. Chọn vật tư, lập phiếu", tích chọn vật tư rồi bấm "Lập phiếu đề nghị".</div>';
+    } else if (!listS.length){
+      h += '<div class="empty-note">Không có phiếu nào ở trạng thái "'+esc(fst)+'".</div>';
     } else {
-      list.forEach(function(p){
-        h += '<details class="pqd-slip" data-slip="'+esc(p.id)+'"><summary><span class="num pqd-id">'+esc(p.id)+'</span><span class="pqd-cap">'+esc(fmtDate(p.date))+'</span><span class="pqd-grow"><b>'+esc(p.by||'(chưa ghi người đề nghị)')+'</b>'+(p.supplier?' · '+esc(p.supplier):'')+(p.note?'<span class="pqd-cap"> · '+esc(p.note)+'</span>':'')+'</span><span class="pqd-cap">'+(p.lines||[]).length+' dòng</span>'+prPill(p.status)+'</summary>';
+      listS.forEach(function(p){
+        h += '<details class="pqd-slip" data-slip="'+esc(p.id)+'"><summary><span class="num pqd-id">'+esc(p.id)+'</span><span class="pqd-cap">'+esc(fmtDate(p.date))+'</span><span class="pqd-grow"><b>'+esc(p.by||'(chưa ghi người đề nghị)')+'</b>'+(p.supplier?' · '+esc(p.supplier):'')+(p.note?'<span class="pqd-cap"> · '+esc(p.note)+'</span>':'')+'</span><span class="pqd-cap">'+(p.lines||[]).length+' dòng</span>'+prPill(p.status)+'<button class="btn btn-sm pr-print-sm" data-pq="pr-print" data-id="'+esc(p.id)+'">In phiếu</button></summary>';
         h += '<div class="pqd-slip-body"><div class="pqd-bar" style="padding:0 0 10px;"><label class="pqd-cap" for="prst-'+esc(p.id)+'">Chuyển trạng thái</label><select class="pqd-inp" style="width:150px;" id="prst-'+esc(p.id)+'" data-pq-prst="'+esc(p.id)+'">'+PR_ST.map(function(s){ return '<option'+(s===p.status?' selected':'')+'>'+s+'</option>'; }).join('')+'</select>'+(p.needDate?'<span class="pqd-cap">Cần trước '+esc(fmtDate(p.needDate))+'</span>':'')+'<span style="flex:1"></span><button class="btn btn-sm" data-pq="pr-print" data-id="'+esc(p.id)+'">In phiếu</button><button class="btn btn-sm btn-danger" data-pq="pr-del" data-id="'+esc(p.id)+'">Xoá phiếu</button></div>';
         h += '<table class="mrp-table pqd-table"><thead><tr><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th></tr></thead><tbody>';
         prGroupLines(p.lines).forEach(function(G){
@@ -5867,9 +5914,9 @@
         var doc = {id:pqxNextId('pr','DN'), dept:STATE.dept, date:pqxToday(), by:by, supplier:b.querySelector('#pqmSup').value.trim(), needDate:b.querySelector('#pqmNeed').value, note:b.querySelector('#pqmNote').value.trim(), status:'Chờ duyệt', at:Date.now(),
           lines:cand.map(function(r){ return {key:r.key, orderId:r.o.id, code:r.o.code||'', name:r.m.name, spec:r.m.spec||'', unit:r.m.unit||'', qty:(r.m.qty===undefined?null:r.m.qty)}; })};
         pqxSave('pr','purchase',doc);
-        if (rd) PQX.selRd = {}; else PQX.sel = {};
+        if (rd) PQX.selRd = {}; else { PQX.sel = {}; PQX.prTab = 'slips'; PQX.prSt = ''; }
         renderAll();
-        toast('Đã lập phiếu '+doc.id+' với '+doc.lines.length+' dòng.');
+        toast('Đã lập phiếu '+doc.id+' với '+doc.lines.length+' dòng. Xem và in ở thẻ "Phiếu đã lập".');
       });
   }
   function prSetStatus(id, st){
@@ -6391,7 +6438,8 @@
     if (a==='tk-week'){ var d = +t.getAttribute('data-d'); PQX.tkWeek = d===0 ? 0 : PQX.tkWeek+d; return renderAll(); }
     if (a==='kb-move'){ var st = t.getAttribute('data-st'); if (!st) return; return t.getAttribute('data-kind')==='pr' ? prSetStatus(id, st) : tkSetStatus(id, st); }
     if (a==='pr-view'){ PQX.prBoard = t.getAttribute('data-v')==='board'; return renderAll(); }
-    if (a==='pr-open'){ PQX.prBoard = false; renderAll(); var el = document.querySelector('.pqd-slip[data-slip="'+id+'"]'); if (el){ el.open = true; el.scrollIntoView({block:'center'}); } }
+    if (a==='pr-tab'){ PQX.prTab = t.getAttribute('data-v'); PQX.prSt = t.getAttribute('data-st')||''; return renderAll(); }
+    if (a==='pr-open'){ PQX.prBoard = false; PQX.prTab = 'slips'; PQX.prSt = ''; renderAll(); var el = document.querySelector('.pqd-slip[data-slip="'+id+'"]'); if (el){ el.open = true; el.scrollIntoView({block:'center'}); } }
   });
   document.addEventListener('change', function(e){
     var t = e.target, k = t && t.getAttribute && t.getAttribute('data-pq-sel');
@@ -6490,7 +6538,7 @@
       if (filtering && !rows.length) return;
       if (!g.active && !rows.length) return;
       shownGroups++;
-      var single1 = STATE.dept==='cokhi' && !!g.order && rows.length===1;
+      var single1 = false; /* 05e: tên hạng mục luôn là 1 dòng riêng, bên dưới mới là dòng việc + người làm */
       var real = g.rows, dn = real.filter(function(t){ return t.status==='Xong'; }).length, pct = real.length ? Math.round(dn/real.length*100) : 0;
       var dr = g.due ? daysRemaining(g.due) : null;
       if (!single1) h += '<tr class="pc-grp"><td class="num">'+(gi+1)+'</td><td colspan="5">'+pqcBtn('pc', g.key)+(g.order?'<button class="lnk2" data-goto-td="'+esc(g.order.id)+'" title="Mở đơn hàng">'+(g.code?'<span class="num">'+esc(g.code)+'</span> · ':'')+esc(g.title)+'</button>':'<b>'+esc(g.title)+'</b>')+(g.order && g.order.customerInfo ? '<span class="pqd-cap"> · '+esc(String(g.order.customerInfo).split('\n')[0])+'</span>' : '')+'</td><td class="r num">'+dn+'/'+real.length+'</td><td><div class="pc-meter"><i style="width:'+pct+'%;"></i></div></td><td class="r">'+(dr===null?'':(dr<0?'<span class="num" style="color:var(--bad);font-weight:600;">trễ '+(-dr)+'</span>':'<span class="num">còn '+dr+'</span>'))+'</td><td>'+(g.due?'<span class="pqd-cap">giao '+esc(fmtDate(g.due))+'</span>':'')+'</td><td><button class="pc-add" data-pq="pc-add" data-g="'+esc(g.key)+'" title="Thêm việc cho máy này" aria-label="Thêm việc">+</button></td></tr>';
@@ -6516,7 +6564,7 @@
     });
     PQX._pcCount = q ? (nTask+' việc · '+shownGroups+' máy') : '';
     if (!shownGroups) h += '<tr><td colspan="11" class="empty-note">'+(groups.length?'Không có việc nào khớp bộ lọc.':'Chưa có đơn hàng đang làm nào.')+'</td></tr>';
-    h += '</tbody></table></div><div class="pqd-foot" style="padding:10px 0 0;">Việc đã xong được ẩn. Hạng mục chỉ còn 1 việc thì hiện gọn 1 dòng; hạng mục còn nhiều việc thì mỗi việc có ô tên người làm riêng. Điền người thực hiện và ngày là tự lưu; bấm vào tên để mở đơn.</div>';
+    h += '</tbody></table></div><div class="pqd-foot" style="padding:10px 0 0;">Dòng nền xanh là tên đơn / hạng mục; các dòng bên dưới là từng việc, mỗi việc có ô người làm riêng. Điền người thực hiện và ngày là tự lưu; bấm vào tên để mở đơn.</div>';
     return h;
   }
   var S_FLASH = null;
