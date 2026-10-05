@@ -1142,7 +1142,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-04p-may';
+  var BUILD_ID = '2026-10-05a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -4608,6 +4608,11 @@
     // hết thì coi như xong đơn", tránh đúng lỗi bị nhắc "tự ý chỉnh sửa".
     function flush(){
       if (cur){
+        // Đơn chỉ có 1 dòng tên (VD đơn lẻ DL12) mà anh đã ẨN dòng đó = đã xong cả đơn.
+        if (cur.items.length===0 && cur._hdrHidden){
+          cur.items.push({name:cur._hdrHidden, requirement:null, status:'ĐÃ GIAO', note:null, cluster:null, qc:null});
+        }
+        delete cur._hdrHidden;
         if (cur._itemCount>0 && cur._hiddenCount===cur._itemCount){
           cur.items.forEach(function(it){ it.status = 'ĐÃ GIAO'; });
         }
@@ -4643,6 +4648,7 @@
         cur = {code:code, customerInfo:info, requirement:req, note:note, items:[], progressSnapshots:[]};
         cur._itemCount = 0; cur._hiddenCount = 0;
         curCluster = null;
+        cur._hdrHidden = (req===null && equip && isHiddenRow) ? equip : null;
         if (req===null && equip){
           curCluster = equip;
           if (hasSnap) cur.progressSnapshots.push({cluster:curCluster, banve:banve, vattu:vattu, tien:tien, deliveryDate:date});
@@ -5741,6 +5747,16 @@
     });
     return rows;
   }
+  // Gom dòng của 1 phiếu theo công trình (đơn hàng), giữ thứ tự xuất hiện.
+  function prGroupLines(lines){
+    var by = {}, out = [];
+    (lines||[]).forEach(function(l){
+      var k = l.orderId || l.code || '';
+      if (!by[k]){ var o = l.orderId && STATE.orders[l.orderId]; by[k] = {code:l.code||(o&&o.code)||'', title:o ? orderTitle(o) : '', lines:[]}; out.push(by[k]); }
+      by[k].lines.push(l);
+    });
+    return out;
+  }
   function prShown(cand){
     var q = stripDiacritics(PQX.prQ||'');
     return cand.filter(function(r){ return !q || stripDiacritics((r.o.code||'')+' '+r.m.name+' '+(r.m.spec||'')+' '+orderTitle(r.o)).indexOf(q)>=0; });
@@ -5760,10 +5776,17 @@
     } else if (!shown.length){
       h += '<div class="empty-note">Không có dòng nào khớp ô lọc.</div>';
     } else {
-      h += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:36px;"></th><th>Đơn hàng</th><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th><th>Ngày yêu cầu</th><th>Tình trạng</th></tr></thead><tbody>';
-      shown.slice(0,200).forEach(function(r){
-        var m = r.m;
-        h += '<tr data-pq="pr-toggle" data-key="'+esc(r.key)+'" class="pqd-click'+(PQX.sel[r.key]?' pqd-on':'')+'"><td><input type="checkbox" tabindex="-1" aria-label="Chọn dòng"'+(PQX.sel[r.key]?' checked':'')+'></td><td><span class="num">'+esc(r.o.code||'—')+'</span><div class="pqd-cap">'+esc(orderTitle(r.o))+'</div></td><td><b>'+esc(m.name)+'</b></td><td>'+esc(m.spec||'')+'</td><td class="r num">'+esc(fmtNum(m.qty))+'</td><td>'+esc(m.unit||'')+'</td><td class="num">'+(m.reqDate?esc(fmtDate(m.reqDate)):'<span class="pqd-cap">—</span>')+'</td><td><span class="pill pill-bad">'+esc(m.status||'Chưa xem')+'</span></td></tr>';
+      h += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:36px;"></th><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th><th>Ngày yêu cầu</th><th>Tình trạng</th></tr></thead><tbody>';
+      var og = {}, ogo = [];
+      shown.slice(0,200).forEach(function(r){ if (!og[r.o.id]){ og[r.o.id] = {o:r.o, rows:[]}; ogo.push(r.o.id); } og[r.o.id].rows.push(r); });
+      ogo.sort(function(a,b){ var da = daysRemaining(pqdHeadDate(og[a].o)), db2 = daysRemaining(pqdHeadDate(og[b].o)); da = da===null ? 9e9 : da; db2 = db2===null ? 9e9 : db2; if (da!==db2) return da-db2; return String(og[a].o.code||'')<String(og[b].o.code||'') ? -1 : 1; });
+      ogo.forEach(function(oid){
+        var G = og[oid], allSel = G.rows.every(function(r){ return PQX.sel[r.key]; }), due = pqdHeadDate(G.o), dr = due ? daysRemaining(due) : null;
+        h += '<tr class="pqd-og pqd-click" data-pq="pr-order" data-oid="'+esc(oid)+'"><td><input type="checkbox" tabindex="-1" aria-label="Chọn cả công trình"'+(allSel?' checked':'')+'></td><td colspan="6"><span class="num">'+esc(G.o.code||'—')+'</span> · '+esc(orderTitle(G.o))+(G.o.customerInfo ? '<span class="pqd-cap"> · '+esc(String(G.o.customerInfo).split('\n')[0])+'</span>' : '')+'<span class="pqd-cap"> · '+G.rows.length+' dòng'+(due ? ' · giao '+esc(fmtDate(due))+(dr!==null&&dr<0 ? ' (trễ '+(-dr)+' ngày)' : '') : '')+'</span></td></tr>';
+        G.rows.forEach(function(r){
+          var m = r.m;
+          h += '<tr data-pq="pr-toggle" data-key="'+esc(r.key)+'" class="pqd-click'+(PQX.sel[r.key]?' pqd-on':'')+'"><td><input type="checkbox" tabindex="-1" aria-label="Chọn dòng"'+(PQX.sel[r.key]?' checked':'')+'></td><td><b>'+esc(m.name)+'</b></td><td>'+esc(m.spec||'')+'</td><td class="r num">'+esc(fmtNum(m.qty))+'</td><td>'+esc(m.unit||'')+'</td><td class="num">'+(m.reqDate?esc(fmtDate(m.reqDate)):'<span class="pqd-cap">—</span>')+'</td><td><span class="pill pill-bad">'+esc(m.status||'Chưa xem')+'</span></td></tr>';
+        });
       });
       h += '</tbody></table></div>';
       if (shown.length>200) h += '<div class="pqd-foot">Đang hiện 200 / '+shown.length+' dòng. Gõ vào ô lọc để thu hẹp.</div>';
@@ -5778,8 +5801,11 @@
       list.forEach(function(p){
         h += '<details class="pqd-slip" data-slip="'+esc(p.id)+'"><summary><span class="num pqd-id">'+esc(p.id)+'</span><span class="pqd-cap">'+esc(fmtDate(p.date))+'</span><span class="pqd-grow"><b>'+esc(p.by||'(chưa ghi người đề nghị)')+'</b>'+(p.supplier?' · '+esc(p.supplier):'')+(p.note?'<span class="pqd-cap"> · '+esc(p.note)+'</span>':'')+'</span><span class="pqd-cap">'+(p.lines||[]).length+' dòng</span>'+prPill(p.status)+'</summary>';
         h += '<div class="pqd-slip-body"><div class="pqd-bar" style="padding:0 0 10px;"><label class="pqd-cap" for="prst-'+esc(p.id)+'">Chuyển trạng thái</label><select class="pqd-inp" style="width:150px;" id="prst-'+esc(p.id)+'" data-pq-prst="'+esc(p.id)+'">'+PR_ST.map(function(s){ return '<option'+(s===p.status?' selected':'')+'>'+s+'</option>'; }).join('')+'</select>'+(p.needDate?'<span class="pqd-cap">Cần trước '+esc(fmtDate(p.needDate))+'</span>':'')+'<span style="flex:1"></span><button class="btn btn-sm" data-pq="pr-print" data-id="'+esc(p.id)+'">In phiếu</button><button class="btn btn-sm btn-danger" data-pq="pr-del" data-id="'+esc(p.id)+'">Xoá phiếu</button></div>';
-        h += '<table class="mrp-table pqd-table"><thead><tr><th>Đơn hàng</th><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th></tr></thead><tbody>';
-        (p.lines||[]).forEach(function(l){ h += '<tr><td class="num">'+esc(l.code||'—')+'</td><td>'+esc(l.name)+'</td><td>'+esc(l.spec||'')+'</td><td class="r num">'+esc(fmtNum(l.qty))+'</td><td>'+esc(l.unit||'')+'</td></tr>'; });
+        h += '<table class="mrp-table pqd-table"><thead><tr><th>Tên vật tư</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th></tr></thead><tbody>';
+        prGroupLines(p.lines).forEach(function(G){
+          h += '<tr class="pqd-og"><td colspan="4"><span class="num">'+esc(G.code||'—')+'</span> · '+esc(G.title)+'<span class="pqd-cap"> · '+G.lines.length+' dòng</span></td></tr>';
+          G.lines.forEach(function(l){ h += '<tr><td>'+esc(l.name)+'</td><td>'+esc(l.spec||'')+'</td><td class="r num">'+esc(fmtNum(l.qty))+'</td><td>'+esc(l.unit||'')+'</td></tr>'; });
+        });
         h += '</tbody></table><div class="pqd-cap" style="margin-top:8px;">Khi chuyển sang "Đã đặt", các dòng vật tư này trong đơn hàng tự đổi tình trạng thành "Đã đặt"; sang "Đã về" thì thành "Đã có".</div></div></details>';
       });
     }
@@ -6082,6 +6108,12 @@
     if (a==='pr-toggle'){ var k = t.getAttribute('data-key'); if (PQX.sel[k]) delete PQX.sel[k]; else PQX.sel[k] = 1; return renderAll(); }
     if (a==='pr-all'){ prShown(prCandidates()).slice(0,200).forEach(function(r){ PQX.sel[r.key] = 1; }); return renderAll(); }
     if (a==='pr-none'){ PQX.sel = {}; return renderAll(); }
+    if (a==='pr-order'){
+      var oid = t.getAttribute('data-oid'), rowsO = prShown(prCandidates()).filter(function(r){ return r.o.id===oid; });
+      var allO = rowsO.length && rowsO.every(function(r){ return PQX.sel[r.key]; });
+      rowsO.forEach(function(r){ if (allO) delete PQX.sel[r.key]; else PQX.sel[r.key] = 1; });
+      return renderAll();
+    }
     if (a==='pr-new') return prCreate();
     if (a==='pr-print') return prPrint(id);
     if (a==='pr-del') return showConfirmModal('Xoá phiếu '+id+'? Tình trạng các dòng vật tư trong đơn hàng giữ nguyên như hiện tại.', function(){ pqxDel('pr','purchase',id); renderAll(); toast('Đã xoá phiếu '+id+'.'); }, {danger:true, yesLabel:'Xoá phiếu'});
@@ -6359,7 +6391,7 @@
      Tất cả các kiểu xem (bảng phân công, theo tuần, theo người, Tổng quan) dùng
      CHUNG một bộ dữ liệu ở ngăn "tasks".
      ========================================================================== */
-  PQX.tkMode = 'pccv'; PQX.pcHideDone = false; PQX.pcQ = '';
+  PQX.tkMode = 'pccv'; PQX.pcHideDone = true; PQX.pcQ = '';
   var PC_PRIO = ['', 'ƯU TIÊN', 'TRUNG BÌNH', 'THẤP'];
   function pcHash(s){ var h = 5381; s = String(s); for (var i=0;i<s.length;i++){ h = ((h<<5)+h+s.charCodeAt(i))|0; } return (h>>>0).toString(36); }
   function pcNewId(){ return 'T-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
@@ -6403,7 +6435,7 @@
   function renderPccv(){
     var groups = pcGroups(), q = pcQNow(), ppl = tkPeople(), nTask = 0;
     var keep = function(t){ return (!PQX.tkWho || (t.who||'')===PQX.tkWho) && (!PQX.pcHideDone || t.status!=='Xong') && (!q || pcHit(t, q)); };
-    var h = '<div class="pqd-bar" style="padding:0 0 12px;"><select class="pqd-inp" style="width:170px;" data-pq-sel="tkWho" aria-label="Lọc theo người thực hiện"><option value="">Mọi người</option>'+ppl.map(function(p){ return '<option'+(p===PQX.tkWho?' selected':'')+'>'+esc(p)+'</option>'; }).join('')+'</select><label class="pqd-cap" style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" data-pq-chk="pc-hidedone"'+(PQX.pcHideDone?' checked':'')+'> Ẩn việc đã xong</label></div>';
+    var h = '<div class="pqd-bar" style="padding:0 0 12px;"><select class="pqd-inp" style="width:170px;" data-pq-sel="tkWho" aria-label="Lọc theo người thực hiện"><option value="">Mọi người</option>'+ppl.map(function(p){ return '<option'+(p===PQX.tkWho?' selected':'')+'>'+esc(p)+'</option>'; }).join('')+'</select><label class="pqd-cap" style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" data-pq-chk="pc-hidedone"'+(PQX.pcHideDone?' checked':'')+'> Ẩn việc đã xong (chỉ hiện việc còn phải làm)</label></div>';
     h += '<datalist id="pcWhoL">'+ppl.map(function(p){ return '<option value="'+esc(p)+'">'; }).join('')+'</datalist>';
     h += '<div class="table-wrap pcw"><table class="pc-table"><thead><tr><th style="width:52px;">Cấu trúc</th><th style="min-width:320px;">Nhiệm vụ</th><th style="width:150px;">Người thực hiện</th><th style="width:124px;">Mức ưu tiên</th><th style="width:138px;">Bắt đầu</th><th style="width:138px;">Kết thúc</th><th class="r" style="width:64px;">Số ngày</th><th style="width:74px;">Hoàn thành</th><th class="r" style="width:76px;">Còn lại</th><th style="min-width:170px;">Phản hồi cá nhân</th><th style="width:34px;"></th></tr></thead><tbody>';
     var shownGroups = 0;
@@ -6415,14 +6447,19 @@
       if (filtering && !rows.length) return;
       if (!g.active && !rows.length) return;
       shownGroups++;
+      var single1 = STATE.dept==='cokhi' && !!g.order && rows.length===1;
       var real = g.rows, dn = real.filter(function(t){ return t.status==='Xong'; }).length, pct = real.length ? Math.round(dn/real.length*100) : 0;
       var dr = g.due ? daysRemaining(g.due) : null;
-      h += '<tr class="pc-grp"><td class="num">'+(gi+1)+'</td><td colspan="5">'+(g.order?'<button class="lnk2" data-goto-td="'+esc(g.order.id)+'" title="Mở đơn hàng">'+(g.code?'<span class="num">'+esc(g.code)+'</span> · ':'')+esc(g.title)+'</button>':'<b>'+esc(g.title)+'</b>')+(g.order && g.order.customerInfo ? '<span class="pqd-cap"> · '+esc(String(g.order.customerInfo).split('\n')[0])+'</span>' : '')+'</td><td class="r num">'+dn+'/'+real.length+'</td><td><div class="pc-meter"><i style="width:'+pct+'%;"></i></div></td><td class="r">'+(dr===null?'':(dr<0?'<span class="num" style="color:var(--bad);font-weight:600;">trễ '+(-dr)+'</span>':'<span class="num">còn '+dr+'</span>'))+'</td><td>'+(g.due?'<span class="pqd-cap">giao '+esc(fmtDate(g.due))+'</span>':'')+'</td><td><button class="pc-add" data-pq="pc-add" data-g="'+esc(g.key)+'" title="Thêm việc cho máy này" aria-label="Thêm việc">+</button></td></tr>';
+      if (!single1) h += '<tr class="pc-grp"><td class="num">'+(gi+1)+'</td><td colspan="5">'+(g.order?'<button class="lnk2" data-goto-td="'+esc(g.order.id)+'" title="Mở đơn hàng">'+(g.code?'<span class="num">'+esc(g.code)+'</span> · ':'')+esc(g.title)+'</button>':'<b>'+esc(g.title)+'</b>')+(g.order && g.order.customerInfo ? '<span class="pqd-cap"> · '+esc(String(g.order.customerInfo).split('\n')[0])+'</span>' : '')+'</td><td class="r num">'+dn+'/'+real.length+'</td><td><div class="pc-meter"><i style="width:'+pct+'%;"></i></div></td><td class="r">'+(dr===null?'':(dr<0?'<span class="num" style="color:var(--bad);font-weight:600;">trễ '+(-dr)+'</span>':'<span class="num">còn '+dr+'</span>'))+'</td><td>'+(g.due?'<span class="pqd-cap">giao '+esc(fmtDate(g.due))+'</span>':'')+'</td><td><button class="pc-add" data-pq="pc-add" data-g="'+esc(g.key)+'" title="Thêm việc cho máy này" aria-label="Thêm việc">+</button></td></tr>';
       if (!rows.length) h += '<tr><td></td><td colspan="10" class="pqd-cap" style="padding:8px 10px;">Chưa có việc nào. Bấm + ở cuối dòng tên máy để thêm việc.</td></tr>';
       rows.forEach(function(t, ti){
         var done = t.status==='Xong', id = esc(t.id);
-        h += '<tr class="pc-row'+(done?' done':'')+(tkLate(t)?' late':'')+(S_FLASH===t.id?' flash':'')+'" data-pc="'+id+'"><td class="num pqd-cap">'+(gi+1)+'.'+(ti+1)+'</td>'+
-          '<td><input class="pc-in" data-f="title" value="'+esc(t.title||'')+'" placeholder="Nội dung công việc" aria-label="Nhiệm vụ"></td>'+
+        var single = single1 && g.order;
+        var titleCell = single
+          ? '<td><button class="lnk2" data-goto-td="'+esc(g.order.id)+'" title="Mở đơn hàng">'+(g.code?'<span class="num">'+esc(g.code)+'</span> · ':'')+esc(g.title)+'</button>'+(norm(t.title||'')!==norm(g.title||'') ? '<input class="pc-in" data-f="title" value="'+esc(t.title||'')+'" placeholder="Nội dung công việc" aria-label="Nhiệm vụ">' : '')+'</td>'
+          : '<td><input class="pc-in" data-f="title" value="'+esc(t.title||'')+'" placeholder="Nội dung công việc" aria-label="Nhiệm vụ"></td>';
+        h += '<tr class="pc-row'+(done?' done':'')+(tkLate(t)?' late':'')+(S_FLASH===t.id?' flash':'')+'" data-pc="'+id+'"><td class="num pqd-cap">'+(single ? (gi+1) : (gi+1)+'.'+(ti+1))+'</td>'+
+          titleCell+
           '<td><input class="pc-in" data-f="who" list="pcWhoL" value="'+esc(t.who||'')+'" placeholder="Điền người làm" aria-label="Người thực hiện"></td>'+
           '<td><select class="pc-in pc-prio'+(t.prio==='ƯU TIÊN'?' hot':'')+'" data-f="prio" aria-label="Mức ưu tiên">'+PC_PRIO.map(function(p){ return '<option value="'+p+'"'+(p===(t.prio||'')?' selected':'')+'>'+(p||'—')+'</option>'; }).join('')+'</select></td>'+
           '<td><input class="pc-in num" type="date" data-f="start" value="'+esc(t.start||'')+'" aria-label="Bắt đầu"></td>'+
@@ -6436,7 +6473,7 @@
     });
     PQX._pcCount = q ? (nTask+' việc · '+shownGroups+' máy') : '';
     if (!shownGroups) h += '<tr><td colspan="11" class="empty-note">'+(groups.length?'Không có việc nào khớp bộ lọc.':'Chưa có đơn hàng đang làm nào.')+'</td></tr>';
-    h += '</tbody></table></div><div class="pqd-foot" style="padding:10px 0 0;">Mỗi máy trong đơn hiện sẵn một dòng. Điền người thực hiện và ngày là tự lưu. Dòng nền nhạt là tên máy hoặc đơn hàng; bấm vào tên để mở đơn.</div>';
+    h += '</tbody></table></div><div class="pqd-foot" style="padding:10px 0 0;">Việc đã xong được ẩn. Hạng mục chỉ còn 1 việc thì hiện gọn 1 dòng; hạng mục còn nhiều việc thì mỗi việc có ô tên người làm riêng. Điền người thực hiện và ngày là tự lưu; bấm vào tên để mở đơn.</div>';
     return h;
   }
   var S_FLASH = null;
@@ -6713,7 +6750,8 @@
       '#tabs .tab.pq-later{display:none !important;}html.pq-show-later #tabs .tab.pq-later{display:flex !important;}'+
       '.pq-more{display:block;width:100%;text-align:left;background:none;border:0;cursor:pointer;font:inherit;font-size:12.5px;color:var(--text-muted,#6f7a84);padding:6px 14px;}'+
       '.pq-more:hover{color:var(--text,#16202b);}'+
-      'table.esheet td.cl-done,.c-date.cl-done{color:var(--good);font-weight:700;}';
+      'table.esheet td.cl-done,.c-date.cl-done{color:var(--good);font-weight:700;}'+
+      'table.pqd-table tr.pqd-og td{background:var(--accent-soft,#e6eef7);font-weight:600;padding:8px 10px;border-top:1px solid var(--border,#dde1dd);}';
     document.head.appendChild(st);
   })();
   document.addEventListener('click', function(e){
@@ -6725,9 +6763,11 @@
   });
   function prPrint(id){
     var p = pqxList('pr').filter(function(x){ return x.id===id; })[0]; if (!p) return toast('Không tìm thấy phiếu.');
-    var rows = (p.lines||[]).map(function(l, i){
-      return '<tr><td class="c">'+(i+1)+'</td><td>'+esc(l.code||'')+'</td><td>'+esc(l.name||'')+'</td><td>'+esc(l.spec||'')+'</td><td class="c">'+esc(l.unit||'')+'</td><td class="r">'+esc(fmtNum(l.qty))+'</td></tr>';
-    }).join('');
+    var rows = '', stt = 0;
+    prGroupLines(p.lines).forEach(function(G){
+      rows += '<tr class="og"><td colspan="5"><b>Công trình: '+esc(G.code||'')+(G.title?' - '+esc(G.title):'')+'</b> ('+G.lines.length+' dòng)</td></tr>';
+      G.lines.forEach(function(l){ stt++; rows += '<tr><td class="c">'+stt+'</td><td>'+esc(l.name||'')+'</td><td>'+esc(l.spec||'')+'</td><td class="c">'+esc(l.unit||'')+'</td><td class="r">'+esc(fmtNum(l.qty))+'</td></tr>'; });
+    });
     var dept = p.dept==='dien' ? 'Điện' : 'Cơ khí';
     var html = '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Phiếu '+esc(p.id)+'</title><style>'+
       '@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:13px;margin:0}'+
@@ -6735,7 +6775,7 @@
       '.hd{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:6px}.co{font-weight:700}'+
       'table.i{width:100%;margin:10px 0 12px;border-collapse:collapse}table.i td{padding:3px 0;vertical-align:top}table.i td.k{width:150px;color:#333}'+
       'table.l{width:100%;border-collapse:collapse}table.l th,table.l td{border:1px solid #000;padding:5px 6px}table.l th{background:#eee}'+
-      '.c{text-align:center}.r{text-align:right}'+
+      '.c{text-align:center}.r{text-align:right}tr.og td{background:#f3f3f3;padding:6px}'+
       '.sg{display:flex;justify-content:space-between;margin-top:30px;text-align:center}.sg div{width:24%}.sg b{display:block;margin-bottom:60px}'+
       '</style></head><body>'+
       '<div class="hd"><div class="co">NHÀ MÁY SẢN XUẤT PHƯƠNG QUÂN</div><div>Số phiếu: <b>'+esc(p.id)+'</b></div></div>'+
@@ -6746,7 +6786,7 @@
       '<tr><td class="k">Cần hàng trước ngày:</td><td>'+(p.needDate?esc(fmtDate(p.needDate)):'')+'</td></tr>'+
       '<tr><td class="k">Ghi chú:</td><td>'+esc(p.note||'')+'</td></tr>'+
       '<tr><td class="k">Trạng thái:</td><td>'+esc(p.status||'')+'</td></tr></table>'+
-      '<table class="l"><thead><tr><th style="width:36px">STT</th><th style="width:90px">Đơn hàng</th><th>Tên vật tư</th><th>Quy cách</th><th style="width:56px">ĐVT</th><th style="width:64px">Số lượng</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<table class="l"><thead><tr><th style="width:36px">STT</th><th>Tên vật tư</th><th>Quy cách</th><th style="width:56px">ĐVT</th><th style="width:64px">Số lượng</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '<p>Tổng cộng: <b>'+(p.lines||[]).length+'</b> dòng vật tư.</p>'+
       '<div class="sg"><div><b>Người đề nghị</b>'+esc(p.by||'')+'</div><div><b>Trưởng bộ phận</b></div><div><b>Kế toán</b></div><div><b>Giám đốc</b></div></div>'+
       '</'+'body></'+'html>';
