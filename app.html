@@ -1107,6 +1107,115 @@
   html.pq-m .lich-2col .cal-cell{min-height:54px;padding:2px;}
   html.pq-m .lich-2col .cal-chip{font-size:9px;padding:1px 2px;}
   html.pq-m .lich-legend .lich-tip{margin-left:0;}
+  /* ===== BUILD 2026-10-05g: rà soát kiểu điện thoại ===== */
+  .tb-actions{display:contents;}
+  html.pq-m .tb-actions{display:flex;flex:1 1 100%;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;}
+  html.pq-m .tb-actions::-webkit-scrollbar{display:none;}
+  html.pq-m .tb-actions > *{flex:none !important;}
+  html.pq-m .tb-actions .btn{min-height:38px;white-space:nowrap;}
+  html.pq-m main{padding-bottom:96px;}
+  /* --- Bảng vật tư của đơn (tab VT): mỗi dòng vật tư 1 thẻ, đủ chữ --- */
+  html.pq-m #app main .table-wrap:has(> table.mat-table){overflow:visible;border:0;}
+  html.pq-m #app main table.mat-table:has(tr[data-line]),html.pq-m #app main table.mat-table:has(tr[data-itemidx]){display:block;overflow:visible;min-width:0;width:100%;}
+  html.pq-m #app main table.mat-table:has(tr[data-line]) thead,html.pq-m #app main table.mat-table:has(tr[data-itemidx]) thead{display:none;}
+  html.pq-m #app main table.mat-table:has(tr[data-line]) tbody,html.pq-m #app main table.mat-table:has(tr[data-itemidx]) tbody{display:flex;flex-direction:column;gap:8px;}
+  html.pq-m table.mat-table tr[data-line],html.pq-m table.mat-table tr[data-itemidx]{display:grid;gap:6px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-l);}
+  html.pq-m table.mat-table tr[data-line] td,html.pq-m table.mat-table tr[data-itemidx] td{display:block;padding:0;border:0;min-width:0;width:auto;}
+  html.pq-m table.mat-table tr[data-line] input,html.pq-m table.mat-table tr[data-itemidx] input:not([type=checkbox]),html.pq-m table.mat-table tr[data-itemidx] select{width:100%;min-width:0;min-height:40px;border:1px solid var(--border);border-radius:var(--radius-m);padding:6px 8px;background:var(--surface);}
+  html.pq-m table.mat-table tr[data-line]{grid-template-columns:30px repeat(4,minmax(0,1fr)) 34px;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(1){grid-column:1;grid-row:1 / span 4;align-self:start;padding-top:9px;font-weight:700;color:var(--text-muted);}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(2){grid-column:2 / 6;grid-row:1;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(2) input{font-weight:600;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(10){grid-column:6;grid-row:1;align-self:center;text-align:center;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(3){grid-column:2 / 4;grid-row:2;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(4){grid-column:4;grid-row:2;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(5){grid-column:5 / 7;grid-row:2;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(6){grid-column:2 / 4;grid-row:3;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(7){grid-column:4 / 7;grid-row:3;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(8){grid-column:2 / 4;grid-row:4;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(9){grid-column:4 / 7;grid-row:4;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(4),html.pq-m table.mat-table tr[data-line] td:nth-child(5){position:relative;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(4)::before,html.pq-m table.mat-table tr[data-line] td:nth-child(5)::before{position:absolute;top:-7px;left:8px;background:var(--surface);padding:0 3px;font-size:10px;font-weight:600;color:var(--text-muted);z-index:1;}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(4)::before{content:"ĐVT";}
+  html.pq-m table.mat-table tr[data-line] td:nth-child(5)::before{content:"SL";}
+  html.pq-m table.mat-table tr.mat-section[data-line]{background:var(--accent-soft);border-color:var(--accent-soft);margin-top:8px;}
+  html.pq-m table.mat-table tr.mat-section[data-line] td:nth-child(1){grid-row:1 / span 2;}
+  html.pq-m table.mat-table tr.mat-section[data-line] td:nth-child(2){grid-column:2 / 7;grid-row:1;}
+  html.pq-m table.mat-table tr.mat-section[data-line] td:nth-child(2) input{font-weight:700;font-size:16px;}
+  html.pq-m table.mat-table tr.mat-section[data-line] td:nth-child(3){grid-column:2 / 4;grid-row:2;}
+  html.pq-m table.mat-table tr.mat-section[data-line] td:nth-child(4){grid-column:4 / 7;grid-row:2;display:flex;gap:8px;justify-content:flex-end;align-items:center;}
+  html.pq-m table.mat-table tr.mat-section[data-line] td::before{content:none !important;}
+  /* --- Bảng hạng mục của đơn (tab TD): mỗi hạng mục 1 thẻ --- */
+  html.pq-m table.mat-table tr[data-itemidx]{grid-template-columns:repeat(4,minmax(0,1fr));}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(1){grid-column:1 / 4;grid-row:1;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(1) input{font-weight:600;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(10){grid-column:4;grid-row:1;text-align:right;align-self:end;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(2){grid-column:1 / 3;grid-row:2;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(3){grid-column:3 / 5;grid-row:2;}
+  html.pq-m table.mat-table tr[data-itemidx] td.itf-check{display:flex;align-items:center;gap:8px;min-height:36px;font-size:14px;}
+  html.pq-m table.mat-table tr[data-itemidx] td.itf-check input{width:22px;height:22px;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(2)::after{content:"Đã có bản vẽ";}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(3)::after{content:"Đã đủ vật tư";}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(4){grid-column:1 / 3;grid-row:3;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(5){grid-column:3 / 5;grid-row:3;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(6){grid-column:1 / 3;grid-row:4;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(7){grid-column:3 / 5;grid-row:4;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(8){grid-column:1 / 3;grid-row:5;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(9){grid-column:3 / 5;grid-row:5;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(6),html.pq-m table.mat-table tr[data-itemidx] td:nth-child(7),html.pq-m table.mat-table tr[data-itemidx] td:nth-child(8){position:relative;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(6)::before,html.pq-m table.mat-table tr[data-itemidx] td:nth-child(7)::before,html.pq-m table.mat-table tr[data-itemidx] td:nth-child(8)::before{position:absolute;top:-7px;left:8px;background:var(--surface);padding:0 3px;font-size:10px;font-weight:600;color:var(--text-muted);z-index:1;}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(6)::before{content:"Yêu cầu";}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(7)::before{content:"Trạng thái";}
+  html.pq-m table.mat-table tr[data-itemidx] td:nth-child(8)::before{content:"QC";}
+  html.pq-m table.mat-table:has(tr[data-itemidx]) tr:not([data-itemidx]){display:block;}
+  html.pq-m table.mat-table:has(tr[data-itemidx]) tr:not([data-itemidx]) td{display:block;border:0;padding:6px 2px;}
+  /* --- Danh sách vật tư (Vật tư cần mua, theo ngày yêu cầu, Đề nghị mua, phiếu): mỗi dòng xuống hàng gọn, tên đủ chữ --- */
+  html.pq-m #app main .table-wrap:has(> table.mrp-table){overflow:visible;}
+  html.pq-m #app main table.mrp-table{display:block;overflow:visible;min-width:0;width:100%;}
+  html.pq-m #app main table.mrp-table thead{display:none;}
+  html.pq-m #app main table.mrp-table tbody{display:block;}
+  html.pq-m #app main table.mrp-table tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:10px 12px;border-bottom:1px solid var(--border);}
+  html.pq-m #app main table.mrp-table td{display:block;padding:0;border:0;min-width:0;order:4;font-size:14px;white-space:normal;overflow-wrap:anywhere;}
+  html.pq-m #app main table.mrp-table td:empty{display:none;}
+  html.pq-m #app main table.mrp-table td:has(> input[type=checkbox]){order:-1;flex:0 0 26px;}
+  html.pq-m #app main table.mrp-table td:has(> input[type=checkbox]) input{width:22px;height:22px;}
+  html.pq-m #app main table.mrp-table td:has(> b),html.pq-m #app main table.mrp-table td[colspan],html.pq-m #app main table.mrp-table td:first-child:not(:empty):not(:has(input)){order:0;flex:1 1 70%;}
+  html.pq-m #app main table.mrp-table td.r.num{order:2;font-weight:700;}
+  html.pq-m #app main table.mrp-table td:has(+ td.r.num){order:3;margin-left:-6px;}
+  html.pq-m #app main table.mrp-table td.r.num + td{order:4;}
+  html.pq-m #app main table.mrp-table tr.pqd-og{background:var(--accent-soft);}
+  html.pq-m #app main table.mrp-table tr.pqd-og .pqd-cap{display:block;}
+  /* --- Lịch tháng trên điện thoại: ô lịch chỉ hiện vạch màu, chữ đọc ở danh sách bên dưới --- */
+  html.pq-m .lich-2col .cal-chip{font-size:0 !important;height:7px;padding:0 !important;border-radius:4px;}
+  html.pq-m .lich-2col .cal-more{font-size:9px;}
+  html.pq-m .lich-2col .cal-cell{min-height:46px;}
+  html.pq-m .lich-bar{flex-wrap:wrap;gap:8px;}
+  html.pq-m .lich-bar .hint-txt{display:none;}
+  html.pq-m .pr-tabs{overflow-x:auto;flex-wrap:nowrap;}
+  html.pq-m .pr-tabs button{white-space:nowrap;flex:none;}
+  html.pq-m .pr-stbar{flex-wrap:nowrap;overflow-x:auto;}
+  html.pq-m .pr-stbar .chip{flex:none;white-space:nowrap;}
+  html.pq-m .pr-stbar .sort-hint{display:none;}
+  html.pq-m .stat-card[data-pq]::after{position:static;display:block;margin-top:4px;}
+  html.pq-m .lich-row .title{white-space:normal;overflow:visible;text-overflow:clip;}
+  /* ===== BUILD 2026-10-05h: "Vật tư cần mua" cùng kiểu với "Phân công công việc" ===== */
+  table.pc-table.mrp-pc{min-width:860px;}
+  table.pc-table.mrp-pc td{padding:8px 10px;}
+  table.pc-table.mrp-pc tr.pc-grp td{padding:8px 10px;}
+  table.pc-table.mrp-pc td.mrp-name{font-weight:500;}
+  table.pc-table.mrp-pc .mat-status-input{font-size:12.5px;padding:3px 8px;border-radius:var(--radius-s);white-space:nowrap;width:auto;height:auto;}
+  /* màn hình hẹp hơn 1500px: bảng nằm trong khung cuộn ngang nên tiêu đề KHÔNG dính (dính trong khung cuộn sẽ đè lên dòng dữ liệu) */
+  @media (max-width:1499.98px){ #app main .table-wrap table thead{position:static !important;box-shadow:none !important;} }
+  html.pq-m table.pc-table.mrp-pc tr.pc-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-row td{display:block !important;grid-column:auto !important;flex:none;text-align:left;font-size:14px;overflow-wrap:anywhere;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-row td::before,html.pq-m table.pc-table.mrp-pc tr.pc-row td::after{content:none !important;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-row td:nth-child(1),html.pq-m table.pc-table.mrp-pc tr.pc-row td.e{display:none !important;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-row td.mrp-name{flex:1 1 100%;font-size:15px;font-weight:600;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-row td[data-l]::before{content:attr(data-l) ": " !important;display:inline !important;font-size:12px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-muted);margin:0;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-row td:nth-child(3){flex:1 1 100%;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-row td:nth-child(5){margin-left:-8px;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-grp td:nth-child(4){flex:none;order:0;}
+  html.pq-m table.pc-table.mrp-pc tr.pc-grp td:nth-child(5){margin-left:auto;}
 </style>
 
 <div id="app">
@@ -1182,7 +1291,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05f-may';
+  var BUILD_ID = '2026-10-05h-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2888,12 +2997,15 @@
     if (!groups.length){
       html += '<div class="empty-note">Không có vật tư nào đang thiếu.</div>';
     } else {
-      html += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:36px;"></th><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th class="r">SL</th><th>Tình trạng</th><th>Nhà cung cấp</th></tr></thead><tbody>';
-      groups.forEach(function(G){
-        html += pqOrderHead('mrp', G.o, G.rows.length, 7);
-        if (pqcIs('mrp', G.o.id)) return;
-        G.rows.forEach(function(r){
-          html += '<tr><td></td><td><b>'+esc(r.m.name||'—')+'</b></td><td>'+esc(r.m.spec||'')+'</td><td>'+esc(r.m.unit||'')+'</td><td class="r num">'+esc(fmtNum(r.m.qty)||'—')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;">'+esc(r.st)+'</span></td><td>'+esc(r.m.supplier||'—')+'</td></tr>';
+      /* 05h: cùng kiểu bảng với "Phân công công việc" — dòng nền xanh là công trình, đánh số 1 / 1.1 / 1.2, chữ cùng cỡ */
+      html += '<div class="table-wrap pcw"><table class="pc-table mrp-pc"><thead><tr><th style="width:52px;">Cấu trúc</th><th style="min-width:280px;">Tên vật tư</th><th style="min-width:160px;">Quy cách</th><th class="r" style="width:70px;">SL</th><th style="width:70px;">ĐVT</th><th style="width:150px;">Ngày yêu cầu</th><th style="width:130px;">Tình trạng</th><th style="min-width:140px;">Nhà cung cấp</th></tr></thead><tbody>';
+      groups.forEach(function(G, gi){
+        var o = G.o, due = pqdHeadDate(o), dr = due ? daysRemaining(due) : null;
+        html += '<tr class="pc-grp"><td class="num">'+(gi+1)+'</td><td colspan="4">'+pqcBtn('mrp', o.id)+'<button class="lnk2" data-goto-vt="'+esc(o.id)+'" title="Mở tab Vật tư của công trình">'+(o.code?'<span class="num">'+esc(o.code)+'</span> · ':'')+esc(orderTitle(o))+'</button>'+(o.customerInfo ? '<span class="pqd-cap"> · '+esc(String(o.customerInfo).split('\n')[0])+'</span>' : '')+'</td><td>'+(due?'<span class="pqd-cap">giao '+esc(fmtDate(due))+'</span>':'')+'</td><td>'+(dr===null?'':(dr<0?'<span class="num" style="color:var(--bad);font-weight:600;">trễ '+(-dr)+'</span>':'<span class="num">còn '+dr+'</span>'))+'</td><td class="r num">'+G.rows.length+' dòng</td></tr>';
+        if (pqcIs('mrp', o.id)) return;
+        G.rows.forEach(function(r, ri){
+          var m = r.m, rq = m.reqDate ? daysRemaining(m.reqDate) : null, c = function(v){ return v ? '' : ' class="e"'; };
+          html += '<tr class="pc-row"><td class="num pqd-cap">'+(gi+1)+'.'+(ri+1)+'</td><td class="mrp-name">'+esc(m.name||'—')+'</td><td data-l="Quy cách"'+c(m.spec)+'>'+esc(m.spec||'')+'</td><td class="r num" data-l="SL">'+esc(fmtNum(m.qty)||'—')+'</td><td'+c(m.unit)+'>'+esc(m.unit||'')+'</td><td class="num'+(m.reqDate?'':' e')+'" data-l="Cần ngày"'+(rq!==null&&rq<0?' style="color:var(--bad);font-weight:600;"':'')+'>'+(m.reqDate?esc(fmtDate(m.reqDate))+(rq<0?' (trễ '+(-rq)+')':''):'')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;">'+esc(r.st)+'</span></td><td data-l="NCC"'+c(m.supplier)+'>'+esc(m.supplier||'')+'</td></tr>';
         });
       });
       html += '</tbody></table></div>';
@@ -5718,6 +5830,8 @@
     }
     setTopbarH();
     window.addEventListener('resize', setTopbarH);
+    try{ var tb0 = document.querySelector('.topbar'); if (tb0 && window.ResizeObserver) new ResizeObserver(setTopbarH).observe(tb0); }catch(e){}
+    setTimeout(setTopbarH, 600); setTimeout(setTopbarH, 2500);
     setTimeout(setTopbarH, 300);
   })();
   document.getElementById('btnGotoCurrent').addEventListener('click', function(){ setView('current'); });
@@ -6754,6 +6868,13 @@
   function pqVmGet(){ try{ var v = localStorage.getItem(PQ_VM_KEY); return (v==='mobile'||v==='desktop') ? v : 'auto'; }catch(e){ return 'auto'; } }
   function pqVmApply(){
     var mode = pqVmGet(), root = document.documentElement;
+    /* 05g: gom các nút thanh trên vào 1 hàng vuốt ngang (điện thoại) — chỉ bọc 1 lần, nút giữ nguyên id + sự kiện */
+    var tbar = document.querySelector('.topbar');
+    if (tbar && !tbar.querySelector('.tb-actions')){
+      var box0 = document.createElement('div'); box0.className = 'tb-actions';
+      [].slice.call(tbar.children).forEach(function(c){ if (!c.classList.contains('search-wrap')) box0.appendChild(c); });
+      tbar.appendChild(box0);
+    }
     var vp = document.querySelector('meta[name=viewport]');
     if (vp) vp.setAttribute('content', mode==='desktop' ? 'width=1280' : 'width=device-width,initial-scale=1');
     var sw = Math.min(window.screen ? screen.width : 9999, window.innerWidth||9999);
@@ -6796,7 +6917,7 @@
       var chip = document.createElement('button');
       chip.className = 'btn'; chip.id = 'pqWhoChip'; chip.type = 'button'; chip.title = 'Người đang sử dụng — bấm để đổi tên';
       chip.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg><span></span>';
-      top.insertBefore(chip, anchor || top.firstChild);
+      if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(chip, anchor); else top.insertBefore(chip, top.firstChild);
       chip.addEventListener('click', function(){ pqWhoAsk(true); });
     }
   })();
