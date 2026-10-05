@@ -1142,7 +1142,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05a-may';
+  var BUILD_ID = '2026-10-05b-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2815,59 +2815,43 @@
     });
     return Object.keys(rows).map(function(k){return rows[k];}).sort(function(a,b){ return Object.keys(b.orders).length - Object.keys(a.orders).length; });
   }
+  // Sắp công trình theo ngày giao gần nhất (trễ nhất lên đầu), rồi theo mã.
+  function pqOrderDue(o){ var d = pqdHeadDate(o); var r = d ? daysRemaining(d) : null; return r===null ? 9e9 : r; }
+  function pqOrderSort(a, b){ var da = pqOrderDue(a), db2 = pqOrderDue(b); if (da!==db2) return da-db2; return String(a.code||'')<String(b.code||'') ? -1 : 1; }
+  // Dòng tiêu đề 1 công trình (in đậm, có nút thu gọn). cols = số cột của bảng.
+  function pqOrderHead(view, o, n, cols, lead){
+    var due = pqdHeadDate(o), dr = due ? daysRemaining(due) : null;
+    return '<tr class="pqd-og"><td>'+(lead||'')+'</td><td colspan="'+(cols-1)+'">'+pqcBtn(view, o.id)+'<button class="code-link" data-goto-vt="'+esc(o.id)+'" title="Mở tab Vật tư của công trình">'+esc(o.code||'—')+'</button> · '+esc(orderTitle(o))+
+      (o.customerInfo ? '<span class="pqd-cap"> · '+esc(String(o.customerInfo).split('\n')[0])+'</span>' : '')+
+      '<span class="pqd-cap"> · '+n+' dòng'+(due ? ' · giao '+esc(fmtDate(due))+(dr!==null && dr<0 ? ' (trễ '+(-dr)+' ngày)' : '') : '')+'</span></td></tr>';
+  }
   function renderMrp(){
-    // Phạm vi CÔNG VIỆC HIỆN TẠI (mọi đơn chưa giao). Trang này gom LUÔN các
-    // vật tư chưa đặt "ngày yêu cầu" (theo yêu cầu anh Quốc) — gõ ngày ngay tại
-    // đây để bên mua hàng lên lịch đặt.
-    var list = computeMrpRows(matOrders());
-    var lines = [];
+    // Công trình đang làm, gom theo công trình. Ngày yêu cầu của từng dòng nhập ở tab Vật tư của công trình.
+    var groups = [], total = 0;
     matOrders().forEach(function(o){
-      (o.materials||[]).forEach(function(m, idx){
+      var rows = [];
+      (o.materials||[]).forEach(function(m){
         if (!isRealMaterial(m)) return;
         var st = m.status || 'Chưa xem';
         if (matStatusClass(st)==='mst-good') return; // đã có/đã mua rồi
-        lines.push({o:o, m:m, idx:idx, st:st});
+        rows.push({m:m, st:st});
       });
+      if (rows.length){ groups.push({o:o, rows:rows}); total += rows.length; }
     });
-    lines.sort(function(a,b){
-      var ra=a.m.reqDate||'9999', rb=b.m.reqDate||'9999';
-      if (ra!==rb) return ra<rb?-1:1;
-      return (a.o.code||'').localeCompare(b.o.code||'','vi',{numeric:true});
-    });
-
+    groups.sort(function(a, b){ return pqOrderSort(a.o, b.o); });
     var html = '<div class="panel sheet-panel" style="padding:16px;">';
-    html += '<div class="mrp-note">'+ICO.clipboard+' <span>Vật tư còn thiếu trong <b>Công việc hiện tại</b> (chưa đánh dấu "đã có/đã mua"). Bảng trên: cộng dồn số lượng theo tên vật tư. Bảng dưới: từng dòng cụ thể — <b>gõ "Ngày yêu cầu" ngay tại đây</b> để lên lịch đặt hàng, tự lưu.</span></div>';
-
-    html += '<h3 style="font-size:14px;margin:6px 0 8px;">Tổng hợp số lượng cần mua ('+list.length+' loại)</h3>';
-    if (!list.length){
+    html += '<div class="mrp-note">'+ICO.clipboard+' <span>Vật tư còn thiếu của các <b>công trình đang làm</b> (chưa "đã có/đã mua"), gom theo công trình. Bấm ▾ ở tên công trình để thu gọn. Ngày yêu cầu của từng dòng nhập ở tab <b>VT</b> của công trình (bấm mã đơn để mở).</span></div>';
+    html += '<div class="pqd-bar" style="padding:8px 0 10px;"><b>'+groups.length+' công trình · '+total+' dòng vật tư</b><span style="flex:1"></span>'+pqcBar('mrp')+'</div>';
+    if (!groups.length){
       html += '<div class="empty-note">Không có vật tư nào đang thiếu.</div>';
     } else {
-      html += '<div class="table-wrap" style="border:none;"><table class="mrp-table"><thead><tr><th>Tên vật tư</th><th>ĐVT</th><th>SL cần (tổng)</th><th>Số đơn</th><th>Đơn hàng cần mua</th></tr></thead><tbody>';
-      list.forEach(function(r){
-        html += '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.unit||'—')+'</td><td class="num">'+(r.hasQty?fmtNum(Math.round(r.qty*100)/100):'—')+'</td><td class="num">'+Object.keys(r.orders).length+'</td><td class="mrp-orders">'+esc(Object.keys(r.orders).join(', '))+'</td></tr>';
-      });
-      html += '</tbody></table></div>';
-    }
-
-    html += '<h3 style="font-size:14px;margin:20px 0 8px;">Chi tiết từng dòng — đặt ngày yêu cầu ('+lines.length+')</h3>';
-    if (!lines.length){
-      html += '<div class="empty-note">Không có dòng vật tư nào cần mua.</div>';
-    } else {
-      html += '<div class="table-wrap" style="border:none;"><table class="mrp-table"><thead><tr><th>Ngày yêu cầu</th><th>Còn lại</th><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th>SL</th><th>Tình trạng</th><th>Đơn hàng</th><th>Nhà cung cấp</th></tr></thead><tbody>';
-      lines.forEach(function(r){
-        var dr = r.m.reqDate ? daysRemaining(r.m.reqDate) : null;
-        var remainTxt = dr===null ? '—' : (dr<0 ? 'Trễ '+Math.abs(dr) : (dr===0?'Hôm nay':dr+' ngày'));
-        html += '<tr style="'+(dr!==null&&dr<0?'color:var(--bad);':'')+'">';
-        html += '<td><input type="date" value="'+esc(r.m.reqDate||'')+'" data-reqdate-inline="1" data-order="'+esc(r.o.id)+'" data-line="'+r.idx+'"></td>';
-        html += '<td>'+esc(remainTxt)+'</td>';
-        html += '<td>'+esc(r.m.name||'—')+'</td>';
-        html += '<td>'+esc(r.m.spec||'—')+'</td>';
-        html += '<td>'+esc(r.m.unit||'—')+'</td>';
-        html += '<td class="num">'+esc(fmtNum(r.m.qty)||'—')+'</td>';
-        html += '<td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;">'+esc(r.st)+'</span></td>';
-        html += '<td><button class="code-link" data-goto-vt="'+esc(r.o.id)+'">'+esc(r.o.code||orderTitle(r.o))+'</button></td>';
-        html += '<td>'+esc(r.m.supplier||'—')+'</td>';
-        html += '</tr>';
+      html += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:36px;"></th><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th class="r">SL</th><th>Tình trạng</th><th>Nhà cung cấp</th></tr></thead><tbody>';
+      groups.forEach(function(G){
+        html += pqOrderHead('mrp', G.o, G.rows.length, 7);
+        if (pqcIs('mrp', G.o.id)) return;
+        G.rows.forEach(function(r){
+          html += '<tr><td></td><td><b>'+esc(r.m.name||'—')+'</b></td><td>'+esc(r.m.spec||'')+'</td><td>'+esc(r.m.unit||'')+'</td><td class="r num">'+esc(fmtNum(r.m.qty)||'—')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;">'+esc(r.st)+'</span></td><td>'+esc(r.m.supplier||'—')+'</td></tr>';
+        });
       });
       html += '</tbody></table></div>';
     }
@@ -2875,47 +2859,66 @@
     return html;
   }
 
-  /* ============ VẬT TƯ THEO NGÀY YÊU CẦU ============ */
-  // Trước đây "ngày yêu cầu" của 1 dòng vật tư chỉ được ghi tay vào ô Ghi chú
-  // (ví dụ "Y.c ngày 18,8") — không lọc/sắp xếp được, bên kho và bên mua hàng
-  // phải tự dò từng đơn. Trang này gom TẤT CẢ dòng vật tư đã có "Ngày yêu cầu"
-  // (ô ngày riêng trong tab Vật tư của từng đơn) và CHƯA đánh dấu "đã có/đã
-  // mua", sắp theo ngày gần nhất trước — để bên kho biết đang chờ gì về, bên
-  // mua hàng biết cần đặt gì trước ngày nào.
-  function renderMatReqDate(){
-    var dated = [];
+  /* ============ VẬT TƯ THEO NGÀY YÊU CẦU ============
+     Chọn Ngày / Tuần / Tháng (hoặc Tất cả), xem vật tư cần về trong kỳ theo công trình, tích chọn rồi lập phiếu đề nghị mua. */
+  function rdAddDays(iso, n){ var d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return pqxISO(d); }
+  function rdRange(){
+    var m = PQX.rdMode || 'all', base = PQX.rdDate || pqxToday();
+    if (m==='all') return null;
+    if (m==='day') return {a:base, b:base};
+    if (m==='week'){ var d = new Date(base+'T00:00:00'); var off = (d.getDay()+6)%7; var a = rdAddDays(base, -off); return {a:a, b:rdAddDays(a, 6)}; }
+    var d2 = new Date(base+'T00:00:00'); return {a:pqxISO(new Date(d2.getFullYear(), d2.getMonth(), 1)), b:pqxISO(new Date(d2.getFullYear(), d2.getMonth()+1, 0))};
+  }
+  function rdLabel(rg){
+    if (!rg) return 'Tất cả các ngày đã đặt';
+    if (PQX.rdMode==='day') return 'Ngày '+fmtDate(rg.a);
+    if (PQX.rdMode==='week') return 'Tuần '+fmtDate(rg.a)+' – '+fmtDate(rg.b);
+    return 'Tháng '+fmtDate(rg.a).slice(3);
+  }
+  function rdRows(){
+    var rg = rdRange(), req = prRequestedKeys(), out = [];
     matOrders().forEach(function(o){
-      (o.materials||[]).forEach(function(line, idx){
-        if (!isRealMaterial(line)) return;
-        if (!line.reqDate) return;                              // chưa đặt ngày -> xem ở "Vật tư cần mua"
-        var statusDisplay = line.status || 'Chưa xem';
-        if (matStatusClass(statusDisplay)==='mst-good') return; // đã có/đã mua rồi
-        dated.push({o:o, line:line, idx:idx, statusDisplay:statusDisplay});
+      var keys = pqxKeys(o);
+      (o.materials||[]).forEach(function(m, idx){
+        if (!isRealMaterial(m) || !m.reqDate) return;
+        var st = m.status || 'Chưa xem';
+        if (matStatusClass(st)==='mst-good') return;
+        var d = String(m.reqDate).slice(0,10);
+        if (rg && (d<rg.a || d>rg.b)) return;
+        out.push({o:o, m:m, idx:idx, st:st, key:keys[idx], pr:req[keys[idx]]||null});
       });
     });
-    dated.sort(function(a,b){ return a.line.reqDate < b.line.reqDate ? -1 : (a.line.reqDate > b.line.reqDate ? 1 : 0); });
-
+    return out;
+  }
+  function rdCandidates(){ return rdRows().filter(function(r){ return !r.pr; }); }
+  function renderMatReqDate(){
+    PQX.selRd = PQX.selRd || {};
+    var rows = rdRows(), rg = rdRange(), today = pqxToday();
+    var selN = rows.filter(function(r){ return !r.pr && PQX.selRd[r.key]; }).length;
+    var by = {}, ids = [];
+    rows.forEach(function(r){ if (!by[r.o.id]){ by[r.o.id] = {o:r.o, rows:[]}; ids.push(r.o.id); } by[r.o.id].rows.push(r); });
+    ids.sort(function(a, b){ return pqOrderSort(by[a].o, by[b].o); });
+    var mode = PQX.rdMode || 'all';
     var html = '<div class="panel sheet-panel" style="padding:16px;">';
-    html += '<div class="mrp-note">'+ICO.calendar+' <span>Vật tư <b>đã có "Ngày yêu cầu"</b> và chưa "đã có/đã mua", trong <b>Công việc hiện tại</b> — sắp theo ngày gần nhất, để bên kho theo dõi ngày về và bên mua hàng biết cần đặt trước ngày nào. Vật tư <b>chưa đặt ngày</b> nằm ở trang <b>"Vật tư cần mua"</b> (gõ ngày ở đó). Bấm tên đơn để mở tab Vật tư của đơn.</span></div>';
-    html += '<h3 style="font-size:14px;margin:6px 0 8px;">Đã có ngày yêu cầu ('+dated.length+')</h3>';
-    if (!dated.length){
-      html += '<div class="empty-note">Chưa dòng vật tư nào được đặt "Ngày yêu cầu" (đặt ở trang "Vật tư cần mua").</div>';
+    html += '<div class="mrp-note">'+ICO.calendar+' <span>Vật tư của <b>công trình đang làm</b> đã có <b>Ngày yêu cầu</b> và chưa "đã có/đã mua". Chọn <b>Ngày / Tuần / Tháng</b> để xem cần về lúc nào, tích chọn rồi <b>Lập phiếu đề nghị mua</b>. Ngày yêu cầu nhập ở tab <b>VT</b> của từng công trình.</span></div>';
+    html += '<div class="pqd-bar" style="padding:8px 0;flex-wrap:wrap;gap:6px;">';
+    [['all','Tất cả'],['day','Ngày'],['week','Tuần'],['month','Tháng']].forEach(function(m){ html += '<button class="btn btn-sm'+(mode===m[0]?' btn-primary':'')+'" data-pq="rd-mode" data-m="'+m[0]+'">'+m[1]+'</button>'; });
+    if (mode!=='all'){
+      html += '<span style="width:8px"></span><button class="btn btn-sm" data-pq="rd-nav" data-d="-1" aria-label="Kỳ trước">‹</button><input type="date" class="pqd-inp" id="pqRdDate" value="'+esc(PQX.rdDate||today)+'" style="width:150px;"><button class="btn btn-sm" data-pq="rd-nav" data-d="1" aria-label="Kỳ sau">›</button><button class="btn btn-sm" data-pq="rd-today">Hôm nay</button>';
+    }
+    html += '<b style="margin-left:8px;">'+esc(rdLabel(rg))+'</b><span class="pqd-cap"> · '+ids.length+' công trình · '+rows.length+' dòng</span><span style="flex:1"></span>'+pqcBar('rd')+'<button class="btn btn-primary" data-pq="rd-new"'+(selN?'':' disabled')+'>Lập phiếu đề nghị mua ('+selN+' dòng)</button></div>';
+    if (!rows.length){
+      html += '<div class="empty-note">Không có vật tư nào cần về trong kỳ này. Ngày yêu cầu nhập ở tab <b>VT</b> của từng công trình.</div>';
     } else {
-      html += '<div class="table-wrap" style="border:none;"><table class="mrp-table"><thead><tr><th>Ngày yêu cầu</th><th>Còn lại</th><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th>SL</th><th>Tình trạng</th><th>Đơn hàng</th><th>Nhà cung cấp</th></tr></thead><tbody>';
-      dated.forEach(function(r){
-        var dr = daysRemaining(r.line.reqDate);
-        var remainTxt = dr===null ? '—' : (dr<0 ? 'Trễ '+Math.abs(dr)+' ngày' : (dr===0?'Hôm nay':dr+' ngày'));
-        html += '<tr style="'+(dr!==null&&dr<0?'color:var(--bad);':'')+'">';
-        html += '<td><input type="date" value="'+esc(r.line.reqDate||'')+'" data-reqdate-inline="1" data-order="'+esc(r.o.id)+'" data-line="'+r.idx+'"></td>';
-        html += '<td>'+esc(remainTxt)+'</td>';
-        html += '<td>'+esc(r.line.name||'—')+'</td>';
-        html += '<td>'+esc(r.line.spec||'—')+'</td>';
-        html += '<td>'+esc(r.line.unit||'—')+'</td>';
-        html += '<td class="num">'+esc(fmtNum(r.line.qty)||'—')+'</td>';
-        html += '<td><span class="mat-status-input '+matStatusClass(r.statusDisplay)+'" style="display:inline-block;pointer-events:none;">'+esc(r.statusDisplay)+'</span></td>';
-        html += '<td><button class="code-link" data-goto-vt="'+esc(r.o.id)+'">'+esc(r.o.code||orderTitle(r.o))+'</button></td>';
-        html += '<td>'+esc(r.line.supplier||'—')+'</td>';
-        html += '</tr>';
+      html += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:36px;"></th><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th class="r">SL</th><th>Ngày yêu cầu</th><th>Tình trạng</th><th>Phiếu</th></tr></thead><tbody>';
+      ids.forEach(function(oid){
+        var G = by[oid], free = G.rows.filter(function(r){ return !r.pr; }), allSel = free.length && free.every(function(r){ return PQX.selRd[r.key]; });
+        html += pqOrderHead('rd', G.o, G.rows.length, 8, free.length ? '<input type="checkbox" data-pq="rd-order" data-oid="'+esc(oid)+'" aria-label="Chọn cả công trình"'+(allSel?' checked':'')+'>' : '');
+        if (pqcIs('rd', oid)) return;
+        G.rows.forEach(function(r){
+          var dr = daysRemaining(r.m.reqDate), late = dr!==null && dr<0;
+          html += '<tr'+(r.pr ? '' : ' data-pq="rd-toggle" data-key="'+esc(r.key)+'" class="pqd-click'+(PQX.selRd[r.key]?' pqd-on':'')+'"')+'><td>'+(r.pr ? '' : '<input type="checkbox" tabindex="-1" aria-label="Chọn dòng"'+(PQX.selRd[r.key]?' checked':'')+'>')+'</td><td><b>'+esc(r.m.name||'—')+'</b></td><td>'+esc(r.m.spec||'')+'</td><td>'+esc(r.m.unit||'')+'</td><td class="r num">'+esc(fmtNum(r.m.qty)||'—')+'</td><td class="num"'+(late?' style="color:var(--bad);font-weight:600;"':'')+'>'+esc(fmtDate(r.m.reqDate))+(late?' (trễ '+(-dr)+')':'')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;">'+esc(r.st)+'</span></td><td>'+(r.pr ? '<span class="pill pill-info">'+esc(r.pr)+'</span>' : '<span class="pqd-cap">—</span>')+'</td></tr>';
+        });
       });
       html += '</tbody></table></div>';
     }
@@ -5770,7 +5773,7 @@
     var h = '<div class="pqd-head"><div><h1>Đề nghị mua vật tư</h1><div class="pqd-sub">Chọn các dòng vật tư chưa có trong Công việc hiện tại, lập phiếu, rồi theo dõi từ lúc chờ duyệt đến khi hàng về.</div></div></div>';
     h += '<div class="stat-grid">'+statCard('Dòng chưa đề nghị', cand.length, 'accent-warn')+statCard('Phiếu chờ duyệt', cnt('Chờ duyệt'), 'accent-warn')+statCard('Đã duyệt, chưa đặt', cnt('Đã duyệt'), 'accent-info')+statCard('Đã đặt, chờ hàng về', cnt('Đã đặt'), 'accent-info')+statCard('Đã về', cnt('Đã về'), 'accent-good')+'</div>';
     h += '<div class="panel" style="margin-bottom:16px;"><div class="panel-head"><h2>Vật tư cần đề nghị mua</h2><span class="pqd-meta">'+shown.length+' / '+cand.length+' dòng</span></div>';
-    h += '<div class="pqd-bar"><input class="pqd-inp" id="pqPrQ" style="max-width:320px;" placeholder="Lọc theo mã đơn, tên vật tư…" value="'+esc(PQX.prQ||'')+'"><button class="btn btn-sm" data-pq="pr-all">Chọn tất cả đang hiện</button><button class="btn btn-sm" data-pq="pr-none">Bỏ chọn</button><span style="flex:1"></span><button class="btn btn-primary" data-pq="pr-new"'+(nSel?'':' disabled')+'>Lập phiếu đề nghị ('+nSel+' dòng)</button></div>';
+    h += '<div class="pqd-bar"><input class="pqd-inp" id="pqPrQ" style="max-width:320px;" placeholder="Lọc theo mã đơn, tên vật tư…" value="'+esc(PQX.prQ||'')+'"><button class="btn btn-sm" data-pq="pr-all">Chọn tất cả đang hiện</button><button class="btn btn-sm" data-pq="pr-none">Bỏ chọn</button>'+pqcBar('pr')+'<span style="flex:1"></span><button class="btn btn-primary" data-pq="pr-new"'+(nSel?'':' disabled')+'>Lập phiếu đề nghị ('+nSel+' dòng)</button></div>';
     if (!cand.length){
       h += '<div class="empty-note">Không còn dòng vật tư nào cần đề nghị mua trong Công việc hiện tại.</div>';
     } else if (!shown.length){
@@ -5782,8 +5785,8 @@
       ogo.sort(function(a,b){ var da = daysRemaining(pqdHeadDate(og[a].o)), db2 = daysRemaining(pqdHeadDate(og[b].o)); da = da===null ? 9e9 : da; db2 = db2===null ? 9e9 : db2; if (da!==db2) return da-db2; return String(og[a].o.code||'')<String(og[b].o.code||'') ? -1 : 1; });
       ogo.forEach(function(oid){
         var G = og[oid], allSel = G.rows.every(function(r){ return PQX.sel[r.key]; }), due = pqdHeadDate(G.o), dr = due ? daysRemaining(due) : null;
-        h += '<tr class="pqd-og pqd-click" data-pq="pr-order" data-oid="'+esc(oid)+'"><td><input type="checkbox" tabindex="-1" aria-label="Chọn cả công trình"'+(allSel?' checked':'')+'></td><td colspan="6"><span class="num">'+esc(G.o.code||'—')+'</span> · '+esc(orderTitle(G.o))+(G.o.customerInfo ? '<span class="pqd-cap"> · '+esc(String(G.o.customerInfo).split('\n')[0])+'</span>' : '')+'<span class="pqd-cap"> · '+G.rows.length+' dòng'+(due ? ' · giao '+esc(fmtDate(due))+(dr!==null&&dr<0 ? ' (trễ '+(-dr)+' ngày)' : '') : '')+'</span></td></tr>';
-        G.rows.forEach(function(r){
+        h += '<tr class="pqd-og pqd-click" data-pq="pr-order" data-oid="'+esc(oid)+'"><td><input type="checkbox" tabindex="-1" aria-label="Chọn cả công trình"'+(allSel?' checked':'')+'></td><td colspan="6">'+pqcBtn('pr', oid)+'<span class="num">'+esc(G.o.code||'—')+'</span> · '+esc(orderTitle(G.o))+(G.o.customerInfo ? '<span class="pqd-cap"> · '+esc(String(G.o.customerInfo).split('\n')[0])+'</span>' : '')+'<span class="pqd-cap"> · '+G.rows.length+' dòng'+(due ? ' · giao '+esc(fmtDate(due))+(dr!==null&&dr<0 ? ' (trễ '+(-dr)+' ngày)' : '') : '')+'</span></td></tr>';
+        (pqcIs('pr', oid) ? [] : G.rows).forEach(function(r){
           var m = r.m;
           h += '<tr data-pq="pr-toggle" data-key="'+esc(r.key)+'" class="pqd-click'+(PQX.sel[r.key]?' pqd-on':'')+'"><td><input type="checkbox" tabindex="-1" aria-label="Chọn dòng"'+(PQX.sel[r.key]?' checked':'')+'></td><td><b>'+esc(m.name)+'</b></td><td>'+esc(m.spec||'')+'</td><td class="r num">'+esc(fmtNum(m.qty))+'</td><td>'+esc(m.unit||'')+'</td><td class="num">'+(m.reqDate?esc(fmtDate(m.reqDate)):'<span class="pqd-cap">—</span>')+'</td><td><span class="pill pill-bad">'+esc(m.status||'Chưa xem')+'</span></td></tr>';
         });
@@ -5812,8 +5815,9 @@
     h += '</div></div>';
     return h;
   }
-  function prCreate(){
-    var cand = prCandidates().filter(function(r){ return PQX.sel[r.key]; });
+  function prCreate(src){
+    var rd = src==='rd';
+    var cand = (rd ? rdCandidates() : prCandidates()).filter(function(r){ return (rd ? PQX.selRd : PQX.sel)[r.key]; });
     if (!cand.length) return;
     var who = ''; try{ who = localStorage.getItem('nmsx_pq_who')||''; }catch(e){}
     pqxModal('Lập phiếu đề nghị mua ('+cand.length+' dòng)',
@@ -5828,7 +5832,7 @@
         var doc = {id:pqxNextId('pr','DN'), dept:STATE.dept, date:pqxToday(), by:by, supplier:b.querySelector('#pqmSup').value.trim(), needDate:b.querySelector('#pqmNeed').value, note:b.querySelector('#pqmNote').value.trim(), status:'Chờ duyệt', at:Date.now(),
           lines:cand.map(function(r){ return {key:r.key, orderId:r.o.id, code:r.o.code||'', name:r.m.name, spec:r.m.spec||'', unit:r.m.unit||'', qty:(r.m.qty===undefined?null:r.m.qty)}; })};
         pqxSave('pr','purchase',doc);
-        PQX.sel = {};
+        if (rd) PQX.selRd = {}; else PQX.sel = {};
         renderAll();
         toast('Đã lập phiếu '+doc.id+' với '+doc.lines.length+' dòng.');
       });
@@ -6152,7 +6156,11 @@
   var TK_DAYS = ['Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy','Chủ nhật'];
   PQX.task = PQX.task || {}; PQX.tkWeek = 0; PQX.tkWho = ''; PQX.tkOrder = '';
   function tkLate(t){ return t.status!=='Xong' && !!t.date && t.date<pqxToday(); }
-  function tkAll(){ return pqxList('task'); }
+  function tkAll(){
+    var ok = {}; matOrders().forEach(function(o){ ok[o.id] = 1; });
+    // Việc của đơn đã giao / đã sản xuất xong không còn hiện nữa.
+    return pqxList('task').filter(function(t){ return !(t.orderId && STATE.orders[t.orderId]) || ok[t.orderId]; });
+  }
   function tkFiltered(){
     var q = pcQNow();
     return tkAll().filter(function(t){ return (!PQX.tkWho || (t.who||'')===PQX.tkWho) && (!PQX.tkOrder || t.orderId===PQX.tkOrder) && (!q || pcHit(t, q)); });
@@ -6402,11 +6410,11 @@
       if (t.orderId && STATE.orders[t.orderId]) (byOrder[t.orderId] = byOrder[t.orderId]||[]).push(t);
       else (byGrp[t.grp||'Việc chung'] = byGrp[t.grp||'Việc chung']||[]).push(t);
     });
-    var groups = [], cur = {}; currentWorkOrders().forEach(function(o){ cur[o.id] = 1; });
+    var groups = [], cur = {}; matOrders().forEach(function(o){ cur[o.id] = 1; });
     Object.keys(STATE.orders).forEach(function(id){
       var o = STATE.orders[id];
       if (orderDept(o)!==STATE.dept) return;
-      if (!cur[id] && !byOrder[id]) return;
+      if (!cur[id]) return;
       var rows = (byOrder[id]||[]).slice(), have = {};
       rows.forEach(function(t){ have[norm(t.title)] = 1; });
       if (cur[id] && !(byOrder[id]||[]).length) (o.items||[]).forEach(function(it, i){
@@ -6435,7 +6443,7 @@
   function renderPccv(){
     var groups = pcGroups(), q = pcQNow(), ppl = tkPeople(), nTask = 0;
     var keep = function(t){ return (!PQX.tkWho || (t.who||'')===PQX.tkWho) && (!PQX.pcHideDone || t.status!=='Xong') && (!q || pcHit(t, q)); };
-    var h = '<div class="pqd-bar" style="padding:0 0 12px;"><select class="pqd-inp" style="width:170px;" data-pq-sel="tkWho" aria-label="Lọc theo người thực hiện"><option value="">Mọi người</option>'+ppl.map(function(p){ return '<option'+(p===PQX.tkWho?' selected':'')+'>'+esc(p)+'</option>'; }).join('')+'</select><label class="pqd-cap" style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" data-pq-chk="pc-hidedone"'+(PQX.pcHideDone?' checked':'')+'> Ẩn việc đã xong (chỉ hiện việc còn phải làm)</label></div>';
+    var h = '<div class="pqd-bar" style="padding:0 0 12px;"><select class="pqd-inp" style="width:170px;" data-pq-sel="tkWho" aria-label="Lọc theo người thực hiện"><option value="">Mọi người</option>'+ppl.map(function(p){ return '<option'+(p===PQX.tkWho?' selected':'')+'>'+esc(p)+'</option>'; }).join('')+'</select><label class="pqd-cap" style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" data-pq-chk="pc-hidedone"'+(PQX.pcHideDone?' checked':'')+'> Ẩn việc đã xong (chỉ hiện việc còn phải làm)</label><span style="flex:1"></span>'+pqcBar('pc')+'</div>';
     h += '<datalist id="pcWhoL">'+ppl.map(function(p){ return '<option value="'+esc(p)+'">'; }).join('')+'</datalist>';
     h += '<div class="table-wrap pcw"><table class="pc-table"><thead><tr><th style="width:52px;">Cấu trúc</th><th style="min-width:320px;">Nhiệm vụ</th><th style="width:150px;">Người thực hiện</th><th style="width:124px;">Mức ưu tiên</th><th style="width:138px;">Bắt đầu</th><th style="width:138px;">Kết thúc</th><th class="r" style="width:64px;">Số ngày</th><th style="width:74px;">Hoàn thành</th><th class="r" style="width:76px;">Còn lại</th><th style="min-width:170px;">Phản hồi cá nhân</th><th style="width:34px;"></th></tr></thead><tbody>';
     var shownGroups = 0;
@@ -6450,15 +6458,15 @@
       var single1 = STATE.dept==='cokhi' && !!g.order && rows.length===1;
       var real = g.rows, dn = real.filter(function(t){ return t.status==='Xong'; }).length, pct = real.length ? Math.round(dn/real.length*100) : 0;
       var dr = g.due ? daysRemaining(g.due) : null;
-      if (!single1) h += '<tr class="pc-grp"><td class="num">'+(gi+1)+'</td><td colspan="5">'+(g.order?'<button class="lnk2" data-goto-td="'+esc(g.order.id)+'" title="Mở đơn hàng">'+(g.code?'<span class="num">'+esc(g.code)+'</span> · ':'')+esc(g.title)+'</button>':'<b>'+esc(g.title)+'</b>')+(g.order && g.order.customerInfo ? '<span class="pqd-cap"> · '+esc(String(g.order.customerInfo).split('\n')[0])+'</span>' : '')+'</td><td class="r num">'+dn+'/'+real.length+'</td><td><div class="pc-meter"><i style="width:'+pct+'%;"></i></div></td><td class="r">'+(dr===null?'':(dr<0?'<span class="num" style="color:var(--bad);font-weight:600;">trễ '+(-dr)+'</span>':'<span class="num">còn '+dr+'</span>'))+'</td><td>'+(g.due?'<span class="pqd-cap">giao '+esc(fmtDate(g.due))+'</span>':'')+'</td><td><button class="pc-add" data-pq="pc-add" data-g="'+esc(g.key)+'" title="Thêm việc cho máy này" aria-label="Thêm việc">+</button></td></tr>';
-      if (!rows.length) h += '<tr><td></td><td colspan="10" class="pqd-cap" style="padding:8px 10px;">Chưa có việc nào. Bấm + ở cuối dòng tên máy để thêm việc.</td></tr>';
-      rows.forEach(function(t, ti){
+      if (!single1) h += '<tr class="pc-grp"><td class="num">'+(gi+1)+'</td><td colspan="5">'+pqcBtn('pc', g.key)+(g.order?'<button class="lnk2" data-goto-td="'+esc(g.order.id)+'" title="Mở đơn hàng">'+(g.code?'<span class="num">'+esc(g.code)+'</span> · ':'')+esc(g.title)+'</button>':'<b>'+esc(g.title)+'</b>')+(g.order && g.order.customerInfo ? '<span class="pqd-cap"> · '+esc(String(g.order.customerInfo).split('\n')[0])+'</span>' : '')+'</td><td class="r num">'+dn+'/'+real.length+'</td><td><div class="pc-meter"><i style="width:'+pct+'%;"></i></div></td><td class="r">'+(dr===null?'':(dr<0?'<span class="num" style="color:var(--bad);font-weight:600;">trễ '+(-dr)+'</span>':'<span class="num">còn '+dr+'</span>'))+'</td><td>'+(g.due?'<span class="pqd-cap">giao '+esc(fmtDate(g.due))+'</span>':'')+'</td><td><button class="pc-add" data-pq="pc-add" data-g="'+esc(g.key)+'" title="Thêm việc cho máy này" aria-label="Thêm việc">+</button></td></tr>';
+      if (!rows.length && !pqcIs('pc', g.key)) h += '<tr><td></td><td colspan="10" class="pqd-cap" style="padding:8px 10px;">Chưa có việc nào. Bấm + ở cuối dòng tên máy để thêm việc.</td></tr>';
+      (!single1 && pqcIs('pc', g.key) ? [] : rows).forEach(function(t, ti){
         var done = t.status==='Xong', id = esc(t.id);
         var single = single1 && g.order;
         var titleCell = single
           ? '<td><button class="lnk2" data-goto-td="'+esc(g.order.id)+'" title="Mở đơn hàng">'+(g.code?'<span class="num">'+esc(g.code)+'</span> · ':'')+esc(g.title)+'</button>'+(norm(t.title||'')!==norm(g.title||'') ? '<input class="pc-in" data-f="title" value="'+esc(t.title||'')+'" placeholder="Nội dung công việc" aria-label="Nhiệm vụ">' : '')+'</td>'
           : '<td><input class="pc-in" data-f="title" value="'+esc(t.title||'')+'" placeholder="Nội dung công việc" aria-label="Nhiệm vụ"></td>';
-        h += '<tr class="pc-row'+(done?' done':'')+(tkLate(t)?' late':'')+(S_FLASH===t.id?' flash':'')+'" data-pc="'+id+'"><td class="num pqd-cap">'+(single ? (gi+1) : (gi+1)+'.'+(ti+1))+'</td>'+
+        h += '<tr class="pc-row'+(done?' done':'')+(single?' pc-single':'')+(tkLate(t)?' late':'')+(S_FLASH===t.id?' flash':'')+'" data-pc="'+id+'"><td class="num pqd-cap">'+(single ? (gi+1) : (gi+1)+'.'+(ti+1))+'</td>'+
           titleCell+
           '<td><input class="pc-in" data-f="who" list="pcWhoL" value="'+esc(t.who||'')+'" placeholder="Điền người làm" aria-label="Người thực hiện"></td>'+
           '<td><select class="pc-in pc-prio'+(t.prio==='ƯU TIÊN'?' hot':'')+'" data-f="prio" aria-label="Mức ưu tiên">'+PC_PRIO.map(function(p){ return '<option value="'+p+'"'+(p===(t.prio||'')?' selected':'')+'>'+(p||'—')+'</option>'; }).join('')+'</select></td>'+
@@ -6751,7 +6759,7 @@
       '.pq-more{display:block;width:100%;text-align:left;background:none;border:0;cursor:pointer;font:inherit;font-size:12.5px;color:var(--text-muted,#6f7a84);padding:6px 14px;}'+
       '.pq-more:hover{color:var(--text,#16202b);}'+
       'table.esheet td.cl-done,.c-date.cl-done{color:var(--good);font-weight:700;}'+
-      'table.pqd-table tr.pqd-og td{background:var(--accent-soft,#e6eef7);font-weight:600;padding:8px 10px;border-top:1px solid var(--border,#dde1dd);}';
+      'html table.pqd-table tr.pqd-og td{background:var(--accent-soft,#e6eef7);font-weight:600;padding:8px 10px;border-top:1px solid var(--border,#dde1dd);}';
     document.head.appendChild(st);
   })();
   document.addEventListener('click', function(e){
@@ -6797,6 +6805,53 @@
     var d = f.contentWindow.document; d.open(); d.write(html); d.close();
     setTimeout(function(){ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(er){ toast('Trình duyệt không cho in trực tiếp, thử lại.'); } }, 300);
   }
+
+  /* ===== BUILD 2026-10-05b: thu gọn theo công trình, chọn ngày/tuần/tháng, lập phiếu từ "Vật tư theo ngày" ===== */
+  var PQC_KEY = 'nmsx_pq_collapse';
+  PQX.col = {}; PQX.colAll = {}; PQX.selRd = {}; PQX.rdMode = 'all'; PQX.rdDate = '';
+  try{ var _pqc = JSON.parse(localStorage.getItem(PQC_KEY)||'null'); if (_pqc){ PQX.col = _pqc.col||{}; PQX.colAll = _pqc.all||{}; } }catch(e){}
+  function pqcSave(){ try{ localStorage.setItem(PQC_KEY, JSON.stringify({col:PQX.col, all:PQX.colAll})); }catch(e){} }
+  function pqcIs(view, id){ var k = view+':'+id; if (PQX.col[k]!==undefined) return !!PQX.col[k]; return !!PQX.colAll[view]; }
+  function pqcAll(view, collapsed){ PQX.colAll[view] = !!collapsed; Object.keys(PQX.col).forEach(function(k){ if (k.indexOf(view+':')===0) delete PQX.col[k]; }); pqcSave(); }
+  function pqcBar(view){ return '<button class="btn btn-sm" data-pq="col-all" data-v="'+view+'" data-m="1">Thu gọn tất cả</button><button class="btn btn-sm" data-pq="col-all" data-v="'+view+'" data-m="0">Mở tất cả</button>'; }
+  function pqcBtn(view, id){ var c = pqcIs(view, id); return '<button type="button" class="pqc-btn" data-pq="col-toggle" data-v="'+view+'" data-id="'+esc(id)+'" aria-expanded="'+(!c)+'" title="'+(c?'Mở rộng':'Thu gọn')+'">'+(c?'▸':'▾')+'</button>'; }
+  (function(){
+    var st = document.createElement('style');
+    st.textContent =
+      '.pqc-btn{border:0;background:none;cursor:pointer;font-size:14px;width:24px;margin-right:2px;color:inherit;padding:0;}'+
+      'html table.pqd-table tr.pqd-og td{background:#dbe7f5;font-weight:800;border-top:2px solid #8fb0d8;font-size:14px;}'+
+      'html table.pc-table tr.pc-grp td{background:#dbe7f5;font-weight:800;font-size:14.5px;border-top:2px solid #8fb0d8;}'+
+      'html table.pc-table tr.pc-grp .lnk2{font-weight:800;}'+
+      'html table.pc-table tr.pc-single td:nth-child(1),table.pc-table tr.pc-single td:nth-child(2){background:#eaf2fb;font-weight:800;}'+
+      'html table.pc-table tr.pc-single .lnk2{font-weight:800;}';
+    document.head.appendChild(st);
+  })();
+  document.addEventListener('click', function(e){
+    var t = e.target.closest && e.target.closest('[data-pq]'); if (!t) return;
+    var a = t.getAttribute('data-pq'), v = t.getAttribute('data-v');
+    if (a==='col-toggle'){ var k = v+':'+t.getAttribute('data-id'); PQX.col[k] = !pqcIs(v, t.getAttribute('data-id')); pqcSave(); return renderAll(); }
+    if (a==='col-all'){ pqcAll(v, t.getAttribute('data-m')==='1'); return renderAll(); }
+    if (a==='rd-mode'){ PQX.rdMode = t.getAttribute('data-m'); if (!PQX.rdDate) PQX.rdDate = pqxToday(); return renderAll(); }
+    if (a==='rd-today'){ PQX.rdDate = pqxToday(); return renderAll(); }
+    if (a==='rd-nav'){
+      var n = +t.getAttribute('data-d'), base = PQX.rdDate || pqxToday(), m = PQX.rdMode;
+      if (m==='day') PQX.rdDate = rdAddDays(base, n);
+      else if (m==='week') PQX.rdDate = rdAddDays(base, 7*n);
+      else { var d = new Date(base+'T00:00:00'); PQX.rdDate = pqxISO(new Date(d.getFullYear(), d.getMonth()+n, 1)); }
+      return renderAll();
+    }
+    if (a==='rd-toggle'){ var key = t.getAttribute('data-key'); if (PQX.selRd[key]) delete PQX.selRd[key]; else PQX.selRd[key] = 1; return renderAll(); }
+    if (a==='rd-order'){
+      var oid = t.getAttribute('data-oid'), rows = rdCandidates().filter(function(r){ return r.o.id===oid; });
+      var all = rows.length && rows.every(function(r){ return PQX.selRd[r.key]; });
+      rows.forEach(function(r){ if (all) delete PQX.selRd[r.key]; else PQX.selRd[r.key] = 1; });
+      return renderAll();
+    }
+    if (a==='rd-new') return prCreate('rd');
+  });
+  document.addEventListener('change', function(e){
+    var t = e.target; if (t && t.id==='pqRdDate' && t.value){ PQX.rdDate = t.value; renderAll(); }
+  });
 
   renderBanner();
   loadFromSeedOnly();
