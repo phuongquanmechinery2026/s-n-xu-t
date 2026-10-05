@@ -1142,7 +1142,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05b-may';
+  var BUILD_ID = '2026-10-05c-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2932,6 +2932,10 @@
     d.setDate(d.getDate()-day); d.setHours(0,0,0,0);
     return d;
   }
+  function planCust(o){
+    var c = o && o.customerInfo ? String(o.customerInfo).split(/[\r\n]+/)[0].trim() : '';
+    return c ? '<span style="display:block;font-size:12px;font-weight:400;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(c)+'</span>' : '';
+  }
   function renderPlan(){
     var act = activeOrders().filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO'; });
     // Đơn đã sản xuất xong, chờ giao: đưa xuống cuối trang, việc cần làm nằm trên.
@@ -2957,14 +2961,14 @@
       var overdue = items.some(function(x){ return daysRemaining(x.snap.deliveryDate)<0; });
       html += '<div class="plan-week"><div class="plan-week-head'+(overdue?' overdue':'')+'">Tuần '+fmtDate(wsDate.toISOString().slice(0,10))+' – '+fmtDate(weDate.toISOString().slice(0,10))+' <span style="font-weight:600;opacity:.85;">('+items.length+' mục)</span></div><div class="plan-week-body">';
       items.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+planCust(x.o)+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
       });
       html += '</div></div>';
     });
     if (noDate.length){
       html += '<div class="plan-week"><div class="plan-week-head">Chưa có ngày giao <span style="font-weight:600;opacity:.85;">('+noDate.length+' mục)</span></div><div class="plan-week-body">';
       noDate.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
       });
       html += '</div></div>';
     }
@@ -2976,7 +2980,7 @@
     if (waiting.length){
       html += '<div class="plan-week"><div class="plan-week-head">Đã sản xuất xong · chờ giao <span style="font-weight:600;opacity:.85;">('+waiting.length+' mục)</span></div><div class="plan-week-body">';
       waiting.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+remainingPillForOrder(x.o)+'</div>';
       });
       html += '</div></div>';
     }
