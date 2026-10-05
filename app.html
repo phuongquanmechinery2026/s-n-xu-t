@@ -1142,7 +1142,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05c-may';
+  var BUILD_ID = '2026-10-05d-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2451,16 +2451,18 @@
     html += '<button class="btn btn-sm" data-pdf-import="'+esc(o.id)+'">'+ICO.pdf+' Đọc PDF</button>';
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
-    html += '<div class="table-wrap"><table class="mat-table"><thead><tr>';
-    ['#','Tên gọi','Quy cách','ĐVT','SL','Tình trạng','Ngày yêu cầu','Nhà cung cấp','Ghi chú',''].forEach(function(h){html+='<th>'+h+'</th>';});
+    html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:150px"><col style="width:13%"><col style="width:15%"><col style="width:44px"></colgroup><thead><tr>';
+    ['STT','Tên gọi','Quy cách','ĐVT','SL','Tình trạng','Ngày yêu cầu','Nhà cung cấp','Ghi chú',''].forEach(function(h){html+='<th>'+h+'</th>';});
     html += '</tr></thead><tbody>';
     if (mats.length===0){
       html += '<tr><td colspan="10" style="padding:16px;color:var(--text-faint);text-align:center;">Chưa có dòng vật tư nào. Bấm "+ Thêm dòng".</td></tr>';
     }
+    var secN = 0, itemN = 0, ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'];
     mats.forEach(function(line, idx){
       if (isMatSection(line)){
+        secN++; itemN = 0;
         html += '<tr class="mat-section" data-line="'+idx+'" data-order="'+esc(o.id)+'"'+rowFmt(line)+'>';
-        html += '<td class="col-no"><input value="'+esc(fmtNum(line.no))+'" data-f="no"></td>';
+        html += '<td class="col-no"><span class="mat-no mat-no-sec">'+(ROMAN[secN-1]||secN)+'</span></td>';
         html += '<td colspan="6"><input value="'+esc(line.name||'')+'" data-f="name" placeholder="TÊN HẠNG MỤC"></td>';
         html += '<td><input value="'+esc(line.note||'')+'" data-f="note" placeholder="Ghi chú"></td>';
         html += '<td colspan="2" class="mat-sec-act"><button class="btn btn-sm" data-add-line-after="'+idx+'" data-order="'+esc(o.id)+'" title="Thêm 1 dòng vật tư vào cuối hạng mục này">+ dòng</button> <button class="row-del" data-del-line="'+idx+'" data-order="'+esc(o.id)+'" title="Xoá dòng">✕</button></td>';
@@ -2468,7 +2470,8 @@
         return;
       }
       html += '<tr data-line="'+idx+'" data-order="'+esc(o.id)+'"'+rowFmt(line)+'>';
-      html += '<td class="col-no"><input value="'+esc(fmtNum(line.no))+'" data-f="no"></td>';
+      itemN++;
+      html += '<td class="col-no"><span class="mat-no">'+itemN+'</span></td>';
       html += '<td><input value="'+esc(line.name||'')+'" data-f="name" placeholder="Tên gọi"></td>';
       html += '<td><input value="'+esc(line.spec||'')+'" data-f="spec" placeholder="Quy cách"></td>';
       html += '<td class="col-unit"><input value="'+esc(line.unit||'')+'" data-f="unit"></td>';
@@ -4678,6 +4681,29 @@
     return {orders: orders.filter(function(o){return o.code;})};
   }
 
+  // Anh Quốc ghi tay "Y/c ngày 05,10", "Yc 5/10", "yêu cầu ngày 18.8"… trong cột Ghi chú của Sheet VT.
+  // Đọc ra thành "Ngày yêu cầu" (YYYY-MM-DD) để dùng ở trang Vật tư theo ngày yêu cầu. Ghi chú gốc giữ nguyên.
+  function parseReqDateFromText(txt){
+    if (txt==null) return null;
+    var re = /(?:^|[^a-zA-ZÀ-ỹ])(?:y\s*[.\/]?\s*c|yêu\s*cầu)\s*(?:đặt\s*)?(?:ngày\s*)?(\d{1,2})\s*[\/,.\-]\s*(\d{1,2})(?:\s*[\/,.\-]\s*(\d{2,4}))?/i;
+    var m = re.exec(String(txt)); if (!m) return null;
+    var d = +m[1], mo = +m[2], y = m[3] ? +m[3] : new Date().getFullYear();
+    if (y<100) y += 2000;
+    if (d<1 || d>31 || mo<1 || mo>12 || y<2000 || y>2100) return null;
+    var dt = new Date(y, mo-1, d); if (dt.getMonth()!==mo-1) return null;
+    return y+'-'+('0'+mo).slice(-2)+'-'+('0'+d).slice(-2);
+  }
+  // Giữ lại "Ngày yêu cầu" anh đã nhập trong app cho dòng mà Sheet không có ngày (làm song song app + Sheet).
+  function carryReqDates(oldMats, newMats){
+    if (!oldMats || !oldMats.length) return;
+    var k = function(m){ return stripDiacritics(String(m.name||''))+'|'+stripDiacritics(String(m.spec||'')); };
+    var pool = {};
+    oldMats.forEach(function(m){ if (m && m.reqDate && !isMatSection(m)) (pool[k(m)] = pool[k(m)] || []).push(m.reqDate); });
+    newMats.forEach(function(m){
+      if (!m || m.reqDate || m.section || isMatSection(m)) return;
+      var q = pool[k(m)]; if (q && q.length) m.reqDate = q.shift();
+    });
+  }
   function parseMaterialsSheetByCode(wb, code){
     var codeNorm = norm(code).replace(/\s+/g,'');
     var shName = wb.SheetNames.find(function(n){ return norm(n).replace(/\s+/g,'').indexOf(codeNorm)!==-1 && /^vt|vat tu/.test(norm(n)); });
@@ -4711,7 +4737,8 @@
         status: cStat>=0 && row[cStat]!=null ? String(row[cStat]).trim() : null,
         supplier: cSup>=0 && row[cSup]!=null ? String(row[cSup]).trim() : null,
         issuedTo: cIssued>=0 && row[cIssued]!=null ? String(row[cIssued]).trim() : null,
-        note: cNote>=0 && row[cNote]!=null ? String(row[cNote]).trim() : null
+        note: cNote>=0 && row[cNote]!=null ? String(row[cNote]).trim() : null,
+        reqDate: cNote>=0 ? parseReqDateFromText(row[cNote]) : null
       });
     }
     return lines;
@@ -4764,7 +4791,7 @@
         customerInfo: row.customerInfo, requirement: row.requirement, note: row.note,
         items: row.items, progressSnapshots: row.progressSnapshots
       };
-      if (mats && mats.length){ patch.materials = mats; matSynced++; }
+      if (mats && mats.length){ carryReqDates(STATE.orders[id] && STATE.orders[id].materials, mats); patch.materials = mats; matSynced++; }
       if (STATE.orders[id]){
         Object.assign(STATE.orders[id], patch);
         updated++;
@@ -4951,10 +4978,14 @@
         continue;
       }
       if (stat && norm(stat)==='dat hang') stat = 'Đã đặt';
-      var note = [cell(row,C.note), cell(row,C.extra)].filter(Boolean).join(' | ') || null;
+      var exv = C.extra>=0 ? row[C.extra] : null, reqD = null, exTxt = null;
+      if (typeof exv==='number' && exv>30000 && exv<80000){ var iso = excelDateToISO(exv); exTxt = iso ? 'Đề xuất '+fmtDate(iso) : null; }
+      else if (exv!=null && String(exv).trim()!=='') exTxt = String(exv).trim();
+      if (!reqD) reqD = parseReqDateFromText(cell(row,C.note)) || parseReqDateFromText(exTxt);
+      var note = [cell(row,C.note), exTxt].filter(Boolean).join(' | ') || null;
       lines.push({
         no:no, name:name, spec:[code,brand].filter(Boolean).join(' — ') || null, unit:unit, qty:qty,
-        status:stat, supplier:sup, issuedTo:null, note:note
+        status:stat, supplier:sup, issuedTo:null, note:note, reqDate:reqD
       });
     }
     return lines;
@@ -4997,7 +5028,7 @@
           items:[{name:o.name, requirement:null, status:o.status, note:null, cluster:null, qc:null}],
           progressSnapshots:o.snap
         };
-        if (mats && mats.length){ patch.materials = mats; matSynced++; }
+        if (mats && mats.length){ carryReqDates(STATE.orders[o.id] && STATE.orders[o.id].materials, mats); patch.materials = mats; matSynced++; }
         if (STATE.orders[o.id]){ Object.assign(STATE.orders[o.id], patch); updated++; }
         else {
           STATE.orders[o.id] = Object.assign({id:o.id, code:o.code, legacy:false, materials:mats||[], progress:[], sourceSheets:[]}, patch);
@@ -6827,7 +6858,21 @@
       'html table.pc-table tr.pc-grp td{background:#dbe7f5;font-weight:800;font-size:14.5px;border-top:2px solid #8fb0d8;}'+
       'html table.pc-table tr.pc-grp .lnk2{font-weight:800;}'+
       'html table.pc-table tr.pc-single td:nth-child(1),table.pc-table tr.pc-single td:nth-child(2){background:#eaf2fb;font-weight:800;}'+
-      'html table.pc-table tr.pc-single .lnk2{font-weight:800;}';
+      'html table.pc-table tr.pc-single .lnk2{font-weight:800;}'+
+      'html table.mat-table{table-layout:fixed;min-width:980px;font-size:13.5px;}'+
+      'html table.mat-table th{font-size:11.5px;letter-spacing:.03em;padding:9px 8px;text-align:left;}'+
+      'html table.mat-table td{padding:5px 8px;height:42px;}'+
+      'html table.mat-table input,html table.mat-table select{font:inherit;font-size:13.5px;line-height:1.35;padding:7px 8px;height:34px;box-sizing:border-box;}'+
+      'html table.mat-table td.col-qty input{font-family:inherit;font-variant-numeric:tabular-nums;text-align:center;width:100%;}'+
+      'html table.mat-table td.col-unit input{width:100%;text-align:center;}'+
+      'html table.mat-table input[type=date]{font-size:13px;padding:6px 6px;}'+
+      'html table.mat-table input::placeholder{color:var(--text-muted);font-weight:400;}'+
+      'html table.mat-table td.col-no{width:56px;text-align:center;}'+
+      'html table.mat-table .mat-no{display:inline-block;min-width:26px;font-weight:700;color:var(--text-muted);font-variant-numeric:tabular-nums;}'+
+      'html table.mat-table .mat-no-sec{color:var(--cluster-fg,#16202b);font-weight:800;}'+
+      'html table.mat-table input.mat-status-input{font-size:13px;text-align:center;}'+
+      'html table.mat-table tr.mat-section td{height:44px;}'+
+      'html table.mat-table tr.mat-section input{font-size:14px;}';
     document.head.appendChild(st);
   })();
   document.addEventListener('click', function(e){
