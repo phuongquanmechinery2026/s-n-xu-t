@@ -1291,7 +1291,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05i-may';
+  var BUILD_ID = '2026-10-05j-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2636,7 +2636,7 @@
       // — không tính toán/lọc được. Có ô ngày riêng, chuẩn kiểu lịch, để lên
       // được đúng trang "Vật tư theo ngày yêu cầu" cho bên kho/mua hàng theo
       // dõi. Ghi chú cũ vẫn giữ nguyên, không tự động chuyển đổi ngược lại.
-      html += '<td><input type="date" value="'+esc(line.reqDate||'')+'" data-f="reqDate"></td>';
+      html += '<td class="col-date"><input type="date" value="'+esc(line.reqDate||'')+'" data-f="reqDate">'+(line.reqDate ? '<button type="button" class="date-clear" data-clear-date="'+idx+'" data-order="'+esc(o.id)+'" title="Xoá ngày yêu cầu" aria-label="Xoá ngày yêu cầu">✕</button>' : '')+'</td>';
       html += '<td>'+matSelectHtml('supplier', line.supplier)+'</td>';
       html += '<td><input value="'+esc(line.note||'')+'" data-f="note" placeholder="Ghi chú"></td>';
       html += '<td><button class="row-del" data-del-line="'+idx+'" data-order="'+esc(o.id)+'" title="Xoá dòng">✕</button></td>';
@@ -2944,8 +2944,11 @@
     if (plain.replace(/[^a-z]/gi,'').length < 3) return true;            // quá ít chữ cái
     return false;
   }
+  // Ghi chú có "xxx" (3 chữ x trở lên) = anh đánh dấu KHÔNG yêu cầu mua dòng này.
+  function matNoBuyText(t){ return /(^|[^a-z])x{3,}([^a-z]|$)/i.test(String(t==null?'':t)); }
   function isRealMaterial(m){
     if (!m || !(m.name||'').toString().trim()) return false;
+    if (matNoBuyText(m.note)) return false;
     if (isMatSection(m)) return false;
     var n = stripDiacritics(m.name);
     if (/van\s*chuyen|lap\s*dat|chuyen\s*giao\s*cong\s*nghe/.test(n)) return false;
@@ -4683,6 +4686,7 @@
     o.items = o.items || [];
     o.materials = o.materials || [];
     var haveSec = {};
+    (o.noAutoSec||[]).forEach(function(k){ haveSec[k] = true; });   // mục anh đã xoá: không tự tạo lại
     o.materials.forEach(function(m){ if (m && m.name && isMatSection(m)) haveSec[stripDiacritics(m.name)] = true; });
     var maxNo = 0;
     o.materials.forEach(function(m){ var n = parseInt(m && m.no, 10); if (!isNaN(n) && n > maxNo) maxNo = n; });
@@ -4839,6 +4843,7 @@
     if (txt==null) return null;
     var re = /(?:^|[^a-zA-ZÀ-ỹ])(?:y\s*[.\/]?\s*c|yêu\s*cầu)\s*(?:đặt\s*)?(?:ngày\s*)?(\d{1,2})\s*[\/,.\-]\s*(\d{1,2})(?:\s*[\/,.\-]\s*(\d{2,4}))?/i;
     var m = re.exec(String(txt)); if (!m) return null;
+    if (matNoBuyText(txt)) return null;
     var d = +m[1], mo = +m[2], y = m[3] ? +m[3] : new Date().getFullYear();
     if (y<100) y += 2000;
     if (d<1 || d>31 || mo<1 || mo>12 || y<2000 || y>2100) return null;
@@ -4850,10 +4855,10 @@
     if (!oldMats || !oldMats.length) return;
     var k = function(m){ return stripDiacritics(String(m.name||''))+'|'+stripDiacritics(String(m.spec||'')); };
     var pool = {};
-    oldMats.forEach(function(m){ if (m && m.reqDate && !isMatSection(m)) (pool[k(m)] = pool[k(m)] || []).push(m.reqDate); });
+    oldMats.forEach(function(m){ if (m && m.reqDate && m.reqSrc==='app' && !isMatSection(m)) (pool[k(m)] = pool[k(m)] || []).push(m.reqDate); });
     newMats.forEach(function(m){
       if (!m || m.reqDate || m.section || isMatSection(m)) return;
-      var q = pool[k(m)]; if (q && q.length) m.reqDate = q.shift();
+      var q = pool[k(m)]; if (q && q.length){ m.reqDate = q.shift(); m.reqSrc = 'app'; }
     });
   }
   function parseMaterialsSheetByCode(wb, code){
@@ -4890,7 +4895,8 @@
         supplier: cSup>=0 && row[cSup]!=null ? String(row[cSup]).trim() : null,
         issuedTo: cIssued>=0 && row[cIssued]!=null ? String(row[cIssued]).trim() : null,
         note: cNote>=0 && row[cNote]!=null ? String(row[cNote]).trim() : null,
-        reqDate: cNote>=0 ? parseReqDateFromText(row[cNote]) : null
+        reqDate: cNote>=0 ? parseReqDateFromText(row[cNote]) : null,
+        reqSrc: 'sheet'
       });
     }
     return lines;
@@ -5137,7 +5143,7 @@
       var note = [cell(row,C.note), exTxt].filter(Boolean).join(' | ') || null;
       lines.push({
         no:no, name:name, spec:[code,brand].filter(Boolean).join(' — ') || null, unit:unit, qty:qty,
-        status:stat, supplier:sup, issuedTo:null, note:note, reqDate:reqD
+        status:stat, supplier:sup, issuedTo:null, note:note, reqDate:reqD, reqSrc:'sheet'
       });
     }
     return lines;
@@ -5296,6 +5302,7 @@
     m.appendChild(mk('↓  Đưa dòng XUỐNG dưới', function(){ if(idx<arr.length-1){ var t=arr[idx]; arr[idx]=arr[idx+1]; arr[idx+1]=t; commit(); } }, idx>=arr.length-1));
     m.appendChild(mk('🗑  Xoá dòng này', function(){
       var nm = !isMat ? (target.name||'') : '';
+      if (isMat && isMatSection(target) && target.name){ o.noAutoSec = (o.noAutoSec||[]).concat(stripDiacritics(String(target.name).replace(/\s+/g,' ').trim())); patchOrder(orderId, {noAutoSec:o.noAutoSec}); }
       arr.splice(idx,1);
       if (!isMat && nm){                       // xoá hạng mục -> xoá luôn "mục" bên Vật tư
         var sp = vtSectionSpanForName(o, nm);
@@ -5696,12 +5703,25 @@
         }, 30);
       });
     });
+    document.querySelectorAll('[data-clear-date]').forEach(function(el){
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        if (readOnlyNote()) return;
+        var id = el.getAttribute('data-order'), idx = +el.getAttribute('data-clear-date');
+        var o = STATE.orders[id]; if (!o || !o.materials || !o.materials[idx]) return;
+        o.materials[idx].reqDate = null; o.materials[idx].reqSrc = null;
+        patchOrder(id, {materials:o.materials}); renderAll();
+      });
+    });
     document.querySelectorAll('[data-del-line]').forEach(function(el){
       el.addEventListener('click', function(){
         if (readOnlyNote()) return;
         var id = el.getAttribute('data-order'); var idx = +el.getAttribute('data-del-line');
-        var o = STATE.orders[id]; o.materials.splice(idx,1);
-        patchOrder(id, {materials:o.materials}); renderAll();
+        var o = STATE.orders[id];
+        var delLine = o.materials[idx], extra = {};
+        if (delLine && isMatSection(delLine) && delLine.name){ o.noAutoSec = (o.noAutoSec||[]).concat(stripDiacritics(String(delLine.name).replace(/\s+/g,' ').trim())); extra.noAutoSec = o.noAutoSec; }
+        o.materials.splice(idx,1);
+        extra.materials = o.materials; patchOrder(id, extra); renderAll();
       });
     });
     /* Ô ngày yêu cầu gõ ngay trong trang "Vật tư theo ngày yêu cầu" */
@@ -5711,7 +5731,7 @@
         if (readOnlyNote()) { renderAll(); return; }
         var id = el.getAttribute('data-order'); var idx = +el.getAttribute('data-line');
         var o = STATE.orders[id]; if (!o || !o.materials || !o.materials[idx]) return;
-        o.materials[idx].reqDate = el.value || null;
+        o.materials[idx].reqDate = el.value || null; o.materials[idx].reqSrc = el.value ? 'app' : null;
         patchOrder(id, {materials:o.materials});
         renderAll();
       });
@@ -5728,6 +5748,7 @@
         var o = STATE.orders[id]; var line = o.materials[idx]; var v = inp.value.trim();
         if (f==='qty' || f==='no'){ var n=parseFloat(v.replace(',','.')); line[f] = v===''?'':(isNaN(n)?v:n); }
         else { line[f] = v || null; }
+        if (f==='reqDate') line.reqSrc = v ? 'app' : null;
         patchOrder(id, {materials:o.materials});
         if (f==='status'){ inp.className = 'mat-status-input '+matStatusClass(v); }
       });
@@ -7138,7 +7159,11 @@
     var st = document.createElement('style');
     st.textContent =
       'html table.mat-table select.mat-sel{width:100%;height:34px;box-sizing:border-box;border:1px solid transparent;border-radius:6px;padding:0 6px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}'+
-      'html table.mat-table select.mat-sel:hover,html table.mat-table select.mat-sel:focus{border-color:var(--border-strong,#b8c0c8);outline:none;}';
+      'html table.mat-table select.mat-sel:hover,html table.mat-table select.mat-sel:focus{border-color:var(--border-strong,#b8c0c8);outline:none;}'+
+      'html table.mat-table td.col-date{position:relative;white-space:nowrap;}'+
+      'html table.mat-table td.col-date input[type=date]{width:calc(100% - 26px);}'+
+      'html table.mat-table .date-clear{border:0;background:none;color:var(--text-muted,#6f7a84);cursor:pointer;font-size:13px;width:24px;height:30px;vertical-align:middle;padding:0;}'+
+      'html table.mat-table .date-clear:hover{color:var(--bad,#c0362c);}';
     document.head.appendChild(st);
   })();
 
