@@ -1291,7 +1291,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05h-may';
+  var BUILD_ID = '2026-10-05i-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2631,13 +2631,13 @@
       // hiển thị: nếu người dùng không sửa gì, dữ liệu vẫn giữ nguyên null,
       // hoàn toàn không tự ý ghi "Chưa xem" vào dữ liệu.
       var matStatusDisplay = line.status || 'Chưa xem';
-      html += '<td><input class="mat-status-input '+matStatusClass(matStatusDisplay)+'" value="'+esc(matStatusDisplay)+'" data-f="status" list="statusSuggest" placeholder="Tình trạng"></td>';
+      html += '<td>'+matSelectHtml('status', matStatusDisplay)+'</td>';
       // Ngày yêu cầu: trước đây chỉ ghi tay trong ô Ghi chú (vd "Y.c ngày 18,8")
       // — không tính toán/lọc được. Có ô ngày riêng, chuẩn kiểu lịch, để lên
       // được đúng trang "Vật tư theo ngày yêu cầu" cho bên kho/mua hàng theo
       // dõi. Ghi chú cũ vẫn giữ nguyên, không tự động chuyển đổi ngược lại.
       html += '<td><input type="date" value="'+esc(line.reqDate||'')+'" data-f="reqDate"></td>';
-      html += '<td><input value="'+esc(line.supplier||'')+'" data-f="supplier" placeholder="Nhà cung cấp" list="supplierSuggest"></td>';
+      html += '<td>'+matSelectHtml('supplier', line.supplier)+'</td>';
       html += '<td><input value="'+esc(line.note||'')+'" data-f="note" placeholder="Ghi chú"></td>';
       html += '<td><button class="row-del" data-del-line="'+idx+'" data-order="'+esc(o.id)+'" title="Xoá dòng">✕</button></td>';
       html += '</tr>';
@@ -3005,7 +3005,7 @@
         if (pqcIs('mrp', o.id)) return;
         G.rows.forEach(function(r, ri){
           var m = r.m, rq = m.reqDate ? daysRemaining(m.reqDate) : null, c = function(v){ return v ? '' : ' class="e"'; };
-          html += '<tr class="pc-row"><td class="num pqd-cap">'+(gi+1)+'.'+(ri+1)+'</td><td class="mrp-name">'+esc(m.name||'—')+'</td><td data-l="Quy cách"'+c(m.spec)+'>'+esc(m.spec||'')+'</td><td class="r num" data-l="SL">'+esc(fmtNum(m.qty)||'—')+'</td><td'+c(m.unit)+'>'+esc(m.unit||'')+'</td><td class="num'+(m.reqDate?'':' e')+'" data-l="Cần ngày"'+(rq!==null&&rq<0?' style="color:var(--bad);font-weight:600;"':'')+'>'+(m.reqDate?esc(fmtDate(m.reqDate))+(rq<0?' (trễ '+(-rq)+')':''):'')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;">'+esc(r.st)+'</span></td><td data-l="NCC"'+c(m.supplier)+'>'+esc(m.supplier||'')+'</td></tr>';
+          html += '<tr class="pc-row"><td class="num pqd-cap">'+(gi+1)+'.'+(ri+1)+'</td><td class="mrp-name">'+esc(m.name||'—')+'</td><td data-l="Quy cách"'+c(m.spec)+'>'+esc(m.spec||'')+'</td><td class="r num" data-l="SL">'+esc(fmtNum(m.qty)||'—')+'</td><td'+c(m.unit)+'>'+esc(m.unit||'')+'</td><td class="num'+(m.reqDate?'':' e')+'" data-l="Cần ngày"'+(rq!==null&&rq<0?' style="color:var(--bad);font-weight:600;"':'')+'>'+(m.reqDate?esc(fmtDate(m.reqDate))+(rq<0?' (trễ '+(-rq)+')':''):'')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;'+matChipStyle(MAT_ST_SHEET, r.st)+'">'+esc(r.st)+'</span></td><td data-l="NCC"'+c(m.supplier)+'>'+esc(m.supplier||'')+'</td></tr>';
         });
       });
       html += '</tbody></table></div>';
@@ -3072,7 +3072,7 @@
         if (pqcIs('rd', oid)) return;
         G.rows.forEach(function(r){
           var dr = daysRemaining(r.m.reqDate), late = dr!==null && dr<0;
-          html += '<tr'+(r.pr ? '' : ' data-pq="rd-toggle" data-key="'+esc(r.key)+'" class="pqd-click'+(PQX.selRd[r.key]?' pqd-on':'')+'"')+'><td>'+(r.pr ? '' : '<input type="checkbox" tabindex="-1" aria-label="Chọn dòng"'+(PQX.selRd[r.key]?' checked':'')+'>')+'</td><td><b>'+esc(r.m.name||'—')+'</b></td><td>'+esc(r.m.spec||'')+'</td><td>'+esc(r.m.unit||'')+'</td><td class="r num">'+esc(fmtNum(r.m.qty)||'—')+'</td><td class="num"'+(late?' style="color:var(--bad);font-weight:600;"':'')+'>'+esc(fmtDate(r.m.reqDate))+(late?' (trễ '+(-dr)+')':'')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;">'+esc(r.st)+'</span></td><td>'+(r.pr ? '<span class="pill pill-info">'+esc(r.pr)+'</span>' : '<span class="pqd-cap">—</span>')+'</td></tr>';
+          html += '<tr'+(r.pr ? '' : ' data-pq="rd-toggle" data-key="'+esc(r.key)+'" class="pqd-click'+(PQX.selRd[r.key]?' pqd-on':'')+'"')+'><td>'+(r.pr ? '' : '<input type="checkbox" tabindex="-1" aria-label="Chọn dòng"'+(PQX.selRd[r.key]?' checked':'')+'>')+'</td><td><b>'+esc(r.m.name||'—')+'</b></td><td>'+esc(r.m.spec||'')+'</td><td>'+esc(r.m.unit||'')+'</td><td class="r num">'+esc(fmtNum(r.m.qty)||'—')+'</td><td class="num"'+(late?' style="color:var(--bad);font-weight:600;"':'')+'>'+esc(fmtDate(r.m.reqDate))+(late?' (trễ '+(-dr)+')':'')+'</td><td><span class="mat-status-input '+matStatusClass(r.st)+'" style="display:inline-block;pointer-events:none;'+matChipStyle(MAT_ST_SHEET, r.st)+'">'+esc(r.st)+'</span></td><td>'+(r.pr ? '<span class="pill pill-info">'+esc(r.pr)+'</span>' : '<span class="pqd-cap">—</span>')+'</td></tr>';
         });
       });
       html += '</tbody></table></div>';
@@ -5732,6 +5732,26 @@
         if (f==='status'){ inp.className = 'mat-status-input '+matStatusClass(v); }
       });
     });
+    document.querySelectorAll('table.mat-table select.mat-sel').forEach(function(sel){
+      sel.addEventListener('click', function(e){ e.stopPropagation(); });
+      sel.addEventListener('change', function(){
+        if (readOnlyNote()) { renderAll(); return; }
+        var tr = sel.closest('tr'); var id = tr.getAttribute('data-order'); var idx = +tr.getAttribute('data-line'); var f = sel.getAttribute('data-f');
+        var o = STATE.orders[id]; if (!o || !o.materials || !o.materials[idx]) return; var line = o.materials[idx];
+        var list = f==='status' ? MAT_ST_SHEET : MAT_SUP_SHEET;
+        if (sel.value==='__other__'){
+          showPromptModal({title:'Nhà cung cấp khác', label:'Tên nhà cung cấp', placeholder:'VD: Thép Hòa Phát'}, function(v){
+            v = (v||'').trim();
+            if (v){ line.supplier = v; patchOrder(id, {materials:o.materials}); }
+            renderAll();
+          });
+          return;
+        }
+        line[f] = sel.value || null;
+        patchOrder(id, {materials:o.materials});
+        sel.setAttribute('style', matChipStyle(list, sel.value));
+      });
+    });
     document.querySelectorAll('[data-delete]').forEach(function(el){
       el.addEventListener('click', function(){
         if (readOnlyNote()) return;
@@ -7073,6 +7093,54 @@
   document.addEventListener('change', function(e){
     var t = e.target; if (t && t.id==='pqRdDate' && t.value){ PQX.rdDate = t.value; renderAll(); }
   });
+
+  /* ===== TÌNH TRẠNG / NHÀ CUNG CẤP trong tab VT: ô CHỌN (dropdown) đúng danh sách và màu của Google Sheet =====
+     Danh sách + màu đọc thẳng từ quy tắc xác thực dữ liệu của Sheet VT (Dữ liệu → Xác thực dữ liệu), 2026-10-05. */
+  var MAT_ST_SHEET = [
+    ['Đã đặt','#C6DBE1'], ['Đã nhận','#11734B'], ['Đặt hàng','#FFC8AA'],
+    ['Đã có','#D4EDBC'], ['Chưa xem','#E8EAED'], ['Yêu cầu đặt','#B10202']
+  ];
+  var MAT_SUP_SHEET = [
+    ['Trống - chưa xem','#E8EAED'], ['Winton','#C6DBE1'], ['SGP','#11734B'], ['Chợ','#FFC8AA'], ['Thanh phú','#D4EDBC'],
+    ['Vô cực','#E8EAED'], ['Thiên hổ','#753800'], ['HOÀNG TRỌNG TÍN','#11734B'], ['1-5','#5A3286'], ['HUY PHÁT','#FFC8AA'],
+    ['An Phúc','#B10202'], ['Thế Khải','#0A53A8'], ['DKB','#E8EAED'], ['Kho','#0A53A8']
+  ];
+  function matChipFg(bg){
+    var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(bg||''); if (!m) return '#1f2933';
+    var l = (0.299*parseInt(m[1],16) + 0.587*parseInt(m[2],16) + 0.114*parseInt(m[3],16));
+    return l < 140 ? '#ffffff' : '#1f2933';
+  }
+  function matChipColor(list, v){
+    var p = stripDiacritics(String(v||'').trim());
+    for (var i=0;i<list.length;i++){ if (stripDiacritics(list[i][0])===p) return list[i][1]; }
+    return null;
+  }
+  function matChipStyle(list, v){
+    var bg = matChipColor(list, v);
+    if (!bg) return v ? 'background:#F1F3F4;color:#1f2933;' : '';
+    return 'background:'+bg+';color:'+matChipFg(bg)+';';
+  }
+  function matSelectHtml(kind, cur){
+    var list = kind==='status' ? MAT_ST_SHEET : MAT_SUP_SHEET;
+    var val = String(cur==null ? '' : cur).trim();
+    var inList = !!matChipColor(list, val);
+    var h = '<select class="mat-sel" data-f="'+kind+'" aria-label="'+(kind==='status'?'Tình trạng':'Nhà cung cấp')+'" style="'+matChipStyle(list, val)+'">';
+    if (kind==='supplier') h += '<option value=""'+(val?'':' selected')+' style="background:#fff;color:#6b7580;">— Chọn nhà cung cấp —</option>';
+    if (val && !inList) h += '<option value="'+esc(val)+'" selected style="background:#F1F3F4;color:#1f2933;">'+esc(val)+'</option>';
+    list.forEach(function(it){
+      var sel = val && stripDiacritics(it[0])===stripDiacritics(val);
+      h += '<option value="'+esc(it[0])+'"'+(sel?' selected':'')+' style="background:'+it[1]+';color:'+matChipFg(it[1])+';">'+esc(it[0])+'</option>';
+    });
+    if (kind==='supplier') h += '<option value="__other__" style="background:#fff;color:#1f2933;">+ Nhập nhà cung cấp khác…</option>';
+    return h + '</select>';
+  }
+  (function(){
+    var st = document.createElement('style');
+    st.textContent =
+      'html table.mat-table select.mat-sel{width:100%;height:34px;box-sizing:border-box;border:1px solid transparent;border-radius:6px;padding:0 6px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}'+
+      'html table.mat-table select.mat-sel:hover,html table.mat-table select.mat-sel:focus{border-color:var(--border-strong,#b8c0c8);outline:none;}';
+    document.head.appendChild(st);
+  })();
 
   renderBanner();
   loadFromSeedOnly();
