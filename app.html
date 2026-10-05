@@ -1142,7 +1142,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05d-may';
+  var BUILD_ID = '2026-10-05e-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -6872,7 +6872,10 @@
       'html table.mat-table .mat-no-sec{color:var(--cluster-fg,#16202b);font-weight:800;}'+
       'html table.mat-table input.mat-status-input{font-size:13px;text-align:center;}'+
       'html table.mat-table tr.mat-section td{height:44px;}'+
-      'html table.mat-table tr.mat-section input{font-size:14px;}';
+      'html table.mat-table tr.mat-section input{font-size:14px;}'+
+      'html table.mat-table tr.mat-section td.mat-sec-act{white-space:nowrap;text-align:right;padding-right:8px;}'+
+      'html table.mat-table tr.mat-section td.mat-sec-act .btn{display:inline-block;height:30px;padding:0 10px;line-height:28px;vertical-align:middle;}'+
+      'html table.mat-table tr.mat-section td.mat-sec-act .row-del{display:inline-block;vertical-align:middle;margin-left:6px;}';
     document.head.appendChild(st);
   })();
   document.addEventListener('click', function(e){
