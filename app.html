@@ -1291,7 +1291,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-05k-may';
+  var BUILD_ID = '2026-10-06m-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3464,16 +3464,28 @@
 
   function sheetColl(suffix){ return STATE.sheetNs + suffix; }
   var SHEET_NS_LABEL = {electric:'Điện', cokhi:'Cơ khí'};
+  // Excel cắt tên sheet ở 31 ký tự: các tên dưới đây là TÊN ĐỦ theo Google Sheet (kiểm tra 2026-10-06).
+  var SHEET_NAME_FIX = {
+    'vit tai may nghien bot nhang a':'Vit tai may nghien bot nhang A Toan',
+    'ban sao cua nap lo erex lam bu':'Bản sao của Nắp lò Erex làm bù 1 cái',
+    'tu dien dk bien tan nha may rac':'TỦ ĐIỆN ĐK BIẾN TẦN NHÀ MÁY RÁC HÀ TĨNH'
+  };
+  function eleFixName(n){
+    var t = String(n==null?'':n).replace(/\s+/g,' ').trim();
+    var k = stripDiacritics(t);
+    return SHEET_NAME_FIX[k] || t;
+  }
   function loadElectricMeta(){
     return db.collection(sheetColl('_meta')).doc('d').get().then(function(snap){
       var m = snap.exists ? snap.data() : null;
+      if (m && m.names) m.names = m.names.map(eleFixName);
       STATE.electric = (m && m.names && m.names.length) ? {meta:m, cache:{}} : null;
     }).catch(function(){ STATE.electric = null; });
   }
   function loadElectricSheet(i){
     if (!STATE.electric || STATE.electric.cache[i]) return Promise.resolve();
     return db.collection(sheetColl('_s'+i)).doc('d').get().then(function(snap){
-      if (snap.exists) STATE.electric.cache[i] = snap.data();
+      if (snap.exists){ var sd = snap.data(); if (sd && sd.name) sd.name = eleFixName(sd.name); STATE.electric.cache[i] = sd; }
     }).catch(function(){});
   }
   function eleParseAndStore(file){
@@ -3498,10 +3510,12 @@
       return loadXlsx().then(function(XLSX){
         var wb = XLSX.read(new Uint8Array(arrBuf), {type:'array', cellFormula:true, cellDates:true, cellStyles:false, cellHTML:false, sheetStubs:false});
         var names = wb.SheetNames.slice();
+        var rawNames = names.slice();
+        names = names.map(eleFixName);
         var chain = Promise.resolve();
         names.forEach(function(nm, i){
           chain = chain.then(function(){
-            var ws = wb.Sheets[nm] || {};
+            var ws = wb.Sheets[rawNames[i]] || {};
             var ref = ws['!ref'] || 'A1';
             var range = XLSX.utils.decode_range(ref);
             var maxR = Math.min(range.e.r, ELE_MAX_ROWS-1);
@@ -7200,6 +7214,340 @@
       'html table.mat-table .date-clear:hover{color:var(--bad,#c0362c);}';
     document.head.appendChild(st);
   })();
+
+  /* ===== HỎI NHANH (MIỄN PHÍ — không dùng AI, không gọi mạng) =====
+     Trả lời câu hỏi thường gặp bằng chính dữ liệu đang có trong app: đơn trễ / sắp giao, vật tư chưa về / cần theo ngày,
+     tìm vật tư, việc của từng người, tình trạng 1 đơn, thống kê. Phần AI (đọc bản vẽ…) sẽ gắn sau vào đúng khung này. */
+  var QA = {log: [], inited: false};
+  function qaN(s){ return stripDiacritics(String(s==null?'':s)).replace(/[^a-z0-9\/\-\s]+/g,' ').replace(/\s+/g,' ').trim(); }
+  var QA_STOP = {};
+  ('cho anh em la cua nao nhung cac xem hay giup minh co khong the dang bi da duoc o dau va voi nhu gi bao nhieu toi don hang cong trinh vat tu viec ' +
+   'ngay tuan thang nay mai hom sap tre qua han giao chua ve thieu mua can tim kiem tinh trang tien do ai lam tong so thong ke yeu cau nha cung cap ncc tai ' +
+   'trong sau truoc nhat het phai con thi a oi nhe nha may vt xin vui long liet ke danh sach cho biet nhung muon muon quan hom qua').split(' ').forEach(function(w){ QA_STOP[w] = 1; });
+  function qaLabelDept(){ return STATE.dept==='dien' ? 'Điện' : 'Cơ khí'; }
+  function qaDue(o){ var d = pqdHeadDate(o); return d ? {iso:d, dr:daysRemaining(d)} : null; }
+  function qaDueTag(o){
+    var d = qaDue(o); if (!d) return '<span class="qa-tag">chưa có ngày giao</span>';
+    if (d.dr < 0) return '<span class="qa-tag bad">giao '+esc(fmtDate(d.iso))+' · trễ '+(-d.dr)+' ngày</span>';
+    if (d.dr <= 7) return '<span class="qa-tag warn">giao '+esc(fmtDate(d.iso))+' · còn '+d.dr+' ngày</span>';
+    return '<span class="qa-tag">giao '+esc(fmtDate(d.iso))+' · còn '+d.dr+' ngày</span>';
+  }
+  function qaOrderLine(o, extra){
+    var cust = o.customerInfo ? String(o.customerInfo).split('\n')[0] : '';
+    return '<div class="qa-row"><button type="button" class="qa-code" data-qa-open="'+esc(o.id)+'" data-qa-tab="vt">'+esc(o.code||'—')+'</button> '+esc(orderTitle(o))+
+      (cust ? '<span class="qa-cap"> · '+esc(cust)+'</span>' : '')+(extra ? ' '+extra : '')+'</div>';
+  }
+  function qaMore(n, total, hint){ return total > n ? '<div class="qa-cap">… và '+(total-n)+' mục nữa'+(hint ? ' — '+hint : '')+'.</div>' : ''; }
+  function qaChip(st){ var s = st || 'Chưa xem'; return '<span class="qa-chip" style="'+matChipStyle(MAT_ST_SHEET, s)+'">'+esc(s)+'</span>'; }
+  function qaMatLine(o, m){
+    var rq = m.reqDate ? daysRemaining(m.reqDate) : null;
+    return '<div class="qa-row"><button type="button" class="qa-code" data-qa-open="'+esc(o.id)+'" data-qa-tab="vt">'+esc(o.code||'—')+'</button> <b>'+esc(m.name||'')+'</b>'+
+      (m.spec ? '<span class="qa-cap"> · '+esc(m.spec)+'</span>' : '')+
+      (m.qty!=null && m.qty!=='' ? ' · SL '+esc(fmtNum(m.qty))+(m.unit ? ' '+esc(m.unit) : '') : '')+' '+qaChip(m.status)+
+      (m.supplier ? '<span class="qa-cap"> · '+esc(m.supplier)+'</span>' : '')+
+      (m.reqDate ? '<span class="qa-tag'+(rq!==null && rq<0 ? ' bad' : '')+'">cần '+esc(fmtDate(m.reqDate))+(rq!==null && rq<0 ? ' (trễ '+(-rq)+')' : '')+'</span>' : '')+'</div>';
+  }
+  function qaMissing(o){
+    return (o.materials||[]).filter(function(m){ return isRealMaterial(m) && matStatusClass(m.status || 'Chưa xem') !== 'mst-good'; });
+  }
+  function qaRange(q){
+    var t = pqxToday(), m, d, off, a;
+    if (/hom nay/.test(q)) return {a:t, b:t, label:'hôm nay'};
+    if (/ngay mai/.test(q)){ d = rdAddDays(t, 1); return {a:d, b:d, label:'ngày mai'}; }
+    if (/tuan (nay|toi|sau)/.test(q)){
+      off = (new Date(t+'T00:00:00').getDay()+6)%7; a = rdAddDays(t, -off + (/tuan (toi|sau)/.test(q) ? 7 : 0));
+      return {a:a, b:rdAddDays(a, 6), label:(/tuan (toi|sau)/.test(q) ? 'tuần sau' : 'tuần này')};
+    }
+    if (/thang nay/.test(q)){ var n = new Date(t+'T00:00:00'); return {a:pqxISO(new Date(n.getFullYear(), n.getMonth(), 1)), b:pqxISO(new Date(n.getFullYear(), n.getMonth()+1, 0)), label:'tháng này'}; }
+    if ((m = /(\d{1,3})\s*ngay/.exec(q))) return {a:t, b:rdAddDays(t, +m[1]), label:'trong '+m[1]+' ngày tới'};
+    if ((m = /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/.exec(q))){
+      var yy = m[3] ? (+m[3] < 100 ? 2000 + (+m[3]) : +m[3]) : new Date().getFullYear();
+      d = yy+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2); return {a:d, b:d, label:'ngày '+fmtDate(d)};
+    }
+    return null;
+  }
+  function qaSubject(q){
+    var s = q.replace(/\d+\s*ngay/g,' ').replace(/\d{1,2}\/\d{1,2}(\/\d{2,4})?/g,' ');
+    return s.split(' ').filter(function(w){ return w && !QA_STOP[w]; });
+  }
+  function qaFindOrders(q, subj, pool){
+    var res = [], seen = {};
+    pool.forEach(function(o){
+      var code = qaN(o.code||''); if (!code) return;
+      var last = code.split('-').pop();
+      var hit = q.indexOf(code) >= 0 || subj.some(function(w){ return w === last || w === code.replace(/-/g,''); });
+      if (hit && !seen[o.id]){ seen[o.id] = 1; res.push(o); }
+    });
+    res.byCode = res.length > 0;
+    if (res.length || !subj.length) return res;
+    var hays = pool.map(function(o){ return qaN((o.code||'')+' '+(o.customerInfo||'')+' '+(o.items||[]).map(function(it){ return it.name||''; }).join(' ')); });
+    var phrase = subj.join(' ');
+    pool.forEach(function(o, i){ if (hays[i].indexOf(phrase) >= 0) res.push(o); });   // ưu tiên cụm từ nguyên văn (VD "nam long")
+    if (!res.length) pool.forEach(function(o, i){ if (subj.every(function(w){ return hays[i].indexOf(w) >= 0; })) res.push(o); });
+    return res;
+  }
+
+  /* ---- các kiểu trả lời ---- */
+  function qaLateOrders(){
+    var l = currentWorkOrders().filter(function(o){ var d = qaDue(o); return d && d.dr < 0; });
+    l.sort(function(a, b){ return qaDue(a).dr - qaDue(b).dr; });
+    if (!l.length) return 'Không có đơn nào trễ hạn giao (bộ phận '+qaLabelDept()+').';
+    return '<b>'+l.length+' đơn đang trễ hạn giao</b> (bộ phận '+qaLabelDept()+'), trễ nhiều nhất lên trên:'+l.slice(0, 15).map(function(o){ return qaOrderLine(o, qaDueTag(o)); }).join('')+qaMore(15, l.length, 'xem đủ ở tab Kế hoạch');
+  }
+  function qaSoonOrders(rg, n){
+    var lo, hi, label;
+    if (rg){ lo = rg.a; hi = rg.b; label = rg.label; } else { lo = pqxToday(); hi = rdAddDays(lo, n||7); label = 'trong '+(n||7)+' ngày tới'; }
+    var l = currentWorkOrders().filter(function(o){ var d = qaDue(o); return d && d.iso >= lo && d.iso <= hi; });
+    l.sort(function(a, b){ return qaDue(a).iso < qaDue(b).iso ? -1 : 1; });
+    if (!l.length) return 'Không có đơn nào đến hạn giao '+label+' (bộ phận '+qaLabelDept()+').';
+    return '<b>'+l.length+' đơn đến hạn giao '+label+'</b> (bộ phận '+qaLabelDept()+'):'+l.slice(0, 15).map(function(o){ return qaOrderLine(o, qaDueTag(o)); }).join('')+qaMore(15, l.length, 'xem đủ ở tab Kế hoạch');
+  }
+  function qaDoneWaiting(){
+    var l = currentWorkOrders().filter(orderProdDone);
+    if (!l.length) return 'Không có đơn nào đã sản xuất xong mà chưa giao.';
+    return '<b>'+l.length+' đơn đã sản xuất xong, đang chờ giao</b>:'+l.map(function(o){ return qaOrderLine(o, qaDueTag(o)); }).join('');
+  }
+  function qaMissingOverview(){
+    var groups = [], total = 0;
+    matOrders().forEach(function(o){ var r = qaMissing(o); if (r.length){ groups.push({o:o, n:r.length}); total += r.length; } });
+    groups.sort(function(a, b){ var da = qaDue(a.o), db2 = qaDue(b.o); return (da ? da.dr : 9e9) - (db2 ? db2.dr : 9e9); });
+    if (!groups.length) return 'Không có vật tư nào đang thiếu ở các công trình đang làm.';
+    return '<b>'+total+' dòng vật tư chưa về / chưa mua</b> ở '+groups.length+' công trình (gần hạn giao lên trên). Bấm mã đơn để mở tab VT:'+
+      groups.slice(0, 15).map(function(g){ return qaOrderLine(g.o, '<span class="qa-tag bad">'+g.n+' dòng thiếu</span>'+qaDueTag(g.o)); }).join('')+qaMore(15, groups.length, 'xem đủ ở tab Vật tư cần mua');
+  }
+  function qaMissingOf(o){
+    var r = qaMissing(o);
+    if (!r.length) return 'Công trình <b>'+esc(o.code||orderTitle(o))+'</b> không còn vật tư nào thiếu.';
+    r.sort(function(a, b){ return (a.reqDate||'9999') < (b.reqDate||'9999') ? -1 : 1; });
+    return '<b>'+esc(o.code||'')+' · '+esc(orderTitle(o))+'</b> còn <b>'+r.length+' dòng vật tư chưa về / chưa mua</b>:'+r.slice(0, 20).map(function(m){ return qaMatLine(o, m); }).join('')+qaMore(20, r.length, 'mở tab VT của đơn để xem đủ');
+  }
+  function qaReqDate(rg){
+    var rows = [];
+    matOrders().forEach(function(o){ qaMissing(o).forEach(function(m){ if (m.reqDate && (!rg || (m.reqDate >= rg.a && m.reqDate <= rg.b))) rows.push({o:o, m:m}); }); });
+    rows.sort(function(a, b){ return a.m.reqDate < b.m.reqDate ? -1 : 1; });
+    var lab = rg ? rg.label : 'tất cả các ngày đã đặt';
+    if (!rows.length) return 'Không có vật tư nào cần về '+lab+' (chỉ tính vật tư chưa về và đã nhập "Ngày yêu cầu").';
+    return '<b>'+rows.length+' dòng vật tư cần về '+lab+'</b> (chưa về):'+rows.slice(0, 20).map(function(r){ return qaMatLine(r.o, r.m); }).join('')+qaMore(20, rows.length, 'xem đủ ở tab Vật tư theo ngày yêu cầu');
+  }
+  function qaSearchMat(subj, q){
+    if (!subj.length) return null;
+    var rows = [];
+    currentWorkOrders().forEach(function(o){
+      (o.materials||[]).forEach(function(m){
+        if (!isRealMaterial(m)) return;
+        var hay = qaN((m.name||'')+' '+(m.spec||''));
+        if (subj.every(function(w){ return hay.indexOf(w) >= 0; })) rows.push({o:o, m:m});
+      });
+    });
+    if (!rows.length) return 'Không thấy vật tư nào có chữ "<b>'+esc(subj.join(' '))+'</b>" ở các công trình đang làm.';
+    return '<b>'+rows.length+' dòng vật tư khớp "'+esc(subj.join(' '))+'"</b>:'+rows.slice(0, 20).map(function(r){ return qaMatLine(r.o, r.m); }).join('')+qaMore(20, rows.length, 'thêm từ khoá cho gọn hơn');
+  }
+  function qaSupplier(name){
+    var rows = [];
+    matOrders().forEach(function(o){ qaMissing(o).forEach(function(m){ if (m.supplier && qaN(m.supplier).indexOf(qaN(name)) >= 0) rows.push({o:o, m:m}); }); });
+    if (!rows.length) return 'Không có vật tư chưa về nào của nhà cung cấp "'+esc(name)+'".';
+    return '<b>'+rows.length+' dòng vật tư chưa về — nhà cung cấp '+esc(name)+'</b>:'+rows.slice(0, 20).map(function(r){ return qaMatLine(r.o, r.m); }).join('')+qaMore(20, rows.length, '');
+  }
+  function qaTaskLine(t){
+    var o = t.orderId && STATE.orders[t.orderId], late = tkLate(t);
+    return '<div class="qa-row">'+(o ? '<button type="button" class="qa-code" data-qa-open="'+esc(o.id)+'" data-qa-tab="td">'+esc(o.code||'—')+'</button> ' : '')+'<b>'+esc(t.title||'')+'</b>'+
+      '<span class="qa-cap"> · '+esc(t.who||'chưa có người làm')+'</span>'+(t.date ? '<span class="qa-tag'+(late ? ' bad' : '')+'">hạn '+esc(fmtDate(t.date))+(late ? ' · trễ '+(-daysRemaining(t.date))+' ngày' : '')+'</span>' : '')+'</div>';
+  }
+  function qaTasks(kind, person){
+    var all = tkAll(), open = all.filter(function(t){ return t.status !== 'Xong'; });
+    if (person){
+      var mine = open.filter(function(t){ return (t.who||'') === person; });
+      mine.sort(function(a, b){ return (a.date||'9999') < (b.date||'9999') ? -1 : 1; });
+      if (!mine.length) return esc(person)+' không còn việc nào đang mở.';
+      var late = mine.filter(tkLate).length;
+      return '<b>'+esc(person)+': '+mine.length+' việc đang mở'+(late ? ', trong đó '+late+' quá hạn' : '')+'</b>'+mine.slice(0, 20).map(qaTaskLine).join('')+qaMore(20, mine.length, 'xem đủ ở tab Phân công công việc');
+    }
+    if (kind === 'late'){
+      var l = open.filter(tkLate); l.sort(function(a, b){ return a.date < b.date ? -1 : 1; });
+      if (!l.length) return 'Không có việc nào quá hạn.';
+      return '<b>'+l.length+' việc quá hạn</b>:'+l.slice(0, 20).map(qaTaskLine).join('')+qaMore(20, l.length, 'xem đủ ở tab Phân công công việc');
+    }
+    if (kind === 'nowho'){
+      var n = open.filter(function(t){ return !t.who; });
+      if (!n.length) return 'Mọi việc đang mở đều đã có người làm.';
+      return '<b>'+n.length+' việc chưa có người làm</b>:'+n.slice(0, 20).map(qaTaskLine).join('')+qaMore(20, n.length, 'xem đủ ở tab Phân công công việc');
+    }
+    var by = {};
+    open.forEach(function(t){ var k = t.who || 'Chưa phân công'; (by[k] = by[k] || []).push(t); });
+    var names = Object.keys(by).sort(function(a, b){ return by[b].length - by[a].length; });
+    if (!names.length) return 'Chưa có việc nào đang mở.';
+    return '<b>Việc đang mở theo người</b> ('+open.length+' việc):'+names.map(function(k){
+      var late = by[k].filter(tkLate).length;
+      return '<div class="qa-row"><b>'+esc(k)+'</b> — '+by[k].length+' việc'+(late ? ' <span class="qa-tag bad">'+late+' quá hạn</span>' : '')+'</div>';
+    }).join('')+'<div class="qa-cap">Gõ tên người để xem chi tiết việc của họ, ví dụ: "việc của '+esc(names[0] === 'Chưa phân công' && names[1] ? names[1] : names[0])+'".</div>';
+  }
+  function qaTasksOf(o){
+    var ts = pqxList('task').filter(function(t){ return t.orderId === o.id; }), op = ts.filter(function(t){ return t.status !== 'Xong'; });
+    if (!ts.length) return 'Đơn <b>'+esc(o.code||orderTitle(o))+'</b> chưa có việc nào trong phần phân công.';
+    op.sort(function(a, b){ return (a.date||'9999') < (b.date||'9999') ? -1 : 1; });
+    return '<b>'+esc(o.code||'')+' · '+esc(orderTitle(o))+'</b>: '+op.length+' việc đang mở / '+ts.length+' việc'+op.slice(0, 20).map(qaTaskLine).join('')+qaMore(20, op.length, '');
+  }
+  function qaOrderDetail(o){
+    var d = qaDue(o), st = rollupStatus(o) || '—', cust = o.customerInfo ? String(o.customerInfo).split('\n')[0] : '';
+    var h = '<b>'+esc(o.code||'—')+' · '+esc(orderTitle(o))+'</b>'+(cust ? '<div class="qa-cap">'+esc(cust)+'</div>' : '');
+    h += '<div class="qa-row">Tình trạng chung: <b>'+esc(st)+'</b>'+(st === 'ĐÃ GIAO' ? '' : ' '+qaDueTag(o))+'</div>';
+    var its = (o.items||[]).filter(function(it){ return (it.name||'').trim(); });
+    if (its.length) h += '<div class="qa-sub">Hạng mục ('+its.length+')</div>'+its.slice(0, 12).map(function(it){ return '<div class="qa-row">'+esc(it.name)+' — <b>'+esc(it.status||'chưa có tình trạng')+'</b>'+(it.assignee ? '<span class="qa-cap"> · '+esc(it.assignee)+'</span>' : '')+'</div>'; }).join('')+qaMore(12, its.length, '');
+    var real = (o.materials||[]).filter(isRealMaterial), miss = qaMissing(o), have = real.length - miss.length;
+    h += '<div class="qa-sub">Vật tư</div><div class="qa-row">'+(real.length ? 'Đã có <b>'+have+'/'+real.length+'</b> dòng ('+Math.round(have/real.length*100)+'%) · còn thiếu <b>'+miss.length+'</b> dòng' : 'Chưa có dòng vật tư nào')+'</div>';
+    if (miss.length) h += miss.slice(0, 6).map(function(m){ return qaMatLine(o, m); }).join('')+qaMore(6, miss.length, 'hỏi "vật tư chưa về của '+esc(o.code||'')+'" để xem đủ');
+    var ts = pqxList('task').filter(function(t){ return t.orderId === o.id; }), op = ts.filter(function(t){ return t.status !== 'Xong'; });
+    if (ts.length) h += '<div class="qa-sub">Phân công</div><div class="qa-row">'+op.length+' việc đang mở / '+ts.length+' việc'+(op.filter(tkLate).length ? ' · <span class="qa-tag bad">'+op.filter(tkLate).length+' quá hạn</span>' : '')+'</div>';
+    h += '<div class="qa-row"><button type="button" class="qa-link" data-qa-open="'+esc(o.id)+'" data-qa-tab="vt">Mở tab Vật tư</button> <button type="button" class="qa-link" data-qa-open="'+esc(o.id)+'" data-qa-tab="td">Mở công việc cần làm</button></div>';
+    return h;
+  }
+  function qaStats(){
+    var cur = currentWorkOrders(), late = cur.filter(function(o){ var d = qaDue(o); return d && d.dr < 0; }).length,
+      soon = cur.filter(function(o){ var d = qaDue(o); return d && d.dr >= 0 && d.dr <= 7; }).length, done = cur.filter(orderProdDone).length,
+      miss = 0, mo = 0; matOrders().forEach(function(o){ var n = qaMissing(o).length; if (n){ miss += n; mo++; } });
+    var open = tkAll().filter(function(t){ return t.status !== 'Xong'; });
+    var rows = [['Đơn đang làm (chưa giao)', cur.length], ['Trễ hạn giao', late], ['Giao trong 7 ngày tới', soon], ['Đã sản xuất xong, chờ giao', done],
+      ['Vật tư chưa về', miss+' dòng / '+mo+' công trình'], ['Việc đang mở', open.length], ['Việc quá hạn', open.filter(tkLate).length]];
+    return '<b>Tổng quan — bộ phận '+qaLabelDept()+'</b>'+rows.map(function(r){ return '<div class="qa-row">'+esc(r[0])+': <b>'+esc(String(r[1]))+'</b></div>'; }).join('');
+  }
+  function qaHelp(prefix){
+    return (prefix || '')+'Em trả lời được các câu như (miễn phí, từ dữ liệu trong app):'+
+      ['Đơn nào đang trễ?', 'Đơn nào giao trong 7 ngày tới?', 'Vật tư nào chưa về?', 'Vật tư chưa về của 2026-187', 'Vật tư cần về ngày mai',
+       'Vật tư cần về tuần này', 'Tìm vật tư motor', 'Việc nào quá hạn?', 'Việc chưa có người làm', 'Ai đang làm gì?', 'Tình trạng đơn 2026-187', 'Đơn nào sản xuất xong chờ giao?', 'Tổng quan']
+        .map(function(x){ return '<button type="button" class="qa-ask" data-qa-ask="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
+  }
+
+  function qaAnswer(text){
+    var q = qaN(text);
+    if (!q) return qaHelp('');
+    var subj = qaSubject(q), rg = qaRange(q);
+    var hasVT = /vat tu|vat lieu|\bvt\b/.test(q), hasTask = /viec|phan cong|nhiem vu|ai (dang )?lam/.test(q);
+    var late = /\btre\b|qua han|cham|\bmuon\b/.test(q), missing = /chua ve|chua co|thieu|can mua|chua mua|chua dat|chua xem|con thieu|phai mua/.test(q);
+    var search = /^(tim|kiem|tra cuu)|o dau|\bco\b.*\bkhong\b/.test(q);
+    var pool = ordersList().filter(function(o){ return !o.legacy; });
+    // người (chỉ khi hỏi về việc, hoặc gõ kiểu "của Hùng", "anh Hùng")
+    var person = null, wb = function(k){ return (' '+q+' ').indexOf(' '+k+' ') >= 0; };
+    tkPeople().forEach(function(p){
+      var k = qaN(p); if (person || !p || p === 'Chưa phân công' || k.length < 2 || !wb(k)) return;
+      if (hasTask || new RegExp('(^| )(cua|anh|chi|ong|ba|bac|em|ban) '+k.replace(/[^a-z0-9 ]/g,'')+'( |$)').test(q) || subj.join(' ') === k) person = p;
+    });
+    if (person) return qaTasks('', person);
+    if (hasTask){
+      if (late) return qaTasks('late');
+      if (/chua (co )?(nguoi|phan cong)|khong co nguoi/.test(q)) return qaTasks('nowho');
+      var fo = qaFindOrders(q, subj, pool);
+      if (fo.length === 1) return qaTasksOf(fo[0]);
+      if (fo.length > 1) return '<b>'+fo.length+' đơn khớp</b> — gõ mã đơn để xem việc:'+fo.slice(0, 12).map(function(o){ return qaOrderLine(o, qaDueTag(o)); }).join('');
+      if (subj.length) return 'Không thấy người hay đơn nào tên "<b>'+esc(subj.join(' '))+'</b>" trong phần phân công. Người đang có việc: '+esc(tkPeople().join(', ') || '—')+'.';
+      return qaTasks('');
+    }
+    if (/chua (co )?(nguoi|phan cong)/.test(q)) return qaTasks('nowho');
+    // nhà cung cấp
+    var supHit = null, supWord = /nha cung cap|ncc/.test(q), amb = {kho:1, cho:1, '1-5':1};
+    MAT_SUP_SHEET.forEach(function(s2){ var k = qaN(s2[0]); if (supHit || k.length < 2 || /^trong/.test(k) || (amb[k] && !supWord)) return; if (wb(k)) supHit = s2[0]; });
+    if (supHit) return qaSupplier(supHit);
+    var found = qaFindOrders(q, subj, pool);
+    if (hasVT){
+      if (rg || /yeu cau|can ve/.test(q)) return qaReqDate(rg);
+      if (found.byCode) return found.length === 1 ? qaMissingOf(found[0]) : found.slice(0, 5).map(qaMissingOf).join('<hr class="qa-hr">');
+      if (subj.length){
+        var r = qaSearchMat(subj, q);
+        if (r && r.indexOf('Không thấy') !== 0) return r;
+        if (found.length === 1) return qaMissingOf(found[0]);
+        if (found.length > 1 && found.length <= 4) return found.map(qaMissingOf).join('<hr class="qa-hr">');
+        if (found.length > 1) return '<b>'+found.length+' đơn khớp</b> — gõ mã đơn để xem vật tư:'+found.slice(0, 12).map(function(o){ return qaOrderLine(o, qaDueTag(o)); }).join('');
+        return r;
+      }
+      return qaMissingOverview();
+    }
+    if (/san xuat xong|cho giao|xong het|da xong/.test(q)) return qaDoneWaiting();
+    if (late && !found.length) return qaLateOrders();
+    if (/sap giao|sap den han|giao|den han|han giao/.test(q) && !found.length) return qaSoonOrders(rg, 7);
+    if (rg && !found.length) return qaSoonOrders(rg, 7);
+    if (/bao nhieu|tong so|thong ke|tong quan|\bdem\b|tong hop/.test(q) && !found.byCode) return qaStats();
+    if (missing && !found.length) return qaMissingOverview();
+    if (found.length === 1) return qaOrderDetail(found[0]);
+    if (found.length > 1) return '<b>'+found.length+' đơn khớp</b> — bấm mã đơn để mở, hoặc gõ rõ hơn:'+found.slice(0, 12).map(function(o){ return qaOrderLine(o, qaDueTag(o)); }).join('')+qaMore(12, found.length, '');
+    // không khớp đơn: thử tìm vật tư theo từ khoá
+    if (subj.length){ var r2 = qaSearchMat(subj, q); if (r2 && r2.indexOf('Không thấy') !== 0) return r2; }
+    return qaHelp('Em chưa hiểu câu này bằng chương trình (phần hỏi tự do bằng AI sẽ bổ sung sau). ');
+  }
+
+  /* ---- khung chat ---- */
+  function qaRender(){
+    var box = document.getElementById('qaLog'); if (!box) return;
+    box.innerHTML = QA.log.map(function(m){ return '<div class="qa-msg '+(m.me ? 'me' : 'bot')+'">'+(m.me ? esc(m.t) : m.t)+'</div>'; }).join('');
+    box.scrollTop = box.scrollHeight;
+  }
+  function qaAsk(text){
+    text = String(text||'').trim(); if (!text) return;
+    QA.log.push({me:true, t:text});
+    var ans; try { ans = qaAnswer(text); } catch (e){ ans = 'Có lỗi khi tra dữ liệu: '+esc((e && e.message) || e); }
+    QA.log.push({me:false, t:ans});
+    qaRender();
+  }
+  function qaToggle(force){
+    var p = document.getElementById('qaPanel'); if (!p) return;
+    var open = force==null ? p.hasAttribute('hidden') : !!force;
+    if (open){
+      p.removeAttribute('hidden');
+      if (!QA.log.length) QA.log.push({me:false, t:'Xin chào'+(function(){ try { var n = localStorage.getItem('nmsx_user_name'); return n ? ' '+esc(n) : ''; } catch (e){ return ''; } })()+'! Em là ô <b>Hỏi nhanh</b> — miễn phí, trả lời thẳng từ dữ liệu của app (bộ phận '+qaLabelDept()+').<br>'+qaHelp('')});
+      qaRender();
+      var inp = document.getElementById('qaInput'); if (inp) setTimeout(function(){ try { inp.focus(); } catch (e){} }, 50);
+    } else p.setAttribute('hidden', '');
+    var b = document.getElementById('qaBtn'); if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function qaInit(){
+    if (QA.inited || !document.body) return; QA.inited = true;
+    var st = document.createElement('style');
+    st.textContent =
+      '#qaBtn{position:fixed;right:16px;bottom:16px;z-index:950;display:flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;border:0;background:var(--accent,#0b5cab);color:var(--accent-ink,#fff);font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);}'+
+      '#qaPanel{position:fixed;right:16px;bottom:70px;z-index:951;width:min(420px,calc(100vw - 24px));height:min(600px,calc(100vh - 100px));display:flex;flex-direction:column;background:var(--surface,#fff);color:var(--text,#1f2933);border:1px solid var(--border-strong,#b8c0c8);border-radius:14px;box-shadow:0 10px 36px rgba(0,0,0,.28);overflow:hidden;}'+
+      '#qaPanel[hidden]{display:none;}'+
+      '#qaPanel .qa-head{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--accent,#0b5cab);color:var(--accent-ink,#fff);}'+
+      '#qaPanel .qa-head b{font-size:15px;}#qaPanel .qa-head small{opacity:.85;font-size:11.5px;display:block;}'+
+      '#qaPanel .qa-x{margin-left:auto;border:0;background:rgba(255,255,255,.18);color:inherit;border-radius:8px;width:30px;height:30px;font-size:16px;cursor:pointer;}'+
+      '#qaLog{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;line-height:1.45;}'+
+      '#qaLog .qa-msg{max-width:94%;padding:9px 12px;border-radius:12px;}'+
+      '#qaLog .qa-msg.me{align-self:flex-end;background:var(--accent,#0b5cab);color:var(--accent-ink,#fff);}'+
+      '#qaLog .qa-msg.bot{align-self:flex-start;background:var(--surface-2,#f1f3f4);}'+
+      '#qaLog .qa-row{padding:5px 0;border-top:1px solid var(--border,#e1e5e9);}#qaLog .qa-row:first-of-type{margin-top:6px;}'+
+      '#qaLog .qa-cap{color:var(--text-muted,#6f7a84);font-size:12px;}'+
+      '#qaLog .qa-sub{margin-top:8px;font-weight:700;font-size:12px;text-transform:uppercase;color:var(--text-muted,#6f7a84);}'+
+      '#qaLog .qa-code{border:0;background:var(--surface,#fff);color:var(--accent,#0b5cab);font:inherit;font-weight:800;cursor:pointer;padding:1px 7px;border-radius:6px;border:1px solid var(--border-strong,#b8c0c8);}'+
+      '#qaLog .qa-link{border:1px solid var(--border-strong,#b8c0c8);background:var(--surface,#fff);color:var(--accent,#0b5cab);font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;padding:4px 9px;border-radius:8px;margin:2px 4px 2px 0;}'+
+      '#qaLog .qa-tag{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--surface,#fff);border:1px solid var(--border,#d5dae0);font-size:11.5px;font-weight:600;}'+
+      '#qaLog .qa-tag.bad{background:#fde8e6;border-color:#f3b8b2;color:#a3261c;}#qaLog .qa-tag.warn{background:#fff3d6;border-color:#f0d58a;color:#8a5a00;}'+
+      '#qaLog .qa-chip{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;font-weight:700;}'+
+      '#qaLog .qa-ask{display:block;width:100%;text-align:left;margin:4px 0 0;padding:6px 10px;border-radius:8px;border:1px solid var(--border-strong,#b8c0c8);background:var(--surface,#fff);color:var(--text,#1f2933);font:inherit;font-size:13px;cursor:pointer;}'+
+      '#qaLog .qa-hr{border:0;border-top:2px solid var(--border-strong,#b8c0c8);margin:10px 0;}'+
+      '#qaPanel form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border,#e1e5e9);}'+
+      '#qaPanel input{flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid var(--border-strong,#b8c0c8);font:inherit;font-size:14px;background:var(--surface,#fff);color:var(--text,#1f2933);}'+
+      '#qaPanel .qa-send{padding:0 16px;border:0;border-radius:10px;background:var(--accent,#0b5cab);color:var(--accent-ink,#fff);font:inherit;font-weight:700;cursor:pointer;}'+
+      '@media print{#qaBtn,#qaPanel{display:none !important;}}'+
+      '@media(max-width:600px){#qaPanel{right:8px;left:8px;width:auto;bottom:64px;height:calc(100vh - 90px);}#qaBtn{right:10px;bottom:10px;}}';
+    document.head.appendChild(st);
+    var btn = document.createElement('button');
+    btn.id = 'qaBtn'; btn.type = 'button'; btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', 'qaPanel');
+    btn.innerHTML = '<span aria-hidden="true">💬</span> Hỏi nhanh';
+    btn.addEventListener('click', function(){ qaToggle(); });
+    var p = document.createElement('div');
+    p.id = 'qaPanel'; p.setAttribute('hidden', ''); p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Hỏi nhanh');
+    p.innerHTML = '<div class="qa-head"><div><b>Hỏi nhanh</b><small>Miễn phí · trả lời từ dữ liệu của app, không dùng AI</small></div><button type="button" class="qa-x" aria-label="Đóng">✕</button></div>'+
+      '<div id="qaLog" aria-live="polite"></div>'+
+      '<form id="qaForm" autocomplete="off"><input id="qaInput" type="text" placeholder="Hỏi: đơn nào trễ? vật tư chưa về? tìm vật tư motor…" aria-label="Câu hỏi"><button class="qa-send" type="submit">Hỏi</button></form>';
+    document.body.appendChild(btn); document.body.appendChild(p);
+    p.querySelector('.qa-x').addEventListener('click', function(){ qaToggle(false); });
+    document.getElementById('qaForm').addEventListener('submit', function(e){ e.preventDefault(); var i = document.getElementById('qaInput'); var v = i.value; i.value = ''; qaAsk(v); });
+    p.addEventListener('click', function(e){
+      var a = e.target.closest ? e.target.closest('[data-qa-ask]') : null;
+      if (a){ qaAsk(a.getAttribute('data-qa-ask')); return; }
+      var o = e.target.closest ? e.target.closest('[data-qa-open]') : null;
+      if (o){ var id = o.getAttribute('data-qa-open'); if (STATE.orders[id]){ openOrder(id, o.getAttribute('data-qa-tab') || 'vt'); if (window.innerWidth < 900) qaToggle(false); } }
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !p.hasAttribute('hidden')) qaToggle(false); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', qaInit); else qaInit();
 
   renderBanner();
   loadFromSeedOnly();
