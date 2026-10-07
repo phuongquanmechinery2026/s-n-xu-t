@@ -1292,7 +1292,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-07e-may';
+  var BUILD_ID = '2026-10-07f-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -7743,7 +7743,7 @@
     var list = all.filter(function(d){ return XH.filter==='all' || d.status===XH.filter; });
     var h = '<div class="pqd-head"><div><h1>Yêu cầu xuất hàng</h1><div class="pqd-sub">Nhân viên nhắn vào nhóm Zalo vật tư (nhắc tên bot), hệ thống tự đọc tin và ảnh thành danh sách vật tư. Thủ kho kiểm tra, duyệt, lập phiếu xuất kho rồi in; phiếu tự ghi vào Cấp phát vật tư của đơn.</div></div></div>';
     h += '<div class="stat-grid">'+statCard('Chờ xử lý', cnt.draft, 'accent-warn')+statCard('Đã điền vào VT', cnt.applied, 'accent-good')+statCard('Đã duyệt, chờ xuất', cnt.approved, 'accent-info')+statCard('Đã xuất kho', cnt.issued, 'accent-good')+'</div>';
-    h += '<div class="pqd-cap" style="margin:0 0 12px;">Yêu cầu <b>MUA</b> do AI đọc được và có mã công trình sẽ <b>tự điền vào VT</b> của đơn (tình trạng "Yêu cầu đặt") kèm phiếu đề nghị mua — có nút Hoàn tác. Yêu cầu <b>XUẤT KHO</b> chờ thủ kho duyệt. Trong nhóm Zalo bot chỉ đọc tin có <b>nhắc tên bot (@)</b>; nhắn riêng cho bot thì không cần.</div>'+xhStatusPanel();
+    h += '<div class="pqd-cap" style="margin:0 0 12px;">Yêu cầu <b>MUA</b> do AI đọc được và có mã công trình sẽ <b>tự điền vào VT</b> của đơn (tình trạng "Yêu cầu đặt") kèm phiếu đề nghị mua — có nút Hoàn tác. Yêu cầu <b>XUẤT KHO</b> chờ thủ kho duyệt. Trong nhóm Zalo bot chỉ đọc tin có <b>nhắc tên bot (@)</b>; nhắn riêng cho bot thì không cần.</div>'+xhStatusPanel()+xhAiPanel();
     h += '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Dán tin nhắn Zalo vào đây</h2></div><div class="panel-body" style="padding:12px 16px;"><textarea id="xhManual" class="pqd-inp" rows="3" style="width:100%;" placeholder="VD: Xuất cho đơn 2026-187: Motor 5,5kW x 1 con; Bi UCP 212 x 2 cái"></textarea><div class="pqd-bar" style="padding:8px 0 0;"><span class="pqd-cap">Dùng khi tin không tự về được, hoặc để thử.</span><span style="flex:1"></span><button class="btn btn-sm btn-primary" data-xh="manual">Tạo yêu cầu</button></div></div></div>';
     h += '<div class="pqd-bar" style="padding:0 0 12px;flex-wrap:wrap;">'+[['draft','Chờ xử lý'],['applied','Đã điền vào VT'],['approved','Đã duyệt'],['issued','Đã xuất kho'],['rejected','Từ chối'],['undone','Đã hoàn tác'],['all','Tất cả']].map(function(f){
       var n = f[0]==='all' ? all.length : cnt[f[0]];
@@ -7828,11 +7828,12 @@
     setTimeout(function(){ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(er){ toast('Trình duyệt không cho in trực tiếp, thử lại.'); } }, 300);
   }
   function xhPost(url, body){
-    return fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})}).then(function(r){ return r.json().catch(function(){ return {ok:false, error:'HTTP '+r.status}; }); });
+    return fetch(url, {method:'POST', headers:xhAiHeaders(), body: JSON.stringify(body||{})}).then(function(r){ return r.json().catch(function(){ return {ok:false, error:'HTTP '+r.status}; }); });
   }
   function xhClick(e){
     var b = e.target.closest ? e.target.closest('[data-xh]') : null; if (!b) return;
     var a = b.getAttribute('data-xh'), id = b.getAttribute('data-id'), d = id ? xhDoc(id) : null, who = xhUser() || '(chưa nhập tên)';
+    if (a.indexOf('ai-')===0) return xhAiClick(a, b);
     if (a==='filter'){ XH.filter = b.getAttribute('data-f'); return renderAll(); }
     if (a==='openvt'){ var oid = b.getAttribute('data-oid'); if (STATE.orders[oid]) openOrder(oid, 'vt'); return; }
     if (a==='status'){ XH.zsAt = 0; xhLoadStatus(true); return toast('Đang kiểm tra kết nối Zalo…'); }
@@ -7880,7 +7881,8 @@
     }
   }
   function xhChange(e){
-    var el = e.target; if (!el.getAttribute || !el.hasAttribute('data-xh-f')) return;
+    var el = e.target; if (el.hasAttribute && el.hasAttribute('data-xh-ai')) return xhAiInput(el);
+    if (!el.getAttribute || !el.hasAttribute('data-xh-f')) return;
     var d = xhDoc(el.getAttribute('data-id')); if (!d) return;
     var i = +el.getAttribute('data-i'), f = el.getAttribute('data-xh-f'), it = (d.items||[])[i]; if (!it) return;
     if (f==='qty'){ var raw = el.value.trim().replace(',','.'); it.qty = raw==='' ? '' : (isNaN(Number(raw)) ? it.qty : Number(raw)); }
@@ -7952,7 +7954,8 @@
       '<h3>Đọc bản vẽ bằng AI — đơn <b>'+esc(o.code||'(chưa mã)')+'</b></h3>'+
       '<div id="drwStep1">'+
         '<div class="dropzone" id="drwDrop"><input type="file" id="drwFile" accept="application/pdf,image/jpeg,image/png,image/webp">📐 Kéo thả hoặc bấm để chọn <b>bản vẽ (PDF hoặc ảnh)</b>, tối đa 22MB<div id="drwFileName" style="margin-top:6px;font-size:12px;"></div></div>'+
-        '<label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;"><input type="checkbox" id="drwCareful" checked style="margin-top:3px;"><span><b>Đọc kỹ</b>: AI đọc 2 lần độc lập rồi đối chiếu — dòng nào hai lần khác nhau sẽ bị đánh dấu đỏ. Tốn gấp đôi tiền nhưng chính xác hơn (khoảng 3.000–15.000đ mỗi bản vẽ).</span></label>'+
+        '<label style="display:block;margin:10px 0 4px;font-size:13px;"><b>Chỉ đọc các trang</b> (cho rẻ và ít nhầm): <input id="drwPages" class="pqd-inp" style="width:220px;" placeholder="VD: 2,3-14,17 — để trống = đọc hết"></label>'+
+        '<label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0 10px;font-size:13px;"><input type="checkbox" id="drwCareful" style="margin-top:3px;"><span><b>Đọc kỹ</b>: AI đọc 2 lần độc lập rồi đối chiếu, dòng nào hai lần khác nhau bị đánh dấu đỏ. Tốn gấp đôi tiền — chỉ bật cho bản vẽ lớn / vật tư đắt. Bản vẽ đã đọc rồi thì lấy lại kết quả, không tốn tiền.</span></label>'+
         '<div class="pqd-bar" style="padding:0;"><span id="drwMsg" class="pqd-cap"></span><span style="flex:1"></span><button class="btn btn-primary" id="drwGo" disabled>Đọc bản vẽ</button></div>'+
       '</div>'+
       '<div id="drwRun" style="display:none;padding:18px 4px;"><span class="spinner"></span> <b id="drwStage">Đang gửi bản vẽ…</b> <span class="pqd-cap" id="drwSecs"></span><div class="pqd-cap" style="margin-top:6px;">Thường 1–5 phút tuỳ số trang. Anh có thể để cửa sổ này mở và làm việc khác trên máy.</div></div>'+
@@ -7970,18 +7973,24 @@
     });
     $('drwGo').onclick = function(){
       if (readOnlyNote() || !D.file) return;
-      $('drwGo').disabled = true; $('drwMsg').textContent = 'Đang gửi…';
-      var fr = new FileReader();
-      fr.onload = function(){
-        var b64 = String(fr.result).split(',')[1] || '';
-        D.blob = URL.createObjectURL(D.file);
-        $('drwStep1').style.display = 'none'; $('drwRun').style.display = '';
-        fetch('/api/zalo/draw/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:D.name, mime:D.mime, data:b64, careful:$('drwCareful').checked})})
-          .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Bản chạy trên máy không hỗ trợ — hãy dùng bản web chetao.onrender.com'}; }); })
-          .then(function(j){ if (!j.ok) return fail(j.error||'lỗi'); poll(j.jobId); })
-          .catch(function(e){ fail(e.message||'lỗi mạng'); });
-      };
-      fr.readAsDataURL(D.file);
+      $('drwGo').disabled = true; $('drwMsg').textContent = 'Đang chuẩn bị…';
+      var pr = String(($('drwPages')||{}).value||'').trim();
+      D.pageMap = null;
+      var prep = (D.mime==='application/pdf' && pr) ? drwSlice(D.file, pr).then(function(r){ D.pageMap = r.map; return r.blob; }) : Promise.resolve(D.file);
+      prep.then(function(blob){
+        var fr = new FileReader();
+        fr.onload = function(){
+          var b64 = String(fr.result).split(',')[1] || '';
+          if (b64.length > 29*1024*1024) return fail('Sau khi chọn trang vẫn quá 22MB, hãy chọn ít trang hơn.');
+          D.blob = URL.createObjectURL(D.file);
+          $('drwStep1').style.display = 'none'; $('drwRun').style.display = '';
+          fetch('/api/zalo/draw/start', {method:'POST', headers:xhAiHeaders(), body:JSON.stringify({name:D.name, mime:D.mime, data:b64, careful:$('drwCareful').checked})})
+            .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Bản chạy trên máy không hỗ trợ — hãy dùng bản web chetao.onrender.com'}; }); })
+            .then(function(j){ if (!j.ok) return fail(j.error||'lỗi'); poll(j.jobId); })
+            .catch(function(e){ fail(e.message||'lỗi mạng'); });
+        };
+        fr.readAsDataURL(blob);
+      }).catch(function(e){ fail('Không cắt được trang: '+((e&&e.message)||e)); });
     };
     function fail(msg){
       if (D.timer) clearInterval(D.timer);
@@ -8000,6 +8009,7 @@
     }
     function init(){
       var R = D.res;
+      if (D.pageMap){ var mp = function(pg){ return D.pageMap[(+pg)-1] || pg; }; ['steel','plates','parts','components','pages','steel_recap'].forEach(function(k){ (R[k]||[]).forEach(function(r){ if (r && r.page!=null) r.page = mp(r.page); }); }); }
       D.st = R.steel||[]; D.pl = R.plates||[]; D.pa = R.parts||[]; D.cp = R.components||[];
       [D.st, D.pl, D.pa].forEach(function(arr, ai){ arr.forEach(function(r, i){ r._k = ai+':'+i; r._on = !r.check && (r.conf==null || r.conf>=0.6); }); });
       D.cp.forEach(function(c, i){ c._on = c.kind!=='khac'; c._team = drwTeamGuess(c.name); });
@@ -8156,6 +8166,120 @@
       'html .drw-tabs{display:flex;gap:8px;margin-bottom:8px;}';
     document.head.appendChild(st);
   })();
+
+  /* ===== HẠN MỨC AI: chủ (nhập PIN) không giới hạn; người khác bị giới hạn theo ngày / theo người do chủ đặt ===== */
+  var XHA = {d:null, at:0, loading:false, draft:null, err:''};
+  function xhOwnerPin(){ try{ return localStorage.getItem('nmsx_owner_pin')||''; }catch(e){ return ''; } }
+  function xhAiHeaders(){
+    var h = {'Content-Type':'application/json'};
+    try{ h['X-User-Name'] = encodeURIComponent(localStorage.getItem('nmsx_user_name')||''); var pin = xhOwnerPin(); if (pin) h['X-Owner-Pin'] = pin; }catch(e){}
+    return h;
+  }
+  function xhAiLoad(force){
+    if (XHA.loading) return;
+    if (!force && XHA.at && Date.now()-XHA.at < 30000) return;
+    XHA.loading = true;
+    fetch('/api/zalo/ai/settings', {cache:'no-store', headers:xhAiHeaders()}).then(function(r){ if (!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(j){ XHA.d = j; XHA.err = ''; XHA.draft = j.owner ? JSON.parse(JSON.stringify({limits:j.limits, people:j.people||{}, ownerZalo:j.ownerZalo||[]})) : null; })
+      .catch(function(e){ XHA.d = null; XHA.err = (e&&e.message)||'lỗi'; })
+      .then(function(){ XHA.loading = false; XHA.at = Date.now(); if (STATE.view==='xuat' && !pqxTyping() && !document.querySelector('.modal-backdrop')) renderAll(); });
+  }
+  function xhPinModal(title, labels, okLabel, onOk){
+    closeAnyOpenModal();
+    var b = document.createElement('div'); b.className = 'modal-backdrop';
+    b.innerHTML = '<div class="modal" style="max-width:420px;"><h3>'+esc(title)+'</h3>'+labels.map(function(l, i){ return '<div class="field"><label>'+esc(l)+'</label><input type="password" id="xhPin'+i+'" autocomplete="off"></div>'; }).join('')+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="xhPinNo">Huỷ</button><button class="btn btn-primary" id="xhPinOk">'+esc(okLabel||'OK')+'</button></div></div>';
+    document.body.appendChild(b);
+    b.addEventListener('click', function(e){ if (e.target===b) b.remove(); });
+    document.getElementById('xhPinNo').onclick = function(){ b.remove(); };
+    document.getElementById('xhPinOk').onclick = function(){ var v = labels.map(function(l, i){ return document.getElementById('xhPin'+i).value; }); b.remove(); onOk(v); };
+    setTimeout(function(){ var f = document.getElementById('xhPin0'); if (f) f.focus(); }, 30);
+  }
+  function xhAiNum(v){ return (v===''||v==null) ? '' : String(v); }
+  function xhAiPanel(){
+    xhAiLoad(false);
+    var d = XHA.d, h = '<details class="panel xh-ai" style="margin-bottom:14px;"><summary class="panel-head" style="cursor:pointer;"><h2>Hạn mức AI</h2>';
+    if (!d) return h+'<span class="pqd-cap">'+(XHA.at ? 'chưa đọc được ('+esc(XHA.err)+')' : 'đang tải…')+'</span></summary></details>';
+    var y = d.you||{}, owner = !!d.owner;
+    h += '<span class="pqd-cap">'+(owner ? 'Chế độ chủ — không giới hạn' : (esc(y.name)+' · tin AI '+y.msgsToday+'/'+y.msgMax+' hôm nay · bản vẽ '+(y.drawMax>0 ? y.drawsToday+'/'+y.drawMax : 'chưa được cấp')))+'</span></summary><div class="panel-body" style="padding:12px 16px;">';
+    h += '<div class="xh-row"><b>Tiền AI</b><span class="pqd-cap"> — hôm nay người thường dùng $'+esc(String(d.dayUsd||0))+(d.limits.dayUsdCap ? ' / trần ngày $'+esc(String(d.limits.dayUsdCap)) : '')+(d.ownerDayUsd ? ' · chủ dùng $'+esc(String(d.ownerDayUsd)) : '')+' · tháng này (cả công ty) $'+esc(String(d.monthUsd||0))+(d.capUsd ? ' / hạn mức tháng $'+esc(String(d.capUsd)) : '')+'</span></div>';
+    var saved = !!xhOwnerPin();
+    if (!d.ownerSet) h += '<div class="xh-row"><span class="drw-b warn">Chưa đặt PIN chủ</span><span class="pqd-cap"> — hiện ai cũng được dùng AI (chỉ bị trần tháng). Hãy đặt PIN để chỉ anh không bị giới hạn, người khác bị giới hạn theo ngày.</span> <button class="btn btn-sm btn-primary" data-xh="ai-pinset">Đặt PIN chủ</button></div>';
+    else if (!owner) h += '<div class="xh-row"><span class="pqd-cap">Anh Quốc nhập PIN để mở chế độ chủ (không giới hạn, chỉnh được hạn mức).'+(saved ? ' <b style="color:var(--bad,#c0362c);">PIN đã lưu trên máy này không còn đúng.</b>' : '')+'</span> <button class="btn btn-sm btn-primary" data-xh="ai-unlock">Nhập PIN chủ</button></div>';
+    else {
+      h += '<div class="xh-row"><span class="drw-b ok">Đã mở khóa chủ trên máy này</span> <button class="btn btn-sm" data-xh="ai-lock">Khóa lại</button> <button class="btn btn-sm" data-xh="ai-pinchange">Đổi PIN</button></div>';
+      var dr = XHA.draft || {limits:d.limits, people:{}, ownerZalo:[]};
+      h += '<div class="drw-h">Mặc định cho người thường (mỗi người, mỗi ngày)</div><div class="pqd-bar" style="padding:0 0 6px;flex-wrap:wrap;gap:14px;">'+
+        '<label class="pqd-cap">Tin AI/ngày <input class="pqd-inp num" style="width:70px;" data-xh-ai="lim" data-f="zaloPerDay" value="'+esc(xhAiNum(dr.limits.zaloPerDay))+'"></label>'+
+        '<label class="pqd-cap">Bản vẽ/ngày <input class="pqd-inp num" style="width:70px;" data-xh-ai="lim" data-f="drawPerDay" value="'+esc(xhAiNum(dr.limits.drawPerDay))+'"></label>'+
+        '<label class="pqd-cap">Trần tiền AI/ngày của người thường ($) <input class="pqd-inp num" style="width:80px;" data-xh-ai="lim" data-f="dayUsdCap" value="'+esc(xhAiNum(dr.limits.dayUsdCap))+'"></label></div>'+
+        '<div class="pqd-cap">Bản vẽ = 0 nghĩa là người thường không được đọc bản vẽ, trừ người anh cấp riêng ở bảng dưới.</div>';
+      var keys = Object.keys(dr.people||{});
+      h += '<div class="drw-h">Cấp riêng cho từng người (để trống ô = theo mặc định)</div><div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th>Tên</th><th>Kênh</th><th class="r">Tin/ngày</th><th class="r">Bản vẽ/ngày</th><th>Hôm nay</th><th></th></tr></thead><tbody>';
+      if (!keys.length) h += '<tr><td colspan="6" class="empty-note">Chưa cấp riêng cho ai.</td></tr>';
+      keys.forEach(function(k){
+        var p = dr.people[k], u = (d.todayBy||{})[k] || {msgs:0, draws:0, usd:0};
+        h += '<tr><td><input class="pqd-inp" style="width:150px;" data-xh-ai="person" data-k="'+esc(k)+'" data-f="name" value="'+esc(p.name||'')+'"></td><td class="pqd-cap">'+(k.charAt(0)==='z'?'Zalo':'Web')+'</td>'+
+          '<td><input class="pqd-inp num" style="width:64px;" data-xh-ai="person" data-k="'+esc(k)+'" data-f="zaloPerDay" value="'+esc(xhAiNum(p.zaloPerDay))+'"></td>'+
+          '<td><input class="pqd-inp num" style="width:64px;" data-xh-ai="person" data-k="'+esc(k)+'" data-f="drawPerDay" value="'+esc(xhAiNum(p.drawPerDay))+'"></td>'+
+          '<td class="pqd-cap">'+u.msgs+' tin · '+u.draws+' bản vẽ · $'+esc(String(u.usd||0))+'</td><td><button class="row-del" data-xh="ai-delperson" data-k="'+esc(k)+'" aria-label="Bỏ">✕</button></td></tr>';
+      });
+      h += '</tbody></table></div>';
+      var cand = [], have = dr.people||{};
+      (d.seen||[]).forEach(function(s){ if (!have['z:'+s.id]) cand.push({k:'z:'+s.id, n:(s.name||s.id)+' (Zalo)'}); });
+      Object.keys(d.todayBy||{}).forEach(function(k){ if (k.charAt(0)==='w' && !have[k]) cand.push({k:k, n:(d.todayBy[k].name||k)+' (Web)'}); });
+      h += '<div class="pqd-bar" style="padding:6px 0;flex-wrap:wrap;"><select id="xhAiAdd" class="pqd-inp" style="width:auto;min-width:220px;"><option value="">— chọn người để cấp riêng —</option>'+cand.map(function(c){ return '<option value="'+esc(c.k)+'|'+esc(c.n)+'">'+esc(c.n)+'</option>'; }).join('')+'</select> <button class="btn btn-sm" data-xh="ai-addperson">Thêm</button></div>';
+      h += '<div class="drw-h">Tài khoản Zalo của anh (không giới hạn khi nhắn bot)</div><div class="pqd-cap">Bấm tích vào đúng tên Zalo của anh (nhờ anh nhắn bot một tin trước thì tên mới hiện ở đây).</div><div style="margin:4px 0;">'+
+        ((d.seen||[]).map(function(s){ return '<label style="display:inline-flex;gap:6px;align-items:center;margin:2px 14px 2px 0;"><input type="checkbox" data-xh-ai="ozalo" data-id="'+esc(s.id)+'"'+((dr.ownerZalo||[]).indexOf(s.id)>=0?' checked':'')+'> '+esc(s.name||s.id)+'</label>'; }).join('') || '<span class="pqd-cap">Chưa có ai nhắn bot.</span>')+'</div>';
+      h += '<div class="pqd-bar" style="padding:8px 0 0;"><span style="flex:1"></span><button class="btn btn-primary" data-xh="ai-save">Lưu hạn mức</button></div>';
+      var hist = d.history||[];
+      if (hist.length) h += '<div class="pqd-cap" style="margin-top:8px;"><b>Tiền AI theo ngày (người thường / chủ):</b> '+hist.slice(-10).map(function(x){ return esc(fmtDate(x.date))+' $'+esc(String(x.usd))+'/$'+esc(String(x.ownerUsd)); }).join(' · ')+'</div>';
+    }
+    return h+'</div></details>';
+  }
+  function xhAiInput(el){
+    var dr = XHA.draft; if (!dr) return;
+    var kind = el.getAttribute('data-xh-ai');
+    if (kind==='lim'){ var f = el.getAttribute('data-f'); dr.limits[f] = el.value.trim()==='' ? 0 : Number(el.value.replace(',','.')); return; }
+    if (kind==='person'){ var k = el.getAttribute('data-k'), pf = el.getAttribute('data-f'); dr.people[k] = dr.people[k] || {}; if (pf==='name') dr.people[k].name = el.value; else if (el.value.trim()==='') delete dr.people[k][pf]; else dr.people[k][pf] = Number(el.value.replace(',','.')); return; }
+    if (kind==='ozalo'){ var id = el.getAttribute('data-id'), i = dr.ownerZalo.indexOf(id); if (el.checked && i<0) dr.ownerZalo.push(id); if (!el.checked && i>=0) dr.ownerZalo.splice(i,1); return; }
+  }
+  function xhAiClick(a, b){
+    var post = function(url, body, hdr){ return fetch(url, {method:'POST', headers:hdr||xhAiHeaders(), body:JSON.stringify(body)}).then(function(r){ return r.json().catch(function(){ return {ok:false, error:'HTTP '+r.status}; }); }); };
+    if (a==='ai-pinset') return xhPinModal('Đặt PIN chủ', ['PIN mới (từ 4 ký tự)', 'Nhập lại PIN'], 'Đặt PIN', function(v){
+      if (v[0]!==v[1]) return toast('Hai lần nhập PIN không giống nhau.', 3600);
+      post('/api/zalo/ai/owner', {action:'set', newPin:v[0]}).then(function(j){ if (!j.ok) return toast(j.error||'Không đặt được PIN', 4200); try{ localStorage.setItem('nmsx_owner_pin', v[0]); }catch(e){} toast('Đã đặt PIN chủ. Máy này đã mở khóa chủ.', 3600); XHA.at = 0; xhAiLoad(true); });
+    });
+    if (a==='ai-unlock') return xhPinModal('Nhập PIN chủ', ['PIN chủ'], 'Mở khóa', function(v){
+      post('/api/zalo/ai/owner', {action:'check', pin:v[0]}).then(function(j){ if (!j.ok) return toast('PIN không đúng (hoặc nhập sai quá nhiều lần, thử lại sau 10 phút).', 4200); try{ localStorage.setItem('nmsx_owner_pin', v[0]); }catch(e){} XHA.at = 0; xhAiLoad(true); toast('Đã mở khóa chủ.', 2400); });
+    });
+    if (a==='ai-lock'){ try{ localStorage.removeItem('nmsx_owner_pin'); }catch(e){} XHA.at = 0; xhAiLoad(true); return toast('Đã khóa lại trên máy này.', 2400); }
+    if (a==='ai-pinchange') return xhPinModal('Đổi PIN chủ', ['PIN hiện tại', 'PIN mới (từ 4 ký tự)'], 'Đổi PIN', function(v){
+      post('/api/zalo/ai/owner', {action:'change', pin:v[0], newPin:v[1]}).then(function(j){ if (!j.ok) return toast(j.error||'Không đổi được PIN', 4200); try{ localStorage.setItem('nmsx_owner_pin', v[1]); }catch(e){} toast('Đã đổi PIN. Các máy khác phải nhập lại PIN mới.', 4200); XHA.at = 0; xhAiLoad(true); });
+    });
+    if (a==='ai-addperson'){
+      var sel = document.getElementById('xhAiAdd'), v = sel ? sel.value : ''; if (!v) return toast('Chọn một người trong danh sách.');
+      var i = v.indexOf('|'), k = v.slice(0,i), n = v.slice(i+1).replace(/ \((Zalo|Web)\)$/,'');
+      XHA.draft.people[k] = {name:n}; return renderAll();
+    }
+    if (a==='ai-delperson'){ delete XHA.draft.people[b.getAttribute('data-k')]; return renderAll(); }
+    if (a==='ai-save') return post('/api/zalo/ai/settings', XHA.draft).then(function(j){ if (j.ok){ toast('Đã lưu hạn mức AI.', 2800); XHA.at = 0; xhAiLoad(true); } else toast(j.error||'Không lưu được', 4200); });
+  }
+  // Cắt trang PDF ở trình duyệt (chỉ gửi trang liệt kê cho AI để rẻ hơn và ít nhầm hơn)
+  function drwLoadPdfLib(){
+    if (window.PDFLib) return Promise.resolve(window.PDFLib);
+    return new Promise(function(res, rej){ var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'; s.onload = function(){ res(window.PDFLib); }; s.onerror = function(){ rej(new Error('không tải được thư viện cắt trang')); }; document.head.appendChild(s); });
+  }
+  function drwParseRange(str, n){
+    var set = {}; String(str).split(/[,;\s]+/).forEach(function(part){ var m = /^(\d+)(?:-(\d+))?$/.exec(part.trim()); if (!m) return; var a = +m[1], b = m[2] ? +m[2] : a; if (a>b){ var t = a; a = b; b = t; } for (var i=a;i<=b;i++) if (i>=1 && i<=n) set[i] = 1; });
+    return Object.keys(set).map(Number).sort(function(a, b){ return a-b; });
+  }
+  function drwSlice(file, range){
+    return drwLoadPdfLib().then(function(L){ return file.arrayBuffer().then(function(buf){ return L.PDFDocument.load(buf, {ignoreEncryption:true}).then(function(src){
+      var idx = drwParseRange(range, src.getPageCount()); if (!idx.length) throw new Error('Không có trang nào hợp lệ trong "'+range+'" (file có '+src.getPageCount()+' trang)');
+      return L.PDFDocument.create().then(function(dst){ return dst.copyPages(src, idx.map(function(i){ return i-1; })).then(function(pgs){ pgs.forEach(function(p){ dst.addPage(p); }); return dst.save(); }).then(function(bytes){ return {blob:new Blob([bytes], {type:'application/pdf'}), map:idx}; }); });
+    }); }); });
+  }
 
   renderBanner();
   loadFromSeedOnly();

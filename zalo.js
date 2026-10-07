@@ -167,15 +167,17 @@ module.exports = function (ctx) {
     required: ['is_request', 'intent', 'need_date', 'order_code', 'requester', 'note', 'items'], additionalProperties: false
   };
   function activeOrdersText() {
-    const O = ctx.loadColl('orders'); const lines = [];
+    const O = ctx.loadColl('orders'); const rows = [];
     Object.keys(O).forEach(function (id) {
       const o = O[id]; if (!o || o.legacy || !o.code) return;
       const its = (o.items || []).filter(function (i) { return i && String(i.name || '').trim(); });
       if (its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) return;
-      const cust = String(o.customerInfo || '').split('\n')[0].slice(0, 70);
-      lines.push(o.code + ' | ' + (its[0] ? String(its[0].name).replace(/\s+/g, ' ').slice(0, 60) : '') + ' | ' + cust);
+      const dd = (o.progressSnapshots || []).map(function (sn) { return sn && sn.deliveryDate; }).filter(Boolean).sort()[0] || '9999';
+      const cust = String(o.customerInfo || '').split('\n')[0].replace(/\s+/g, ' ').slice(0, 28);
+      rows.push({ d: dd, t: o.code + '|' + (its[0] ? String(its[0].name).replace(/\s+/g, ' ').slice(0, 36) : '') + '|' + cust });
     });
-    return lines.slice(0, 80).join('\n');
+    rows.sort(function (a, b) { return a.d < b.d ? -1 : 1; });
+    return rows.slice(0, 40).map(function (r) { return r.t; }).join('\n');
   }
   function mediaTypeOf(buf) {
     if (buf.length > 3 && buf[0] === 0xFF && buf[1] === 0xD8) return 'image/jpeg';
@@ -208,7 +210,7 @@ module.exports = function (ctx) {
       model: c.model, max_tokens: 3000,
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: content }],
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } }
+      output_config: /haiku/.test(c.model) ? { format: { type: 'json_schema', schema: SCHEMA } } : { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } }
     };
     return request(c.aiBase + '/v1/messages', {
       method: 'POST', timeout: 90000,
@@ -277,6 +279,77 @@ module.exports = function (ctx) {
   let aiTimes = [];
   function rateOk() { const now = Date.now(); aiTimes = aiTimes.filter(function (t) { return now - t < 3600000; }); if (aiTimes.length >= 60) return false; aiTimes.push(now); return true; }
   function monthSpend() { const M = ctx.loadColl('zalo_meta'); const U = M.usage; return (U && U.month && U.month[new Date().toISOString().slice(0, 7)]) || 0; }
+
+  /* ---------------- HAN MUC AI THEO NGAY / THEO NGUOI (chu = khong gioi han) ---------------- */
+  function roundU(x) { return Math.round(x * 100000) / 100000; }
+  function aiCfg() {
+    const M = ctx.loadColl('ai_settings'); const c = M.cfg || {};
+    c.limits = Object.assign({ zaloPerDay: 30, drawPerDay: 0, dayUsdCap: 1 }, c.limits || {});
+    c.people = c.people || {}; c.ownerZalo = c.ownerZalo || [];
+    return c;
+  }
+  function aiCfgSave(c) { const M = ctx.loadColl('ai_settings'); M.cfg = c; ctx.saveColl('ai_settings', M); }
+  function hashPin(pin, salt) { return crypto.pbkdf2Sync(String(pin), salt, 60000, 32, 'sha256').toString('hex'); }
+  let pinFails = [];
+  function pinOk(pin) {
+    const c = aiCfg(); if (!c.ownerHash || !pin) return false;
+    const now = Date.now(); pinFails = pinFails.filter(function (t) { return now - t < 600000; });
+    if (pinFails.length >= 8) return false;
+    const ok = safeEq(hashPin(pin, c.ownerSalt), c.ownerHash);
+    if (!ok) pinFails.push(now);
+    return ok;
+  }
+  // Chua dat PIN chu -> chua co "chu": tam coi moi nguoi nhu chu (van bi tran thang), UI nhac dat PIN
+  function ownerMode(req) { const c = aiCfg(); if (!c.ownerHash) return true; return pinOk(String(req.headers['x-owner-pin'] || '')); }
+  function identOfReq(req) {
+    let name = ''; try { name = decodeURIComponent(String(req.headers['x-user-name'] || '')).trim().slice(0, 60); } catch (e) {}
+    return { key: 'w:' + (stripD(name).replace(/[^a-z0-9]/g, '') || 'khach'), name: name || '(chưa nhập tên)' };
+  }
+  function isOwnerZalo(id) { const c = aiCfg(); return !c.ownerHash || (!!id && c.ownerZalo.indexOf(String(id)) >= 0); }
+  function usageLoad() { const U = ctx.loadColl('ai_usage'); const d = vnToday(); if (!U[d]) U[d] = { date: d, usd: 0, ownerUsd: 0, by: {} }; return { U: U, day: U[d] }; }
+  function usageAdd(ident, kind, usd, owner) {
+    const L = usageLoad(), day = L.day;
+    const b = day.by[ident.key] = day.by[ident.key] || { name: ident.name, msgs: 0, draws: 0, usd: 0 };
+    b.name = ident.name || b.name; b.owner = !!owner;
+    if (kind === 'msg') b.msgs += 1; else if (kind === 'draw') b.draws += 1;
+    b.usd = roundU(b.usd + (usd || 0));
+    if (owner) day.ownerUsd = roundU(day.ownerUsd + (usd || 0)); else day.usd = roundU(day.usd + (usd || 0));
+    const ks = Object.keys(L.U).sort(); while (ks.length > 62) delete L.U[ks.shift()];
+    ctx.saveColl('ai_usage', L.U);
+  }
+  function gate(kind, ident, owner) {
+    if (owner) return { ok: true };
+    const c = aiCfg(), p = c.people[ident.key] || {}, lim = c.limits, L = usageLoad(), b = L.day.by[ident.key] || { msgs: 0, draws: 0 };
+    if (kind === 'msg') {
+      const mx = p.zaloPerDay != null ? p.zaloPerDay : lim.zaloPerDay;
+      if (b.msgs >= mx) return { ok: false, reason: 'Hôm nay đã dùng hết ' + mx + ' lượt AI của "' + (ident.name || 'bạn') + '"' };
+    } else {
+      const mx = p.drawPerDay != null ? p.drawPerDay : lim.drawPerDay;
+      if (!(mx > 0)) return { ok: false, reason: 'Tài khoản "' + (ident.name || '') + '" chưa được cấp quyền đọc bản vẽ bằng AI. Nhờ anh Quốc cấp quyền.' };
+      if (b.draws >= mx) return { ok: false, reason: 'Hôm nay đã đọc hết ' + mx + ' bản vẽ được cấp' };
+    }
+    if (lim.dayUsdCap > 0 && L.day.usd >= lim.dayUsdCap) return { ok: false, reason: 'Hôm nay công ty đã dùng hết hạn mức AI trong ngày (' + lim.dayUsdCap + ' USD)' };
+    return { ok: true };
+  }
+  // Tin qua ngan / khong co so, khong co tu khoa vat tu -> khong goi AI (mien phi)
+  function looksLikeRequest(text, hasPhoto) {
+    if (hasPhoto) return true;
+    const t = stripD(String(text || '')).replace(/@\S+/g, ' ').trim();
+    if (t.length < 8) return false;
+    if (/\d/.test(t)) return true;
+    return /(mua|dat |can |lay |xuat|cap |giup|them|bo sung|thieu|het )/.test(t);
+  }
+  function seenZalo() {
+    const L = ctx.loadColl('zalo_log'), seen = {}, out = [];
+    Object.keys(L).sort().reverse().forEach(function (k) {
+      const b = L[k] && L[k].body || {}; const r = b.result && typeof b.result === 'object' ? b.result : b; const m = (r.message && typeof r.message === 'object') ? r.message : r;
+      const f = m.from || m.sender || {}; const id = String(f.id || f.user_id || '');
+      if (id && !seen[id]) { seen[id] = 1; out.push({ id: id, name: String(f.display_name || f.name || '').trim() }); }
+    });
+    return out.slice(0, 40);
+  }
+  function numIn(v, lo, hi, d) { const n = Number(v); return (isFinite(n) && n >= lo && n <= hi) ? n : d; }
+
   function seenBefore(mid) {
     if (!mid) return false;
     const M = ctx.loadColl('zalo_meta'); const S = M.seen || [];
@@ -428,7 +501,7 @@ module.exports = function (ctx) {
       model: env('DRAW_MODEL', c.model), max_tokens: 24000,
       system: [{ type: 'text', text: DRAW_SYSTEM }],
       messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Bản vẽ: ' + fileName + '. Hãy đọc toàn bộ các trang và bóc tách theo đúng quy tắc.' + (extra || '') }] }],
-      output_config: { effort: effort, format: { type: 'json_schema', schema: DRAW_SCHEMA } }
+      output_config: /haiku/.test(env('DRAW_MODEL', c.model)) ? { format: { type: 'json_schema', schema: DRAW_SCHEMA } } : { effort: effort, format: { type: 'json_schema', schema: DRAW_SCHEMA } }
     };
     return request(c.aiBase + '/v1/messages', {
       method: 'POST', timeout: 900000, maxBytes: 32 * 1024 * 1024,
@@ -521,6 +594,8 @@ module.exports = function (ctx) {
       }
       job.result = mergeDraw(p1.result, p2 && p2.result);
       job.usd = Math.round(usd * 10000) / 10000; job.model = p1.model; job.status = 'done'; job.stage = 'Xong';
+      usageAdd(job.ident || { key: 'w:khach', name: '' }, 'draw', job.usd, !!job.owner);
+      try { const dc = ctx.loadColl('draw_cache'); dc[job.hash] = { at: Date.now(), name: job.name, result: job.result }; const ks = Object.keys(dc).sort(function (a, b) { return dc[a].at - dc[b].at; }); while (ks.length > 25) delete dc[ks.shift()]; ctx.saveColl('draw_cache', dc); } catch (e2) {}
     } catch (e) { job.status = 'error'; job.error = String((e && e.message) || e); addUsage(0, false); }
   }
 
@@ -537,22 +612,25 @@ module.exports = function (ctx) {
     if (x.photoUrl) {
       try { imgBuf = await downloadPhoto(x.photoUrl, id); doc.photoSaved = true; } catch (e) { doc.photoError = String(e && e.message || e); }
     }
-    await analyse(doc, imgBuf);
+    await analyse(doc, imgBuf, { key: 'z:' + (x.fromId || 'khach'), name: x.fromName || '' }, isOwnerZalo(x.fromId));
     saveDoc(id, doc, true);
     await sendText(x.chatId, summaryText(doc));
   }
   // Doc noi dung bang AI (neu co khoa va chua vuot tran thang), khong thi dung quy tac
-  async function analyse(doc, imgBuf) {
-    const c = cfg(); let parsed = null;
+  async function analyse(doc, imgBuf, ident, owner) {
+    const c = cfg(); let parsed = null; ident = ident || { key: 'w:khach', name: '' };
     const capUsd = capOf();
     if (c.aiKey || c.aiMock) {
-      if (capUsd && monthSpend() >= capUsd) { doc.aiError = 'Da dung het han muc AI thang nay (' + capUsd + ' USD), dung quy tac thay the.'; }
+      const g = gate('msg', ident, owner);
+      if (!looksLikeRequest(doc.text, !!imgBuf || !!doc.hasPhoto)) { doc.aiError = ''; doc.skipAi = true; }
+      else if (capUsd && monthSpend() >= capUsd) { doc.aiError = 'Da dung het han muc AI thang nay (' + capUsd + ' USD), dung quy tac thay the.'; }
+      else if (!g.ok) { doc.aiError = g.reason + ' — hệ thống chỉ tách dòng đơn giản, thủ kho xử lý.'; }
       else if (!rateOk()) { doc.aiError = 'Qua nhieu luot doc AI trong 1 gio, dung quy tac thay the.'; }
       else {
         try {
           const r = await aiParse(doc.text, imgBuf);
           parsed = r.result; doc.ai = { model: r.model, input: r.usage.input, output: r.usage.output, usd: r.usage.usd, at: Date.now() };
-          addUsage(r.usage.usd, true); doc.aiError = '';
+          addUsage(r.usage.usd, true); usageAdd(ident, 'msg', r.usage.usd, owner); doc.aiError = '';
         } catch (e) { doc.aiError = String(e && e.message || e); addUsage(0, false); }
       }
     } else doc.aiError = 'Chua co khoa AI - dung quy tac tach dong.';
@@ -638,9 +716,46 @@ module.exports = function (ctx) {
       let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
       if (typeof b.text === 'string') doc.text = b.text;
       let imgBuf = null; try { imgBuf = fs.readFileSync(path.join(IMG_DIR, doc.id + '.img')); } catch (e) {}
-      await analyse(doc, imgBuf);
+      await analyse(doc, imgBuf, identOfReq(req), ownerMode(req));
       saveDoc(doc.id, doc, true);
       ctx.sendJson(res, 200, { ok: true, doc: doc }); return true;
+    }
+
+    // ---- Han muc AI: /api/zalo/ai/settings (GET xem, POST luu - chi chu), /api/zalo/ai/owner (dat / doi / kiem tra PIN chu) ----
+    if (p === '/api/zalo/ai/settings' && method === 'GET') {
+      const c = aiCfg(), ident = identOfReq(req), owner = ownerMode(req), L = usageLoad();
+      const me = L.day.by[ident.key] || { msgs: 0, draws: 0 }, pp = c.people[ident.key] || {};
+      const out = { ok: true, ownerSet: !!c.ownerHash, owner: owner && !!c.ownerHash, limits: c.limits,
+        you: { key: ident.key, name: ident.name, msgsToday: me.msgs, drawsToday: me.draws, msgMax: pp.zaloPerDay != null ? pp.zaloPerDay : c.limits.zaloPerDay, drawMax: pp.drawPerDay != null ? pp.drawPerDay : c.limits.drawPerDay },
+        dayUsd: L.day.usd, ownerDayUsd: L.day.ownerUsd, monthUsd: monthSpend(), capUsd: capOf() };
+      if (owner && c.ownerHash) {
+        out.people = c.people; out.ownerZalo = c.ownerZalo; out.todayBy = L.day.by; out.seen = seenZalo();
+        out.history = Object.keys(L.U).sort().slice(-14).map(function (k) { return { date: k, usd: L.U[k].usd, ownerUsd: L.U[k].ownerUsd }; });
+      }
+      ctx.sendJson(res, 200, out); return true;
+    }
+    if (p === '/api/zalo/ai/owner' && method === 'POST') {
+      let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+      const c = aiCfg(), action = String(b.action || '');
+      if (action === 'check') { ctx.sendJson(res, 200, { ok: pinOk(String(b.pin || '')) }); return true; }
+      const np = String(b.newPin || '');
+      if (np.length < 4 || np.length > 40) { ctx.sendJson(res, 400, { ok: false, error: 'PIN phải từ 4 ký tự trở lên' }); return true; }
+      if (action === 'set' && c.ownerHash) { ctx.sendJson(res, 400, { ok: false, error: 'Đã có PIN chủ — dùng chức năng đổi PIN' }); return true; }
+      if (action === 'change' && !pinOk(String(b.pin || ''))) { ctx.sendJson(res, 403, { ok: false, error: 'PIN hiện tại không đúng' }); return true; }
+      if (action !== 'set' && action !== 'change') { ctx.sendJson(res, 400, { ok: false, error: 'Sai thao tác' }); return true; }
+      c.ownerSalt = crypto.randomBytes(16).toString('hex'); c.ownerHash = hashPin(np, c.ownerSalt); aiCfgSave(c);
+      ctx.sendJson(res, 200, { ok: true }); return true;
+    }
+    if (p === '/api/zalo/ai/settings' && method === 'POST') {
+      const c = aiCfg();
+      if (!c.ownerHash || !pinOk(String(req.headers['x-owner-pin'] || ''))) { ctx.sendJson(res, 403, { ok: false, error: 'Chỉ chủ (có PIN) mới sửa được hạn mức' }); return true; }
+      let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+      const L0 = b.limits || {};
+      c.limits = { zaloPerDay: numIn(L0.zaloPerDay, 0, 1000, c.limits.zaloPerDay), drawPerDay: numIn(L0.drawPerDay, 0, 100, c.limits.drawPerDay), dayUsdCap: numIn(L0.dayUsdCap, 0, 1000, c.limits.dayUsdCap) };
+      const people = {}; Object.keys(b.people || {}).slice(0, 80).forEach(function (k) { const v = b.people[k] || {}; if (!/^[wz]:[A-Za-z0-9_\-]{1,60}$/.test(k)) return; people[k] = { name: String(v.name || '').slice(0, 60) }; if (v.zaloPerDay !== '' && v.zaloPerDay != null) people[k].zaloPerDay = numIn(v.zaloPerDay, 0, 1000, c.limits.zaloPerDay); if (v.drawPerDay !== '' && v.drawPerDay != null) people[k].drawPerDay = numIn(v.drawPerDay, 0, 100, 0); });
+      c.people = people;
+      c.ownerZalo = (Array.isArray(b.ownerZalo) ? b.ownerZalo : []).map(String).filter(function (x) { return /^[A-Za-z0-9_\-]{1,60}$/.test(x); }).slice(0, 10);
+      aiCfgSave(c); ctx.sendJson(res, 200, { ok: true }); return true;
     }
 
     // ---- Doc ban ve: /api/zalo/draw/start (POST {name,mime,data(base64),careful}) va /api/zalo/draw/job/<id> (GET) ----
@@ -650,9 +765,15 @@ module.exports = function (ctx) {
       if (!data || data.length > 30 * 1024 * 1024) { ctx.sendJson(res, 400, { ok: false, error: 'File trống hoặc lớn quá 22MB' }); return true; }
       if (!/^(application\/pdf|image\/(jpeg|png|webp|gif))$/.test(mime)) { ctx.sendJson(res, 400, { ok: false, error: 'Chỉ nhận PDF hoặc ảnh (JPG/PNG/WEBP)' }); return true; }
       const c0 = cfg(); if (!c0.aiKey && !c0.aiMock) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa có ANTHROPIC_API_KEY trên Render' }); return true; }
+      const ident = identOfReq(req), owner = ownerMode(req), g = gate('draw', ident, owner);
+      if (!g.ok) { ctx.sendJson(res, 403, { ok: false, error: g.reason }); return true; }
+      const capUsd0 = capOf(); if (capUsd0 && monthSpend() >= capUsd0) { ctx.sendJson(res, 403, { ok: false, error: 'Đã dùng hết hạn mức AI tháng này (' + capUsd0 + ' USD).' }); return true; }
       gcJobs();
-      const job = { id: newJobId(), at: Date.now(), status: 'running', stage: 'Bắt đầu', name: String(b.name || 'ban-ve').slice(0, 120) };
+      const hash = crypto.createHash('sha256').update(data).update(b.careful ? '2' : '1').digest('hex').slice(0, 32);
+      const job = { id: newJobId(), at: Date.now(), status: 'running', stage: 'Bắt đầu', name: String(b.name || 'ban-ve').slice(0, 120), ident: ident, owner: owner, hash: hash };
       DRAW_JOBS[job.id] = job;
+      const cache = ctx.loadColl('draw_cache');
+      if (cache[hash] && cache[hash].result) { job.result = cache[hash].result; job.usd = 0; job.model = 'cache'; job.status = 'done'; job.stage = 'Đã đọc trước đó (lấy lại kết quả, không tốn tiền)'; ctx.sendJson(res, 200, { ok: true, jobId: job.id, cached: true }); return true; }
       const block = mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: data } } : { type: 'image', source: { type: 'base64', media_type: mime, data: data } };
       drawRun(job, block, job.name, !!b.careful);
       ctx.sendJson(res, 200, { ok: true, jobId: job.id }); return true;
@@ -689,7 +810,7 @@ module.exports = function (ctx) {
       const id = nextId();
       const doc = { id: id, at: Date.now(), status: 'draft', source: 'web', fromName: String(b.fromName || '').slice(0, 80), text: text, items: [], orderCode: '', orderId: '', note: '', ai: null, aiError: '', dept: 'cokhi' };
       saveDoc(id, doc, true);
-      await analyse(doc, null); saveDoc(id, doc, true);
+      await analyse(doc, null, identOfReq(req), ownerMode(req)); saveDoc(id, doc, true);
       ctx.sendJson(res, 200, { ok: true, doc: doc }); return true;
     }
 
