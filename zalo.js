@@ -139,7 +139,8 @@ module.exports = function (ctx) {
         items.push({ name: m[1].trim(), spec: '', qty: Number(m[2].replace(',', '.')), unit: m[3].trim(), order_code: '' });
       }
     });
-    return { is_request: items.length > 0, order_code: order, requester: '', items: items, note: '' };
+    const intent = /(mua|đặt mua|dat mua|đặt hàng|dat hang)/i.test(text || '') ? 'mua' : (items.length ? 'xuat' : 'khac');
+    return { is_request: items.length > 0, intent: intent, need_date: '', order_code: order, requester: '', items: items, note: '' };
   }
 
   /* ---------------- AI doc tin nhan + anh ---------------- */
@@ -147,6 +148,8 @@ module.exports = function (ctx) {
     type: 'object',
     properties: {
       is_request: { type: 'boolean' },
+      intent: { type: 'string', enum: ['mua', 'xuat', 'khac'] },
+      need_date: { type: 'string' },
       order_code: { type: 'string' },
       requester: { type: 'string' },
       note: { type: 'string' },
@@ -155,13 +158,13 @@ module.exports = function (ctx) {
         items: {
           type: 'object',
           properties: {
-            name: { type: 'string' }, spec: { type: 'string' }, qty: { type: 'number' }, unit: { type: 'string' }, order_code: { type: 'string' }
+            name: { type: 'string' }, spec: { type: 'string' }, qty: { type: 'number' }, unit: { type: 'string' }, order_code: { type: 'string' }, need_date: { type: 'string' }
           },
-          required: ['name', 'spec', 'qty', 'unit', 'order_code'], additionalProperties: false
+          required: ['name', 'spec', 'qty', 'unit', 'order_code', 'need_date'], additionalProperties: false
         }
       }
     },
-    required: ['is_request', 'order_code', 'requester', 'note', 'items'], additionalProperties: false
+    required: ['is_request', 'intent', 'need_date', 'order_code', 'requester', 'note', 'items'], additionalProperties: false
   };
   function activeOrdersText() {
     const O = ctx.loadColl('orders'); const lines = [];
@@ -195,11 +198,12 @@ module.exports = function (ctx) {
     const mt = imageBuf ? mediaTypeOf(imageBuf) : '';
     if (imageBuf && mt) content.push({ type: 'image', source: { type: 'base64', media_type: mt, data: imageBuf.toString('base64') } });
     content.push({ type: 'text', text: (text ? 'Tin nhắn:\n' + text : 'Tin nhắn không có chữ, chỉ có ảnh.') + (imageBuf && !mt ? '\n(Ảnh không đọc được định dạng.)' : '') });
-    const system = 'Bạn là trợ lý kho của Nhà máy Phương Quân (cơ khí và điện). Nhân viên nhắn tin Zalo (kèm ảnh nếu có) để YÊU CẦU XUẤT VẬT TƯ từ kho. ' +
-      'Hãy trích danh sách vật tư cần xuất: name (tên vật tư, giữ nguyên chữ nhân viên viết), spec (quy cách/kích thước nếu có, không có thì chuỗi rỗng), qty (số lượng là số; không rõ thì 0), unit (đơn vị: cái, bộ, mét, cây, tấm, kg…; không rõ thì rỗng), order_code (mã công trình của dòng đó nếu rõ). ' +
+    const system = 'Bạn là trợ lý kho và mua hàng của Nhà máy Phương Quân (cơ khí và điện). Hôm nay là ' + vnToday() + '. Nhân viên nhắn tin Zalo (kèm ảnh nếu có) để YÊU CẦU MUA vật tư (đặt mua, nhờ người đi mua) hoặc YÊU CẦU XUẤT vật tư có sẵn từ kho. ' +
+      'intent: "mua" nếu nhờ mua / đặt mua / đặt hàng / mua giúp; "xuat" nếu xin lấy / xuất từ kho; "khac" nếu không phải hai loại đó (khi không rõ mà có chữ mua thì chọn mua). need_date: hạn cần hàng dạng YYYY-MM-DD nếu tin nhắn nói (ví dụ "cần ngày 20/10", "trước thứ 6"), không có thì chuỗi rỗng; mỗi vật tư cũng có need_date riêng (giống hạn chung nếu không khác). ' +
+      'Hãy trích danh sách vật tư: name (tên vật tư, giữ nguyên chữ nhân viên viết), spec (quy cách/kích thước nếu có, không có thì chuỗi rỗng), qty (số lượng là số; không rõ thì 0), unit (đơn vị: cái, bộ, mét, cây, tấm, kg…; không rõ thì rỗng), order_code (mã công trình của dòng đó nếu rõ). ' +
       'order_code ở cấp trên là mã công trình chung của yêu cầu (dạng 2026-187, 2026-DL09…). Chỉ dùng mã có trong danh sách công trình đang làm bên dưới; nếu tin nhắn nhắc tên khách hoặc tên máy thì chọn mã tương ứng; không chắc thì để rỗng. ' +
       'requester: tên người cần nhận hàng nếu tin nhắn nói rõ, không thì rỗng. note: ghi chú ngắn (hạn cần, nơi giao…) nếu có. ' +
-      'is_request = false nếu tin nhắn không phải yêu cầu xuất vật tư (chào hỏi, hỏi thăm…). Không bịa thêm vật tư không có trong tin/ảnh. Trả lời đúng định dạng JSON yêu cầu.\n\nDanh sách công trình đang làm (mã | hạng mục | khách):\n' + activeOrdersText();
+      'is_request = false nếu tin nhắn không phải yêu cầu xuất vật tư (chào hỏi, hỏi thăm…). Tách mỗi vật tư thành một dòng; các thông số như đường kính, kích thước, số rãnh… đi vào spec. Ghi chú thêm như "thay thế cho…" đi vào note. Không bịa thêm vật tư không có trong tin/ảnh. Trả lời đúng định dạng JSON yêu cầu.\n\nDanh sách công trình đang làm (mã | hạng mục | khách):\n' + activeOrdersText();
     const payload = {
       model: c.model, max_tokens: 3000,
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
@@ -242,7 +246,7 @@ module.exports = function (ctx) {
   function normItems(res, topCode) {
     return (res.items || []).map(function (it) {
       const code = String(it.order_code || topCode || '').trim();
-      return { name: String(it.name || '').trim(), spec: String(it.spec || '').trim(), qty: (typeof it.qty === 'number' && isFinite(it.qty) && it.qty > 0) ? it.qty : '', unit: String(it.unit || '').trim(), orderCode: code, orderId: orderIdByCode(code) };
+      return { name: String(it.name || '').trim(), spec: String(it.spec || '').trim(), qty: (typeof it.qty === 'number' && isFinite(it.qty) && it.qty > 0) ? it.qty : '', unit: String(it.unit || '').trim(), orderCode: code, orderId: orderIdByCode(code), needDate: /^\d{4}-\d{2}-\d{2}$/.test(String(it.need_date || '')) ? String(it.need_date) : '' };
     }).filter(function (it) { return it.name; });
   }
   function saveDoc(id, patch, replace) {
@@ -289,11 +293,103 @@ module.exports = function (ctx) {
   }
   function summaryText(doc) {
     const n = (doc.items || []).length;
+    if (doc.status === 'applied' && doc.applied) {
+      let t = 'Đã ghi yêu cầu MUA ' + doc.id + ' (' + n + ' mục) vào VT:';
+      (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + (i + 1) + '. ' + it.name + (it.spec ? ' (' + it.spec + ')' : '') + (it.qty ? ' x ' + it.qty : '') + (it.unit ? ' ' + it.unit : ''); });
+      t += '\nCông trình: ' + (doc.orderCode || (doc.items[0] && doc.items[0].orderCode) || '') + '. Đã lập phiếu đề nghị mua ' + doc.applied.purchaseId + ' (chờ duyệt).';
+      return t;
+    }
+    if (doc.intent === 'mua' && n && !(doc.items || []).every(function (it) { return it.orderId; })) return 'Đã đọc yêu cầu MUA ' + doc.id + ' nhưng chưa rõ công trình nào. Anh/chị nhắn lại kèm mã đơn (ví dụ 2026-191), hoặc thủ kho chọn công trình trên web.';
     let t = 'Đã nhận yêu cầu ' + doc.id + (n ? ' gồm ' + n + ' mục:' : ': chưa đọc được mục nào, thủ kho sẽ xem tin gốc.');
     (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + (i + 1) + '. ' + it.name + (it.spec ? ' (' + it.spec + ')' : '') + (it.qty ? ' x ' + it.qty : '') + (it.unit ? ' ' + it.unit : ''); });
     if (n > 8) t += '\n… và ' + (n - 8) + ' mục nữa';
     if (doc.orderCode) t += '\nCông trình: ' + doc.orderCode;
     return t + '\nChờ thủ kho duyệt.';
+  }
+
+
+  /* ---------------- Yeu cau MUA: tu dien vao VT cua don + lap phieu de nghi mua ---------------- */
+  function stripD(x) { return String(x == null ? '' : x).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase(); }
+  function vnToday() { return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10); }
+  function keysOf(o) {
+    const seen = {};
+    return (o.materials || []).map(function (m) {
+      const base = o.id + '|' + stripD(m.name || '') + '|' + stripD(m.spec || '');
+      seen[base] = (seen[base] || 0) + 1;
+      return base + '|' + seen[base];
+    });
+  }
+  function isSec(m) { return !!(m && (m.section === true || (m.no && /^[IVXLC]+$/.test(String(m.no)) && !m.qty && !m.unit))); }
+  function nextPrId(P) {
+    const y = new Date().getFullYear(); let mx = 0;
+    Object.keys(P).forEach(function (id) { const m = /^DN-(\d{4})-(\d+)$/.exec(id); if (m && +m[1] === y) mx = Math.max(mx, +m[2]); });
+    return 'DN-' + y + '-' + ('00' + (mx + 1)).slice(-3);
+  }
+  function applyBuy(doc, itemsOverride) {
+    const items = (itemsOverride || doc.items || []).filter(function (it) { return it && String(it.name || '').trim(); });
+    if (!items.length) throw new Error('Chua co dong vat tu nao');
+    items.forEach(function (it) { if (!it.orderId) throw new Error('Dong "' + it.name + '" chua co cong trinh'); });
+    const O = ctx.loadColl('orders'); const P = ctx.loadColl('purchase');
+    items.forEach(function (it) { if (!O[it.orderId]) throw new Error('Khong thay don ' + it.orderId); });
+    const when = new Date(Date.now() + 7 * 3600 * 1000).toISOString();
+    const stamp = when.slice(8, 10) + '/' + when.slice(5, 7) + ' ' + when.slice(11, 16);
+    const who = doc.fromName || doc.requester || 'Zalo';
+    const touched = {}; const plines = []; const applied = { at: Date.now(), orders: [], purchaseId: '' };
+    items.forEach(function (it) {
+      const o = O[it.orderId];
+      o.materials = o.materials || [];
+      const qty = (it.qty === '' || it.qty == null || !isFinite(Number(it.qty))) ? null : Number(it.qty);
+      const need = it.needDate || doc.needDate || '';
+      const noteTxt = 'Zalo ' + who + ' ' + stamp + (doc.note ? ' - ' + doc.note : '');
+      let rec = touched[o.id]; if (!rec) { rec = touched[o.id] = { orderId: o.id, added: [], updated: [] }; applied.orders.push(rec); }
+      let idx = -1;
+      for (let i = 0; i < o.materials.length; i++) { const m = o.materials[i]; if (m && !isSec(m) && stripD(String(m.name || '').trim()) === stripD(String(it.name).trim())) { idx = i; break; } }
+      if (idx >= 0) {
+        const m = o.materials[idx];
+        rec.updated.push({ name: m.name, spec: m.spec || '', prev: { status: m.status == null ? null : m.status, qty: m.qty == null ? null : m.qty, note: m.note == null ? null : m.note, reqDate: m.reqDate == null ? null : m.reqDate, reqSrc: m.reqSrc == null ? null : m.reqSrc } });
+        m.status = 'Yêu cầu đặt';
+        if ((m.qty == null || m.qty === '') && qty) m.qty = qty;
+        m.note = m.note ? (m.note + ' | ' + noteTxt) : noteTxt;
+        if (need && !m.reqDate) { m.reqDate = need; m.reqSrc = 'app'; }
+      } else {
+        const nm = { no: '', name: String(it.name).trim(), spec: String(it.spec || '').trim() || null, unit: String(it.unit || '').trim() || null, qty: qty || null, status: 'Yêu cầu đặt', supplier: null, issuedTo: null, note: noteTxt, reqDate: need || null, reqSrc: need ? 'app' : null, fromZalo: doc.id };
+        o.materials.push(nm);
+        rec.added.push({ name: nm.name, spec: nm.spec || '' });
+      }
+    });
+    items.forEach(function (it) {
+      const o = O[it.orderId]; const ks = keysOf(o); let key = '', idx = -1;
+      for (let i = o.materials.length - 1; i >= 0; i--) { if (stripD(String(o.materials[i].name || '').trim()) === stripD(String(it.name).trim())) { idx = i; break; } }
+      if (idx >= 0) key = ks[idx];
+      plines.push({ key: key, orderId: o.id, code: o.code || '', name: String(it.name).trim(), spec: String(it.spec || '').trim(), unit: String(it.unit || '').trim(), qty: (it.qty === '' || it.qty == null || !isFinite(Number(it.qty))) ? null : Number(it.qty) });
+    });
+    const first = O[items[0].orderId];
+    const prId = nextPrId(P);
+    const needAll = doc.needDate || (items.map(function (it) { return it.needDate; }).filter(Boolean).sort()[0]) || '';
+    P[prId] = { id: prId, dept: first && first.dept === 'dien' ? 'dien' : 'cokhi', date: vnToday(), by: who, supplier: '', needDate: needAll, note: 'Tu dong tu Zalo ' + doc.id + (doc.note ? ' - ' + doc.note : ''), status: 'Chờ duyệt', at: Date.now(), lines: plines, fromZalo: doc.id };
+    ctx.saveColl('orders', O); ctx.saveColl('purchase', P);
+    applied.purchaseId = prId;
+    doc.applied = applied; doc.status = 'applied'; doc.items = items;
+    return doc;
+  }
+  function undoBuy(doc) {
+    const a = doc.applied; if (!a) throw new Error('Yeu cau nay chua duoc tu dien');
+    const O = ctx.loadColl('orders'); const P = ctx.loadColl('purchase');
+    (a.orders || []).forEach(function (rec) {
+      const o = O[rec.orderId]; if (!o || !o.materials) return;
+      (rec.added || []).forEach(function (ad) {
+        const i = o.materials.findIndex(function (m) { return m && m.fromZalo === doc.id && stripD(m.name) === stripD(ad.name); });
+        if (i >= 0) o.materials.splice(i, 1);
+      });
+      (rec.updated || []).forEach(function (up) {
+        const m = o.materials.find(function (x) { return x && !isSec(x) && stripD(String(x.name || '').trim()) === stripD(String(up.name || '').trim()); });
+        if (m) { Object.keys(up.prev).forEach(function (k) { m[k] = up.prev[k]; }); }
+      });
+    });
+    if (a.purchaseId && P[a.purchaseId]) { if (P[a.purchaseId].status === 'Chờ duyệt') delete P[a.purchaseId]; else P[a.purchaseId].status = 'Huỷ'; }
+    ctx.saveColl('orders', O); ctx.saveColl('purchase', P);
+    doc.status = 'undone'; doc.undoneAt = Date.now();
+    return doc;
   }
 
   let chain = Promise.resolve();
@@ -334,7 +430,13 @@ module.exports = function (ctx) {
     doc.orderId = orderIdByCode(doc.orderCode);
     doc.items = normItems(parsed, doc.orderCode);
     doc.note = String(parsed.note || '').trim();
+    doc.intent = (parsed.intent === 'mua' || parsed.intent === 'xuat') ? parsed.intent : (doc.items.length ? 'xuat' : 'khac');
+    doc.needDate = /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.need_date || '')) ? String(parsed.need_date) : '';
     if (parsed.requester && !doc.requester) doc.requester = String(parsed.requester).trim();
+    // Yeu cau MUA do AI doc va xac dinh duoc cong trinh -> tu dien vao VT + lap de nghi mua
+    if (doc.intent === 'mua' && doc.ai && doc.status !== 'applied' && doc.items.length && doc.items.every(function (it) { return it.orderId; })) {
+      try { applyBuy(doc); } catch (e) { doc.aiError = (doc.aiError ? doc.aiError + ' | ' : '') + 'Khong tu dien duoc: ' + String((e && e.message) || e); }
+    }
     return doc;
   }
 
@@ -400,12 +502,31 @@ module.exports = function (ctx) {
     if ((m = p.match(/^\/api\/zalo\/reparse\/([A-Za-z0-9\-]+)$/)) && method === 'POST') {
       const X = ctx.loadColl('xuathang'); const doc = X[m[1]];
       if (!doc) { ctx.sendJson(res, 404, { ok: false, error: 'khong thay yeu cau' }); return true; }
+      if (doc.status === 'applied') { ctx.sendJson(res, 400, { ok: false, error: 'Hay hoan tac phan da dien vao VT truoc khi doc lai' }); return true; }
       let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
       if (typeof b.text === 'string') doc.text = b.text;
       let imgBuf = null; try { imgBuf = fs.readFileSync(path.join(IMG_DIR, doc.id + '.img')); } catch (e) {}
       await analyse(doc, imgBuf);
       saveDoc(doc.id, doc, true);
       ctx.sendJson(res, 200, { ok: true, doc: doc }); return true;
+    }
+
+    // Dien vao VT + lap de nghi mua (nut tren web, sau khi chon cong trinh): body {items?}
+    if ((m = p.match(/^\/api\/zalo\/apply\/([A-Za-z0-9\-]+)$/)) && method === 'POST') {
+      const X = ctx.loadColl('xuathang'); const doc = X[m[1]];
+      if (!doc) { ctx.sendJson(res, 404, { ok: false, error: 'khong thay yeu cau' }); return true; }
+      if (doc.status === 'applied') { ctx.sendJson(res, 400, { ok: false, error: 'Da dien roi' }); return true; }
+      let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+      try { applyBuy(doc, Array.isArray(b.items) ? b.items : null); saveDoc(doc.id, doc, true); ctx.sendJson(res, 200, { ok: true, doc: doc }); }
+      catch (e) { ctx.sendJson(res, 400, { ok: false, error: String((e && e.message) || e) }); }
+      return true;
+    }
+    if ((m = p.match(/^\/api\/zalo\/undo\/([A-Za-z0-9\-]+)$/)) && method === 'POST') {
+      const X = ctx.loadColl('xuathang'); const doc = X[m[1]];
+      if (!doc) { ctx.sendJson(res, 404, { ok: false, error: 'khong thay yeu cau' }); return true; }
+      try { undoBuy(doc); saveDoc(doc.id, doc, true); ctx.sendJson(res, 200, { ok: true, doc: doc }); }
+      catch (e) { ctx.sendJson(res, 400, { ok: false, error: String((e && e.message) || e) }); }
+      return true;
     }
 
     // Tao yeu cau thu tu giao dien web (vi du dan tin Zalo vao): {text, fromName}

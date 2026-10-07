@@ -1292,7 +1292,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-07a-may';
+  var BUILD_ID = '2026-10-07b-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -7556,7 +7556,7 @@
      Máy chủ web (zalo.js) nhận tin Zalo → AI đọc tên vật tư, số lượng, công trình → lưu vào ngăn "xuathang".
      Trang này: xem yêu cầu, sửa, duyệt, lập phiếu xuất kho (in), tự ghi vào Cấp phát vật tư của đơn. */
   var XH = {filter:'draft', zs:null, zsAt:0, zsErr:'', loading:false, msg:''};
-  var XH_ST = {draft:['Chờ duyệt','pill-warn'], approved:['Đã duyệt','pill-info'], issued:['Đã xuất kho','pill-good'], rejected:['Từ chối','pill-bad']};
+  var XH_ST = {draft:['Chờ xử lý','pill-warn'], approved:['Đã duyệt','pill-info'], issued:['Đã xuất kho','pill-good'], rejected:['Từ chối','pill-bad'], applied:['Đã điền vào VT','pill-good'], undone:['Đã hoàn tác','pill-neutral']};
   function xhList(){ return Object.keys(PQX.xh||{}).map(function(k){ return PQX.xh[k]; }).filter(function(d){ return d && d.id; }).sort(function(a,b){ return (b.at||0)-(a.at||0); }); }
   function xhUser(){ try{ return localStorage.getItem('nmsx_user_name')||''; }catch(e){ return ''; } }
   function xhTime(ms){ var d = new Date(ms||Date.now()); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+fmtDate(pqxISO(d)); }
@@ -7607,8 +7607,8 @@
     return s+'</select>';
   }
   function xhCard(d){
-    var st = XH_ST[d.status] || XH_ST.draft, locked = d.status==='issued' || d.status==='rejected';
-    var h = '<div class="panel xh-card" style="margin-bottom:14px;"><div class="panel-head" style="gap:10px;flex-wrap:wrap;"><h2 style="margin:0;"><span class="num">'+esc(d.id)+'</span></h2><span class="pill '+st[1]+'">'+esc(st[0])+'</span>'+
+    var st = XH_ST[d.status] || XH_ST.draft, locked = d.status==='issued' || d.status==='rejected' || d.status==='applied';
+    var h = '<div class="panel xh-card" style="margin-bottom:14px;"><div class="panel-head" style="gap:10px;flex-wrap:wrap;"><h2 style="margin:0;"><span class="num">'+esc(d.id)+'</span></h2><span class="pill '+st[1]+'">'+esc(st[0])+'</span>'+(d.intent==='mua'?'<span class="pill pill-info">MUA</span>':(d.intent==='xuat'?'<span class="pill pill-neutral">XUẤT KHO</span>':''))+
       '<span class="pqd-cap">'+esc(xhTime(d.at))+' · <b>'+esc(d.fromName||'(không rõ người gửi)')+'</b>'+(d.source==='web'?' · dán tay':'')+'</span><span style="flex:1"></span>'+
       '<button class="btn btn-sm btn-danger" data-xh="delreq" data-id="'+esc(d.id)+'" title="Xoá yêu cầu này">Xoá</button></div><div class="panel-body" style="padding:12px 16px;">';
     h += '<div class="xh-src">'+(d.hasPhoto && d.photoSaved ? '<a href="/api/zalo/img/'+esc(d.id)+'" target="_blank" rel="noopener"><img class="xh-img" src="/api/zalo/img/'+esc(d.id)+'" alt="Ảnh trong tin nhắn"></a>' : (d.hasPhoto ? '<div class="pqd-cap">(có ảnh nhưng chưa tải được: '+esc(d.photoError||'')+')</div>' : ''))+
@@ -7632,10 +7632,17 @@
     h += '</tbody></table></div><div class="pqd-err" id="xhErr-'+esc(d.id)+'"></div><div class="pqd-bar" style="padding:10px 0 0;flex-wrap:wrap;">';
     if (d.status==='draft'){
       h += '<button class="btn btn-sm" data-xh="add" data-id="'+esc(d.id)+'">+ Thêm dòng</button><button class="btn btn-sm" data-xh="ai" data-id="'+esc(d.id)+'">Đọc lại bằng AI</button><span style="flex:1"></span>'+
-        '<button class="btn btn-sm btn-danger" data-xh="reject" data-id="'+esc(d.id)+'">Từ chối</button><button class="btn btn-primary" data-xh="approve" data-id="'+esc(d.id)+'">Duyệt yêu cầu</button>';
+        '<button class="btn btn-sm btn-danger" data-xh="reject" data-id="'+esc(d.id)+'">Từ chối</button>'+(d.intent==='mua' ? '<button class="btn btn-primary" data-xh="apply" data-id="'+esc(d.id)+'">Điền vào VT &amp; lập đề nghị mua</button>' : '<button class="btn btn-primary" data-xh="approve" data-id="'+esc(d.id)+'">Duyệt yêu cầu</button>');
     } else if (d.status==='approved'){
       h += '<span class="pqd-cap">Duyệt bởi '+esc(d.approvedBy||'')+' · '+esc(xhTime(d.approvedAt))+'</span><span style="flex:1"></span><button class="btn btn-sm" data-xh="reopen" data-id="'+esc(d.id)+'">Mở lại để sửa</button>'+
         '<button class="btn btn-primary" data-xh="issue" data-id="'+esc(d.id)+'">Lập phiếu xuất kho &amp; in</button>';
+    } else if (d.status==='applied'){
+      var ap = d.applied||{}, codes = (ap.orders||[]).map(function(r){ var oo = STATE.orders[r.orderId]; return (oo&&oo.code)||r.orderId; }).join(', ');
+      h += '<span class="pqd-cap">Đã thêm/cập nhật vào VT của đơn <b>'+esc(codes)+'</b> (tình trạng "Yêu cầu đặt") · phiếu đề nghị mua <b class="num">'+esc(ap.purchaseId||'')+'</b> (chờ duyệt)</span><span style="flex:1"></span>'+
+        ((ap.orders||[]).slice(0,3).map(function(r){ return '<button class="btn btn-sm" data-xh="openvt" data-oid="'+esc(r.orderId)+'">Mở VT '+esc((STATE.orders[r.orderId]||{}).code||'')+'</button>'; }).join(''))+
+        '<button class="btn btn-sm btn-danger" data-xh="undo" data-id="'+esc(d.id)+'">Hoàn tác</button>';
+    } else if (d.status==='undone'){
+      h += '<span class="pqd-cap">Đã hoàn tác phần điền vào VT và huỷ phiếu đề nghị mua tương ứng.</span><span style="flex:1"></span><button class="btn btn-sm" data-xh="reopen" data-id="'+esc(d.id)+'">Mở lại để sửa</button>';
     } else if (d.status==='issued'){
       h += '<span class="pqd-cap">Phiếu <b class="num">'+esc((d.slip||{}).id||'')+'</b> · '+esc(fmtDate((d.slip||{}).date))+' · lập bởi '+esc((d.slip||{}).by||'')+' · đã ghi vào Cấp phát vật tư ('+((d.slip||{}).issueIds||[]).length+' phiếu)</span><span style="flex:1"></span><button class="btn btn-primary" data-xh="print" data-id="'+esc(d.id)+'">In lại phiếu xuất kho</button>';
     } else {
@@ -7645,14 +7652,14 @@
   }
   function renderXuat(){
     pqxInit(); xhLoadStatus(false); xhBadge();
-    var all = xhList(), cnt = {draft:0, approved:0, issued:0, rejected:0};
+    var all = xhList(), cnt = {draft:0, approved:0, issued:0, rejected:0, applied:0, undone:0};
     all.forEach(function(d){ if (cnt[d.status]!=null) cnt[d.status]++; });
     var list = all.filter(function(d){ return XH.filter==='all' || d.status===XH.filter; });
     var h = '<div class="pqd-head"><div><h1>Yêu cầu xuất hàng</h1><div class="pqd-sub">Nhân viên nhắn vào nhóm Zalo vật tư (nhắc tên bot), hệ thống tự đọc tin và ảnh thành danh sách vật tư. Thủ kho kiểm tra, duyệt, lập phiếu xuất kho rồi in; phiếu tự ghi vào Cấp phát vật tư của đơn.</div></div></div>';
-    h += '<div class="stat-grid">'+statCard('Chờ duyệt', cnt.draft, 'accent-warn')+statCard('Đã duyệt, chờ xuất', cnt.approved, 'accent-info')+statCard('Đã xuất kho', cnt.issued, 'accent-good')+statCard('Từ chối', cnt.rejected, '')+'</div>';
-    h += xhStatusPanel();
+    h += '<div class="stat-grid">'+statCard('Chờ xử lý', cnt.draft, 'accent-warn')+statCard('Đã điền vào VT', cnt.applied, 'accent-good')+statCard('Đã duyệt, chờ xuất', cnt.approved, 'accent-info')+statCard('Đã xuất kho', cnt.issued, 'accent-good')+'</div>';
+    h += '<div class="pqd-cap" style="margin:0 0 12px;">Yêu cầu <b>MUA</b> do AI đọc được và có mã công trình sẽ <b>tự điền vào VT</b> của đơn (tình trạng "Yêu cầu đặt") kèm phiếu đề nghị mua — có nút Hoàn tác. Yêu cầu <b>XUẤT KHO</b> chờ thủ kho duyệt. Trong nhóm Zalo bot chỉ đọc tin có <b>nhắc tên bot (@)</b>; nhắn riêng cho bot thì không cần.</div>'+xhStatusPanel();
     h += '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Dán tin nhắn Zalo vào đây</h2></div><div class="panel-body" style="padding:12px 16px;"><textarea id="xhManual" class="pqd-inp" rows="3" style="width:100%;" placeholder="VD: Xuất cho đơn 2026-187: Motor 5,5kW x 1 con; Bi UCP 212 x 2 cái"></textarea><div class="pqd-bar" style="padding:8px 0 0;"><span class="pqd-cap">Dùng khi tin không tự về được, hoặc để thử.</span><span style="flex:1"></span><button class="btn btn-sm btn-primary" data-xh="manual">Tạo yêu cầu</button></div></div></div>';
-    h += '<div class="pqd-bar" style="padding:0 0 12px;flex-wrap:wrap;">'+[['draft','Chờ duyệt'],['approved','Đã duyệt'],['issued','Đã xuất kho'],['rejected','Từ chối'],['all','Tất cả']].map(function(f){
+    h += '<div class="pqd-bar" style="padding:0 0 12px;flex-wrap:wrap;">'+[['draft','Chờ xử lý'],['applied','Đã điền vào VT'],['approved','Đã duyệt'],['issued','Đã xuất kho'],['rejected','Từ chối'],['undone','Đã hoàn tác'],['all','Tất cả']].map(function(f){
       var n = f[0]==='all' ? all.length : cnt[f[0]];
       return '<button class="btn btn-sm'+(XH.filter===f[0]?' btn-primary':'')+'" data-xh="filter" data-f="'+f[0]+'">'+f[1]+' ('+n+')</button>';
     }).join('')+'</div>';
@@ -7741,6 +7748,7 @@
     var b = e.target.closest ? e.target.closest('[data-xh]') : null; if (!b) return;
     var a = b.getAttribute('data-xh'), id = b.getAttribute('data-id'), d = id ? xhDoc(id) : null, who = xhUser() || '(chưa nhập tên)';
     if (a==='filter'){ XH.filter = b.getAttribute('data-f'); return renderAll(); }
+    if (a==='openvt'){ var oid = b.getAttribute('data-oid'); if (STATE.orders[oid]) openOrder(oid, 'vt'); return; }
     if (a==='status'){ XH.zsAt = 0; xhLoadStatus(true); return toast('Đang kiểm tra kết nối Zalo…'); }
     if (a==='register'){
       return showConfirmModal('Đăng ký địa chỉ nhận tin của web này với Zalo? Sau bước này mọi tin nhắn gửi cho bot sẽ được chuyển về web.', function(){
@@ -7763,6 +7771,19 @@
     if (a==='reject'){ return showConfirmModal('Từ chối yêu cầu '+id+'?', function(){ d.status = 'rejected'; d.rejectedBy = who; xhSave(d); renderAll(); }); }
     if (a==='reopen'){ d.status = 'draft'; xhSave(d); return renderAll(); }
     if (a==='issue') return xhIssue(id);
+    if (a==='apply'){
+      var its = (d.items||[]).filter(function(i){ return (i.name||'').trim(); });
+      if (!its.length) return xhErr(id, 'Chưa có dòng vật tư nào.');
+      for (var q=0;q<its.length;q++){ if (!its[q].orderId || !STATE.orders[its[q].orderId]) return xhErr(id, 'Dòng "'+its[q].name+'" chưa chọn công trình.'); }
+      return showConfirmModal('Điền '+its.length+' dòng vào VT của đơn và lập phiếu đề nghị mua (tình trạng "Yêu cầu đặt")? Có thể hoàn tác sau.', function(){
+        xhPost('/api/zalo/apply/'+encodeURIComponent(id), {items:its}).then(function(j){ if (j.ok && j.doc){ PQX.xh[id] = j.doc; renderAll(); toast('Đã điền vào VT và lập phiếu '+((j.doc.applied||{}).purchaseId||'')+'.', 3600); } else toast('Không điền được: '+(j.error||'lỗi'), 4600); });
+      });
+    }
+    if (a==='undo'){
+      return showConfirmModal('Hoàn tác: bỏ các dòng đã thêm vào VT, trả lại tình trạng cũ của dòng đã sửa và huỷ phiếu đề nghị mua tự lập?', function(){
+        xhPost('/api/zalo/undo/'+encodeURIComponent(id), {}).then(function(j){ if (j.ok && j.doc){ PQX.xh[id] = j.doc; renderAll(); toast('Đã hoàn tác.', 3000); } else toast('Không hoàn tác được: '+(j.error||'lỗi'), 4600); });
+      });
+    }
     if (a==='print') return xhPrint(id);
     if (a==='delreq'){ return showConfirmModal('Xoá hẳn yêu cầu '+id+'? (Phiếu cấp phát đã ghi trước đó không bị xoá.)', function(){ pqxDel('xh','xuathang',id); xhBadge(); renderAll(); }); }
     if (a==='ai'){
