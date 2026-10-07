@@ -392,6 +392,138 @@ module.exports = function (ctx) {
     return doc;
   }
 
+
+  /* ---------------- DOC BAN VE (PDF / anh) bang AI -> bang boc tach + danh sach cum cho TD ---------------- */
+  const DRAW_SCHEMA = {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      machine_type: { type: 'string' },
+      pages: { type: 'array', items: { type: 'object', properties: { page: { type: 'number' }, kind: { type: 'string', enum: ['liet_ke', 'dien_giai', 'khac'] }, title: { type: 'string' } }, required: ['page', 'kind', 'title'], additionalProperties: false } },
+      steel: { type: 'array', items: { type: 'object', properties: { profile: { type: 'string' }, code: { type: 'string' }, length_mm: { type: 'number' }, qty: { type: 'number' }, page: { type: 'number' }, conf: { type: 'number' }, note: { type: 'string' } }, required: ['profile', 'code', 'length_mm', 'qty', 'page', 'conf', 'note'], additionalProperties: false } },
+      steel_recap: { type: 'array', items: { type: 'object', properties: { profile: { type: 'string' }, bars_stated: { type: 'number' }, page: { type: 'number' } }, required: ['profile', 'bars_stated', 'page'], additionalProperties: false } },
+      plates: { type: 'array', items: { type: 'object', properties: { thickness_mm: { type: 'number' }, width_mm: { type: 'number' }, length_mm: { type: 'number' }, qty: { type: 'number' }, nham: { type: 'boolean' }, code: { type: 'string' }, page: { type: 'number' }, conf: { type: 'number' }, note: { type: 'string' } }, required: ['thickness_mm', 'width_mm', 'length_mm', 'qty', 'nham', 'code', 'page', 'conf', 'note'], additionalProperties: false } },
+      parts: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, spec: { type: 'string' }, qty: { type: 'number' }, unit: { type: 'string' }, page: { type: 'number' }, conf: { type: 'number' }, note: { type: 'string' } }, required: ['name', 'spec', 'qty', 'unit', 'page', 'conf', 'note'], additionalProperties: false } },
+      components: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, spec: { type: 'string' }, qty: { type: 'number' }, kind: { type: 'string', enum: ['gia_cong', 'lap_rap', 'khac'] }, page: { type: 'number' } }, required: ['name', 'spec', 'qty', 'kind', 'page'], additionalProperties: false } }
+    },
+    required: ['title', 'machine_type', 'pages', 'steel', 'steel_recap', 'plates', 'parts', 'components'], additionalProperties: false
+  };
+  const DRAW_SYSTEM = 'Bạn là kỹ sư dự toán vật tư cơ khí của Nhà máy Phương Quân. Nhiệm vụ: đọc bản vẽ gia công (PDF hoặc ảnh) và bóc tách vật tư CHÍNH XÁC để mua hàng và lập việc sản xuất. Quy tắc bắt buộc:\n' +
+    '1. Đọc từng trang. Ghi vào pages: kind = "liet_ke" nếu trang có bảng khối lượng / bảng chi tiết / ghi chú liệt kê vật tư (VD "HH10-12 x 3950 x 2 cây", "tôn 10mm x 4 tấm"); "dien_giai" nếu chỉ là hình vẽ diễn giải; "khac" cho trang bìa, tiêu chuẩn.\n' +
+    '2. Chỉ lấy số liệu ở trang/khung LIỆT KÊ. KHÔNG suy diễn kích thước từ hình vẽ để tạo danh sách.\n' +
+    '3. steel (thép hình/thép hộp): mỗi dòng cắt một thanh: profile chuẩn hóa (I250, I150, U80, U200, V50 cho thép góc L50x50x5, "Hộp 30x60", "Hộp 30x30"…), code (mã chi tiết nếu có, không có thì chuỗi rỗng), length_mm, qty (nếu ghi "x 2 cây đối xứng" thì qty = 2), page, conf, note.\n' +
+    '4. steel_recap: các con số TỔNG mà bản vẽ tự ghi (VD "I250 x 17 cây") để đối chiếu; không cộng hộ.\n' +
+    '5. plates (tôn/bản mã): thickness_mm, width_mm và length_mm (0 nếu bản vẽ không ghi), qty (số tấm/chi tiết), nham = true nếu tôn nhám / chống trượt / caro, code, page, conf, note.\n' +
+    '6. parts: vật tư mua hoặc chi tiết khác (motor, hộp giảm tốc, vòng bi, gối đỡ, nhông, xích, puly, dây curoa, bu lông…): name, spec, qty, unit, page, conf, note.\n' +
+    '7. components: các cụm / chi tiết CHÍNH cần gia công hoặc lắp ráp để lập danh sách việc sản xuất (VD "Trục chính", "Khung đỡ", "Lô chủ động", "Vỏ máy", "Cầu thang"): name, spec (mô tả sơ bộ ngắn: kích thước / vật liệu), qty, kind (gia_cong | lap_rap | khac), page. Gộp chi tiết giống nhau, không liệt kê từng bu lông.\n' +
+    '8. KHÔNG bịa. Chữ/số không rõ: bỏ dòng đó hoặc cho conf thấp (< 0.5) và nêu lý do trong note. conf: 1.0 = đọc rất rõ, 0.7 = hơi mờ, dưới 0.5 = đoán.\n' +
+    '9. Dùng đơn vị mm cho kích thước. Giữ nguyên mã chi tiết như bản vẽ ghi. Trả lời đúng định dạng JSON yêu cầu, tiếng Việt cho mọi chữ mô tả.';
+
+  function drawCall(contentBlock, fileName, extra) {
+    const c = cfg();
+    if (c.aiMock) return Promise.resolve({ result: drawMock(), usage: { input: 0, output: 0, usd: 0 }, model: 'mock' });
+    if (!c.aiKey) return Promise.reject(new Error('Chưa có ANTHROPIC_API_KEY trên Render'));
+    const effort = env('DRAW_EFFORT', 'medium');
+    const payload = {
+      model: env('DRAW_MODEL', c.model), max_tokens: 24000,
+      system: [{ type: 'text', text: DRAW_SYSTEM }],
+      messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: 'Bản vẽ: ' + fileName + '. Hãy đọc toàn bộ các trang và bóc tách theo đúng quy tắc.' + (extra || '') }] }],
+      output_config: { effort: effort, format: { type: 'json_schema', schema: DRAW_SCHEMA } }
+    };
+    return request(c.aiBase + '/v1/messages', {
+      method: 'POST', timeout: 900000, maxBytes: 32 * 1024 * 1024,
+      headers: { 'content-type': 'application/json', 'x-api-key': c.aiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      const j = jsonOf(r);
+      if (r.status !== 200 || !j) throw new Error('AI lỗi HTTP ' + r.status + ': ' + r.body.toString('utf8').slice(0, 300));
+      if (j.stop_reason === 'refusal') throw new Error('AI từ chối đọc nội dung này');
+      if (j.stop_reason === 'max_tokens') throw new Error('Bản vẽ quá dài, AI chưa đọc hết. Hãy tách file thành vài phần.');
+      let txt = ''; (j.content || []).forEach(function (b) { if (b && b.type === 'text') txt += b.text; });
+      txt = txt.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+      let out; try { out = JSON.parse(txt); } catch (e) { throw new Error('AI trả lời không phải JSON'); }
+      const u = j.usage || {}; const pr = priceOf(payload.model);
+      const inTok = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) * 1.25 + (u.cache_read_input_tokens || 0) * 0.1;
+      return { result: out, usage: { input: u.input_tokens || 0, output: u.output_tokens || 0, usd: Math.round(((inTok * pr.i + (u.output_tokens || 0) * pr.o) / 1e6) * 100000) / 100000 }, model: payload.model };
+    });
+  }
+  function drawMock() {
+    return {
+      title: 'KHUNG CẤP LIỆU MÁY ÉP VIÊN (mẫu thử)', machine_type: 'Khung thép',
+      pages: [{ page: 1, kind: 'dien_giai', title: 'Tổng thể' }, { page: 3, kind: 'liet_ke', title: 'Khung đỡ chính I250' }, { page: 19, kind: 'liet_ke', title: 'Sàn, bậc, chiếu nghỉ' }],
+      steel: [
+        { profile: 'I250', code: 'HH10-10', length_mm: 4984, qty: 3, page: 3, conf: 0.95, note: '' },
+        { profile: 'I250', code: 'HH10-11', length_mm: 4984, qty: 1, page: 3, conf: 0.9, note: '' },
+        { profile: 'I250', code: 'HH10-13', length_mm: 3950, qty: 2, page: 4, conf: 0.55, note: 'ghi x 2 cây đối xứng, bảng tổng ghi 1' },
+        { profile: 'U80', code: 'HH10-25', length_mm: 1207, qty: 1, page: 9, conf: 0.9, note: '' },
+        { profile: 'Hộp 30x60', code: '', length_mm: 5800, qty: 13, page: 26, conf: 0.8, note: '' }
+      ],
+      steel_recap: [{ profile: 'I250', bars_stated: 17, page: 2 }, { profile: 'U80', bars_stated: 6, page: 2 }],
+      plates: [
+        { thickness_mm: 3, width_mm: 7688, length_mm: 1202, qty: 2, nham: true, code: '', page: 17, conf: 0.85, note: '' },
+        { thickness_mm: 10, width_mm: 0, length_mm: 0, qty: 4, nham: false, code: 'BM1', page: 5, conf: 0.6, note: 'không ghi kích thước' }
+      ],
+      parts: [{ name: 'Bu lông M16', spec: 'x 60', qty: 48, unit: 'bộ', page: 6, conf: 0.8, note: '' }],
+      components: [
+        { name: 'Khung đỡ chính I250', spec: 'I250 dài 4984, 12 thanh', qty: 1, kind: 'gia_cong', page: 3 },
+        { name: 'Sàn tôn nhám 3mm', spec: '7688 x 1202', qty: 2, kind: 'gia_cong', page: 17 },
+        { name: 'Cầu thang 2 vế', spec: 'U200, bậc tôn nhám', qty: 1, kind: 'lap_rap', page: 19 },
+        { name: 'Lan can', spec: 'Hộp 30x60 / 30x30', qty: 1, kind: 'gia_cong', page: 26 }
+      ]
+    };
+  }
+  // Gop ket qua 2 lan doc: dong trung khop -> tin cay cao; dong lech so luong / chi co 1 ben -> danh dau can kiem
+  function nz(x) { return stripD0(String(x == null ? '' : x)).replace(/[^a-z0-9]/g, ''); }
+  function stripD0(x) { return String(x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0111/gi, 'd').toLowerCase(); }
+  function mergeDraw(A, B) {
+    if (!B) {
+      ['steel', 'plates', 'parts'].forEach(function (k) { (A[k] || []).forEach(function (r) { r.check = (r.conf < 0.7) ? 'thap' : ''; }); });
+      A.passes = 1; return A;
+    }
+    const out = JSON.parse(JSON.stringify(A)); out.passes = 2;
+    const keyOf = {
+      steel: function (r) { return nz(r.code) ? nz(r.code) + '|' + nz(r.profile) : nz(r.profile) + '|' + Math.round(r.length_mm); },
+      plates: function (r) { return Math.round(r.thickness_mm * 10) + '|' + Math.round(r.width_mm) + '|' + Math.round(r.length_mm) + '|' + (r.nham ? 'n' : '') + '|' + nz(r.code); },
+      parts: function (r) { return nz(r.name) + '|' + nz(r.spec); }
+    };
+    ['steel', 'plates', 'parts'].forEach(function (k) {
+      const mapB = {}; (B[k] || []).forEach(function (r) { const kk = keyOf[k](r); (mapB[kk] = mapB[kk] || []).push(r); });
+      const used = {};
+      (out[k] || []).forEach(function (r) {
+        const kk = keyOf[k](r), cand = mapB[kk] && mapB[kk].shift();
+        if (!cand) { r.check = 'chi1'; r.conf = Math.min(r.conf, 0.5); r.note = (r.note ? r.note + ' · ' : '') + 'lần đọc 2 không thấy dòng này'; return; }
+        used[kk] = 1;
+        if (Math.abs(cand.qty - r.qty) > 1e-9) { r.check = 'lech'; r.conf = Math.min(r.conf, cand.conf, 0.5); r.note = (r.note ? r.note + ' · ' : '') + 'lần 1 đọc SL ' + r.qty + ', lần 2 đọc SL ' + cand.qty; r.alt_qty = cand.qty; }
+        else { r.check = (r.conf < 0.7 || cand.conf < 0.7) ? 'thap' : ''; r.conf = Math.min(r.conf, cand.conf); }
+      });
+      Object.keys(mapB).forEach(function (kk) { mapB[kk].forEach(function (r) { r.check = 'chi1'; r.conf = Math.min(r.conf, 0.5); r.note = (r.note ? r.note + ' · ' : '') + 'chỉ lần đọc 2 thấy dòng này'; out[k].push(r); }); });
+    });
+    // cum chinh: hop 2 lan (theo ten)
+    const seen = {}; (out.components || []).forEach(function (r) { seen[nz(r.name)] = 1; });
+    (B.components || []).forEach(function (r) { if (!seen[nz(r.name)]) { seen[nz(r.name)] = 1; out.components.push(r); } });
+    return out;
+  }
+  const DRAW_JOBS = {};
+  function newJobId() { return 'DR-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function gcJobs() { const now = Date.now(); Object.keys(DRAW_JOBS).forEach(function (k) { if (now - DRAW_JOBS[k].at > 3 * 3600 * 1000) delete DRAW_JOBS[k]; }); }
+  async function drawRun(job, block, name, careful) {
+    try {
+      const capUsd = capOf();
+      if (capUsd && monthSpend() >= capUsd) throw new Error('Đã dùng hết hạn mức AI tháng này (' + capUsd + ' USD). Nâng AI_MONTH_CAP_USD trên Render nếu cần.');
+      job.stage = careful ? 'Đang đọc lần 1/2…' : 'Đang đọc…';
+      const p1 = await drawCall(block, name, '');
+      addUsage(p1.usage.usd, true);
+      let p2 = null, usd = p1.usage.usd;
+      if (careful) {
+        job.stage = 'Đang đọc lần 2/2 để đối chiếu…';
+        p2 = await drawCall(block, name, ' Đây là lần đọc kiểm tra độc lập: đọc lại từng trang từ đầu, cẩn thận từng con số.');
+        addUsage(p2.usage.usd, true); usd += p2.usage.usd;
+      }
+      job.result = mergeDraw(p1.result, p2 && p2.result);
+      job.usd = Math.round(usd * 10000) / 10000; job.model = p1.model; job.status = 'done'; job.stage = 'Xong';
+    } catch (e) { job.status = 'error'; job.error = String((e && e.message) || e); addUsage(0, false); }
+  }
+
   let chain = Promise.resolve();
   function processMessage(x) {
     chain = chain.then(function () { return processOne(x); }).catch(function () {});
@@ -509,6 +641,26 @@ module.exports = function (ctx) {
       await analyse(doc, imgBuf);
       saveDoc(doc.id, doc, true);
       ctx.sendJson(res, 200, { ok: true, doc: doc }); return true;
+    }
+
+    // ---- Doc ban ve: /api/zalo/draw/start (POST {name,mime,data(base64),careful}) va /api/zalo/draw/job/<id> (GET) ----
+    if (p === '/api/zalo/draw/start' && method === 'POST') {
+      let b = {}; try { b = JSON.parse(await ctx.readBody(req)); } catch (e) {}
+      const mime = String(b.mime || ''), data = String(b.data || '');
+      if (!data || data.length > 30 * 1024 * 1024) { ctx.sendJson(res, 400, { ok: false, error: 'File trống hoặc lớn quá 22MB' }); return true; }
+      if (!/^(application\/pdf|image\/(jpeg|png|webp|gif))$/.test(mime)) { ctx.sendJson(res, 400, { ok: false, error: 'Chỉ nhận PDF hoặc ảnh (JPG/PNG/WEBP)' }); return true; }
+      const c0 = cfg(); if (!c0.aiKey && !c0.aiMock) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa có ANTHROPIC_API_KEY trên Render' }); return true; }
+      gcJobs();
+      const job = { id: newJobId(), at: Date.now(), status: 'running', stage: 'Bắt đầu', name: String(b.name || 'ban-ve').slice(0, 120) };
+      DRAW_JOBS[job.id] = job;
+      const block = mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: data } } : { type: 'image', source: { type: 'base64', media_type: mime, data: data } };
+      drawRun(job, block, job.name, !!b.careful);
+      ctx.sendJson(res, 200, { ok: true, jobId: job.id }); return true;
+    }
+    if ((m = p.match(/^\/api\/zalo\/draw\/job\/([A-Za-z0-9\-]+)$/)) && method === 'GET') {
+      const job = DRAW_JOBS[m[1]];
+      if (!job) { ctx.sendJson(res, 404, { ok: false, error: 'Không thấy lượt đọc này (máy chủ có thể vừa khởi động lại) — bấm đọc lại' }); return true; }
+      ctx.sendJson(res, 200, { ok: true, status: job.status, stage: job.stage, error: job.error || '', result: job.status === 'done' ? job.result : null, usd: job.usd || 0, model: job.model || '', secs: Math.round((Date.now() - job.at) / 1000) }); return true;
     }
 
     // Dien vao VT + lap de nghi mua (nut tren web, sau khi chon cong trinh): body {items?}

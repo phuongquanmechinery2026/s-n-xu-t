@@ -1292,7 +1292,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-07d-may';
+  var BUILD_ID = '2026-10-07e-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2600,6 +2600,7 @@
     var mats = o.materials || [];
     var html = '<div class="toolbar-row"><span class="hint-txt">Chạm vào ô để sửa — tự lưu. <b>Chuột phải vào 1 dòng</b> để chèn dòng trên/dưới, xoá, tô nền, in đậm (như Excel). "+ dòng" ở hàng tiêu đề để thêm đúng chỗ.</span><div style="display:flex;gap:8px;">';
     html += '<button class="btn btn-sm" data-pdf-import="'+esc(o.id)+'">'+ICO.pdf+' Đọc PDF</button>';
+    html += '<button class="btn btn-sm btn-primary" data-draw-ai="'+esc(o.id)+'" title="AI đọc bản vẽ PDF/ảnh, bóc tách vật tư và đề xuất việc cần làm">📐 Đọc bản vẽ (AI)</button>';
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
     html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:164px"><col style="width:13%"><col style="width:14%"><col style="width:44px"></colgroup><thead><tr>';
@@ -5528,6 +5529,9 @@
     document.querySelectorAll('[data-td-paste]').forEach(function(el){
       el.addEventListener('click', function(){ if (readOnlyNote()) return; openTdPasteModal(el.getAttribute('data-td-paste')); });
     });
+    document.querySelectorAll('[data-draw-ai]').forEach(function(el){
+      el.addEventListener('click', function(){ if (readOnlyNote()) return; openDrawModal(el.getAttribute('data-draw-ai')); });
+    });
     document.querySelectorAll('[data-steel-takeoff]').forEach(function(el){
       el.addEventListener('click', function(){ if (readOnlyNote()) return; openSteelTakeoffModal(el.getAttribute('data-steel-takeoff')); });
     });
@@ -7897,6 +7901,260 @@
     document.head.appendChild(st);
     var main = document.getElementById('main');
     if (main){ main.addEventListener('click', xhClick); main.addEventListener('change', xhChange); }
+  })();
+
+  /* ===== ĐỌC BẢN VẼ BẰNG AI (nút "📐 Đọc bản vẽ (AI)" ở tab Vật tư) =====
+     PDF/ảnh -> máy chủ -> AI đọc (2 lần đối chiếu) -> bảng bóc tách có độ tin cậy, xem cạnh bản vẽ, tích chọn rồi mới vào VT.
+     Cụm chính trong bản vẽ -> danh sách việc đề xuất (tổ đội gợi ý theo lịch sử) -> tạo ở "Phân công công việc"; quản đốc / tổ trưởng gán người làm. */
+  function drwFmtMoney(usd){ return '$'+(Math.round(usd*100)/100)+' (≈ '+Math.round(usd*26000/1000)*1000+'đ)'; }
+  function drwNum(v){ var n = Number(String(v==null?'':v).replace(',','.')); return isNaN(n) ? 0 : n; }
+  function drwTeams(){
+    var seen = {}, out = [];
+    Object.keys(PQX.task||{}).forEach(function(k){ var t = (PQX.task[k]||{}).team; if (t && !seen[t]){ seen[t] = 1; out.push(t); } });
+    ['Phay tiện','Hàn','Lắp ráp','Sơn','Cắt'].forEach(function(t){ if (!seen[t]){ seen[t] = 1; out.push(t); } });
+    return out;
+  }
+  function drwTeamGuess(name){
+    var toks = stripDiacritics(name||'').split(/[^a-z0-9]+/).filter(function(w){ return w.length>=3 && !/^(cua|cho|voi|nap|tam|bo)$/.test(w); });
+    var votes = {};
+    Object.keys(PQX.task||{}).forEach(function(k){
+      var t = PQX.task[k]||{}; if (!t.team) return;
+      var tt = stripDiacritics(t.title||''), hit = 0;
+      toks.forEach(function(w){ if (tt.indexOf(w)>=0) hit++; });
+      if (hit) votes[t.team] = (votes[t.team]||0) + hit;
+    });
+    var best = null; Object.keys(votes).forEach(function(t){ if (best===null || votes[t]>votes[best]) best = t; });
+    if (best) return best;
+    var n = stripDiacritics(name||'');
+    if (/(truc|nhong|goi|^lo | lo |puly|buly|bac |mier|khop|banh rang|dao |luoi|tien|phay)/.test(n)) return 'Phay tiện';
+    if (/(khung|vo |thung|phau|chan|gia do|san |cau thang|lan can|ham|bin|cua|nap che|ong )/.test(n)) return 'Hàn';
+    if (/(lap|dong bo|chay thu)/.test(n)) return 'Lắp ráp';
+    if (/(son|ma )/.test(n)) return 'Sơn';
+    return 'Hàn';
+  }
+  function drwBadge(r){
+    var c = r.conf==null ? 1 : r.conf;
+    if (r.check==='lech') return '<span class="drw-b bad" title="'+esc(r.note||'')+'">Lệch 2 lần đọc</span>';
+    if (r.check==='chi1') return '<span class="drw-b bad" title="'+esc(r.note||'')+'">Chỉ 1 lần thấy</span>';
+    if (c < 0.6) return '<span class="drw-b bad" title="'+esc(r.note||'')+'">Cần kiểm</span>';
+    if (c < 0.85 || r.check==='thap') return '<span class="drw-b warn" title="'+esc(r.note||'')+'">Hơi mờ</span>';
+    return '<span class="drw-b ok">Rõ</span>';
+  }
+  function openDrawModal(orderId){
+    closeAnyOpenModal();
+    var o = STATE.orders[orderId]; if (!o) return;
+    PQX.task = PQX.task || {};
+    var D = {file:null, blob:'', mime:'', name:'', res:null, tab:'vt', timer:null, barLen:6, on:{}, useRecap:{}};
+    var secNames = (o.materials||[]).filter(function(m){ return isMatSection(m) && (m.name||'').trim(); }).map(function(m){ return m.name.trim(); });
+    var secOpts = '<option value="">➕ Tạo cụm mới (THÉP HÌNH / TÔN TẤM / VẬT TƯ KHÁC)</option>'+secNames.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
+    var bd = document.createElement('div'); bd.className = 'modal-backdrop';
+    bd.innerHTML = '<div class="modal wide xwide" style="max-width:min(1500px,98vw);">'+
+      '<h3>Đọc bản vẽ bằng AI — đơn <b>'+esc(o.code||'(chưa mã)')+'</b></h3>'+
+      '<div id="drwStep1">'+
+        '<div class="dropzone" id="drwDrop"><input type="file" id="drwFile" accept="application/pdf,image/jpeg,image/png,image/webp">📐 Kéo thả hoặc bấm để chọn <b>bản vẽ (PDF hoặc ảnh)</b>, tối đa 22MB<div id="drwFileName" style="margin-top:6px;font-size:12px;"></div></div>'+
+        '<label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;"><input type="checkbox" id="drwCareful" checked style="margin-top:3px;"><span><b>Đọc kỹ</b>: AI đọc 2 lần độc lập rồi đối chiếu — dòng nào hai lần khác nhau sẽ bị đánh dấu đỏ. Tốn gấp đôi tiền nhưng chính xác hơn (khoảng 3.000–15.000đ mỗi bản vẽ).</span></label>'+
+        '<div class="pqd-bar" style="padding:0;"><span id="drwMsg" class="pqd-cap"></span><span style="flex:1"></span><button class="btn btn-primary" id="drwGo" disabled>Đọc bản vẽ</button></div>'+
+      '</div>'+
+      '<div id="drwRun" style="display:none;padding:18px 4px;"><span class="spinner"></span> <b id="drwStage">Đang gửi bản vẽ…</b> <span class="pqd-cap" id="drwSecs"></span><div class="pqd-cap" style="margin-top:6px;">Thường 1–5 phút tuỳ số trang. Anh có thể để cửa sổ này mở và làm việc khác trên máy.</div></div>'+
+      '<div id="drwOut" style="display:none;"></div>'+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="drwClose">Đóng</button></div></div>';
+    document.body.appendChild(bd);
+    var $ = function(id){ return document.getElementById(id); };
+    $('drwClose').onclick = function(){ if (D.timer) clearInterval(D.timer); if (D.blob) { try{ URL.revokeObjectURL(D.blob); }catch(e){} } bd.remove(); };
+    $('drwDrop').addEventListener('click', function(e){ if (e.target.tagName!=='INPUT') $('drwFile').click(); });
+    $('drwFile').addEventListener('change', function(e){
+      var f = e.target.files[0]; if (!f) return;
+      if (f.size > 22*1024*1024){ $('drwMsg').textContent = '⚠️ File lớn quá 22MB, hãy tách bớt trang.'; return; }
+      if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(f.type)){ $('drwMsg').textContent = '⚠️ Chỉ nhận PDF hoặc ảnh JPG/PNG/WEBP.'; return; }
+      D.file = f; D.mime = f.type; D.name = f.name; $('drwFileName').textContent = '✓ '+f.name+' ('+Math.round(f.size/1024)+' KB)'; $('drwMsg').textContent = ''; $('drwGo').disabled = false;
+    });
+    $('drwGo').onclick = function(){
+      if (readOnlyNote() || !D.file) return;
+      $('drwGo').disabled = true; $('drwMsg').textContent = 'Đang gửi…';
+      var fr = new FileReader();
+      fr.onload = function(){
+        var b64 = String(fr.result).split(',')[1] || '';
+        D.blob = URL.createObjectURL(D.file);
+        $('drwStep1').style.display = 'none'; $('drwRun').style.display = '';
+        fetch('/api/zalo/draw/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:D.name, mime:D.mime, data:b64, careful:$('drwCareful').checked})})
+          .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Bản chạy trên máy không hỗ trợ — hãy dùng bản web chetao.onrender.com'}; }); })
+          .then(function(j){ if (!j.ok) return fail(j.error||'lỗi'); poll(j.jobId); })
+          .catch(function(e){ fail(e.message||'lỗi mạng'); });
+      };
+      fr.readAsDataURL(D.file);
+    };
+    function fail(msg){
+      if (D.timer) clearInterval(D.timer);
+      $('drwRun').style.display = 'none'; $('drwStep1').style.display = ''; $('drwGo').disabled = false;
+      $('drwMsg').innerHTML = '<span style="color:var(--bad,#c0362c);">⚠️ '+esc(msg)+'</span>';
+    }
+    function poll(id){
+      D.timer = setInterval(function(){
+        fetch('/api/zalo/draw/job/'+encodeURIComponent(id), {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){
+          if (!j.ok) return fail(j.error||'lỗi');
+          $('drwStage').textContent = j.stage||'Đang đọc…'; $('drwSecs').textContent = '('+j.secs+' giây)';
+          if (j.status==='error') return fail(j.error||'AI lỗi');
+          if (j.status==='done'){ clearInterval(D.timer); D.res = j.result; D.usd = j.usd; D.res._model = j.model; init(); }
+        }).catch(function(){});
+      }, 3000);
+    }
+    function init(){
+      var R = D.res;
+      D.st = R.steel||[]; D.pl = R.plates||[]; D.pa = R.parts||[]; D.cp = R.components||[];
+      [D.st, D.pl, D.pa].forEach(function(arr, ai){ arr.forEach(function(r, i){ r._k = ai+':'+i; r._on = !r.check && (r.conf==null || r.conf>=0.6); }); });
+      D.cp.forEach(function(c, i){ c._on = c.kind!=='khac'; c._team = drwTeamGuess(c.name); });
+      $('drwRun').style.display = 'none'; $('drwOut').style.display = '';
+      var viewer = D.mime==='application/pdf'
+        ? '<iframe id="drwView" src="'+D.blob+'#page=1" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:8px;background:#fff;"></iframe>'
+        : '<div style="max-height:70vh;overflow:auto;border:1px solid var(--border);border-radius:8px;"><img src="'+D.blob+'" style="max-width:100%;display:block;"></div>';
+      $('drwOut').innerHTML = '<div class="drw-split"><div class="drw-left">'+viewer+'<div class="pqd-cap" style="margin-top:4px;">Bấm một dòng bên phải để bản vẽ nhảy tới đúng trang.</div></div><div class="drw-right" id="drwRight"></div></div>';
+      $('drwOut').addEventListener('click', onClick); $('drwOut').addEventListener('input', onInput); $('drwOut').addEventListener('change', onInput);
+      renderRight();
+    }
+    function jump(p){ var v = $('drwView'); if (v && p>0) v.src = D.blob+'#page='+p; }
+    function calc(){
+      var bar = (drwNum(D.barLen)||6)*1000, bySteel = {}, byPl = {};
+      D.st.forEach(function(r){ if (!r._on) return; var k = (r.profile||'').trim(); if (!k) return; var g = bySteel[k] = bySteel[k] || {profile:k, tot:0, n:0, pages:{}}; g.tot += drwNum(r.length_mm)*drwNum(r.qty); g.n++; g.pages[r.page] = 1; });
+      Object.keys(bySteel).forEach(function(k){
+        var g = bySteel[k]; g.barsCalc = Math.ceil(g.tot/bar - 1e-9);
+        var st = (D.res.steel_recap||[]).filter(function(x){ return stripDiacritics(x.profile||'').replace(/\s/g,'')===stripDiacritics(k).replace(/\s/g,''); })[0];
+        g.stated = st ? drwNum(st.bars_stated) : 0;
+        var use = (D.useRecap[k]===undefined ? !!g.stated : D.useRecap[k]);
+        g.bars = (use && g.stated) ? g.stated : g.barsCalc; g.useStated = use && !!g.stated;
+        var kgm = steelKgPerM(k); g.kg = kgm ? Math.round(g.bars*(bar/1000)*kgm) : null;
+      });
+      D.pl.forEach(function(r){ if (!r._on) return; var key = drwNum(r.thickness_mm)+(r.nham?'-nham':''); var g = byPl[key] = byPl[key] || {thick:drwNum(r.thickness_mm), nham:!!r.nham, area:0, pcs:0, noDim:false};
+        g.pcs += drwNum(r.qty)||1; if (drwNum(r.width_mm)>0 && drwNum(r.length_mm)>0) g.area += drwNum(r.width_mm)*drwNum(r.length_mm)/1e6*(drwNum(r.qty)||1); else g.noDim = true; });
+      Object.keys(byPl).forEach(function(k){ var g = byPl[k]; g.sheets = g.noDim ? g.pcs : Math.max(1, Math.ceil(g.area/9 - 1e-9)); var kgs = plateKgPerSheet(g.thick, g.nham); g.kg = kgs ? Math.round(kgs*g.sheets) : null; });
+      return {steel:bySteel, plates:byPl};
+    }
+    function sumHtml(){
+      var C = calc(), h = '';
+      var sk = Object.keys(C.steel);
+      h += '<div class="drw-sum"><b>Tổng hợp theo cây thép 6m (tính từ các dòng đã tích)</b>';
+      if (!sk.length) h += '<div class="pqd-cap">Chưa tích dòng thép nào.</div>';
+      sk.forEach(function(k){
+        var g = C.steel[k];
+        h += '<div class="drw-line"><b>'+esc(g.profile)+'</b>: tổng dài '+(g.tot/1000).toFixed(1)+' m → <b>'+g.barsCalc+' cây</b> tính'+(g.kg?' (≈ '+g.kg+' kg)':'')+
+          (g.stated ? ' · bản vẽ ghi <b>'+g.stated+' cây</b>'+(g.stated!==g.barsCalc ? ' <span class="drw-b bad">LỆCH</span>' : ' <span class="drw-b ok">khớp</span>')+
+            ' <label class="pqd-cap"><input type="checkbox" data-drw-recap="'+esc(k)+'"'+(g.useStated?' checked':'')+'> mua theo số bản vẽ ghi ('+g.stated+')</label>' : ' <span class="pqd-cap">(bản vẽ không ghi số tổng)</span>')+'</div>';
+      });
+      var pk = Object.keys(C.plates);
+      pk.forEach(function(k){ var g = C.plates[k];
+        h += '<div class="drw-line"><b>Tôn '+g.thick+'mm'+(g.nham?' nhám':'')+'</b>: '+g.pcs+' chi tiết'+(g.noDim?' <span class="drw-b warn">thiếu kích thước → tạm tính '+g.sheets+' tấm</span>':', diện tích '+g.area.toFixed(2)+' m² → <b>'+g.sheets+' tấm 1,5×6m</b>')+(g.kg?' (≈ '+g.kg+' kg)':'')+'</div>'; });
+      var nbad = D.st.concat(D.pl, D.pa).filter(function(r){ return !r._on; }).length;
+      h += '<div class="pqd-cap" style="margin-top:6px;">'+nbad+' dòng đang BỎ TÍCH (không vào VT) — thường là dòng AI không chắc; xem bản vẽ rồi tích nếu đúng.</div></div>';
+      return h;
+    }
+    function renderRight(){
+      var R = D.res, h = '';
+      var liet = (R.pages||[]).filter(function(p){ return p.kind==='liet_ke'; }).map(function(p){ return p.page; }).join(', '), dg = (R.pages||[]).filter(function(p){ return p.kind==='dien_giai'; }).length;
+      h += '<div class="pqd-cap" style="margin-bottom:8px;"><b>'+esc(R.title||'(không rõ tên)')+'</b>'+(R.machine_type?' · '+esc(R.machine_type):'')+' · trang liệt kê: '+(liet||'—')+' · '+dg+' trang diễn giải · đọc '+(R.passes||1)+' lần · chi phí '+drwFmtMoney(D.usd||0)+'</div>';
+      h += '<div class="drw-tabs"><button class="btn btn-sm'+(D.tab==='vt'?' btn-primary':'')+'" data-drw-tab="vt">1. Vật tư</button><button class="btn btn-sm'+(D.tab==='td'?' btn-primary':'')+'" data-drw-tab="td">2. Việc cần làm (TD)</button></div>';
+      h += D.tab==='vt' ? vtHtml() : tdHtml();
+      $('drwRight').innerHTML = h;
+    }
+    function inp(k, f, v, w){ return '<input class="pqd-inp'+(f==='qty'||f==='length_mm'?' num':'')+'" style="'+(w?'width:'+w+'px;':'')+'" data-drw-f="'+f+'" data-drw-k="'+k+'" value="'+esc(v==null?'':v)+'">'; }
+    function rowCls(r){ return 'drw-row'+(r._on?'':' off')+((r.check||(r.conf!=null&&r.conf<0.6))?' flag':''); }
+    function vtHtml(){
+      var h = '<div id="drwSum">'+sumHtml()+'</div>';
+      h += '<div class="pqd-bar" style="padding:8px 0;flex-wrap:wrap;"><label class="pqd-cap">Thêm vào cụm: <select id="drwTarget" class="pqd-inp" style="width:auto;">'+secOpts+'</select></label><label class="pqd-cap">Cây thép: <input id="drwBar" class="pqd-inp num" style="width:56px;" value="'+esc(D.barLen)+'"> m</label><span style="flex:1"></span><button class="btn btn-primary" data-drw="addvt">Thêm các dòng đã tích vào VT</button></div>';
+      h += '<div class="drw-h">Thép hình / thép hộp ('+D.st.length+' dòng)</div><div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th></th><th>Mã</th><th>Loại</th><th class="r">Dài (mm)</th><th class="r">SL</th><th>Tr.</th><th>Độ tin cậy</th></tr></thead><tbody>';
+      D.st.forEach(function(r){ h += '<tr class="'+rowCls(r)+'" data-drw-page="'+r.page+'"><td><input type="checkbox" data-drw-on="'+r._k+'"'+(r._on?' checked':'')+'></td><td>'+inp(r._k,'code',r.code,90)+'</td><td>'+inp(r._k,'profile',r.profile,90)+'</td><td>'+inp(r._k,'length_mm',r.length_mm,80)+'</td><td>'+inp(r._k,'qty',r.qty,52)+'</td><td>'+esc(r.page)+'</td><td>'+drwBadge(r)+(r.note?'<div class="pqd-cap">'+esc(r.note)+'</div>':'')+'</td></tr>'; });
+      if (!D.st.length) h += '<tr><td colspan="7" class="empty-note">Không thấy dòng thép nào trong các trang liệt kê.</td></tr>';
+      h += '</tbody></table></div><div class="drw-h">Tôn / bản mã ('+D.pl.length+' dòng)</div><div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th></th><th>Dày (mm)</th><th class="r">Rộng</th><th class="r">Dài</th><th class="r">SL</th><th>Nhám</th><th>Tr.</th><th>Độ tin cậy</th></tr></thead><tbody>';
+      D.pl.forEach(function(r){ h += '<tr class="'+rowCls(r)+'" data-drw-page="'+r.page+'"><td><input type="checkbox" data-drw-on="'+r._k+'"'+(r._on?' checked':'')+'></td><td>'+inp(r._k,'thickness_mm',r.thickness_mm,56)+'</td><td>'+inp(r._k,'width_mm',r.width_mm,70)+'</td><td>'+inp(r._k,'length_mm',r.length_mm,70)+'</td><td>'+inp(r._k,'qty',r.qty,50)+'</td><td><input type="checkbox" data-drw-nham="'+r._k+'"'+(r.nham?' checked':'')+'></td><td>'+esc(r.page)+'</td><td>'+drwBadge(r)+(r.note?'<div class="pqd-cap">'+esc(r.note)+'</div>':'')+'</td></tr>'; });
+      if (!D.pl.length) h += '<tr><td colspan="8" class="empty-note">Không thấy tôn / bản mã.</td></tr>';
+      h += '</tbody></table></div><div class="drw-h">Vật tư khác / chi tiết mua ('+D.pa.length+' dòng)</div><div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th></th><th>Tên</th><th>Quy cách</th><th class="r">SL</th><th>ĐVT</th><th>Tr.</th><th>Độ tin cậy</th></tr></thead><tbody>';
+      D.pa.forEach(function(r){ h += '<tr class="'+rowCls(r)+'" data-drw-page="'+r.page+'"><td><input type="checkbox" data-drw-on="'+r._k+'"'+(r._on?' checked':'')+'></td><td>'+inp(r._k,'name',r.name,170)+'</td><td>'+inp(r._k,'spec',r.spec,120)+'</td><td>'+inp(r._k,'qty',r.qty,50)+'</td><td>'+inp(r._k,'unit',r.unit,56)+'</td><td>'+esc(r.page)+'</td><td>'+drwBadge(r)+(r.note?'<div class="pqd-cap">'+esc(r.note)+'</div>':'')+'</td></tr>'; });
+      if (!D.pa.length) h += '<tr><td colspan="7" class="empty-note">Không thấy vật tư mua khác.</td></tr>';
+      return h+'</tbody></table></div>';
+    }
+    function tdHtml(){
+      var teams = drwTeams();
+      var h = '<div class="pqd-cap" style="margin-bottom:8px;">Các <b>cụm / chi tiết chính</b> AI thấy trong bản vẽ. Tích chọn rồi bấm tạo: mỗi dòng thành 1 việc trong <b>Phân công công việc</b> (tổ đội gợi ý theo các đơn cũ). <b>Người thực hiện để trống</b> — quản đốc / tổ trưởng vào đó gán người, sản xuất tự cập nhật.</div>';
+      h += '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th></th><th>Cụm / chi tiết</th><th>Mô tả sơ bộ</th><th class="r">SL</th><th>Tổ đội</th><th>Tr.</th></tr></thead><tbody>';
+      D.cp.forEach(function(c, i){
+        h += '<tr class="drw-row'+(c._on?'':' off')+'" data-drw-page="'+c.page+'"><td><input type="checkbox" data-drw-cpon="'+i+'"'+(c._on?' checked':'')+'></td><td><input class="pqd-inp" style="width:210px;" data-drw-cpf="name" data-i="'+i+'" value="'+esc(c.name)+'"></td><td><input class="pqd-inp" style="width:220px;" data-drw-cpf="spec" data-i="'+i+'" value="'+esc(c.spec||'')+'"></td><td>'+esc(c.qty||'')+'</td><td><select class="pqd-inp" data-drw-cpteam="'+i+'" style="width:120px;">'+teams.map(function(t){ return '<option'+(t===c._team?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+'</select></td><td>'+esc(c.page)+'</td></tr>';
+      });
+      if (!D.cp.length) h += '<tr><td colspan="6" class="empty-note">AI chưa thấy cụm chính nào.</td></tr>';
+      return h+'</tbody></table></div><div class="pqd-bar" style="padding:10px 0 0;"><span style="flex:1"></span><button class="btn btn-primary" data-drw="addtd">Tạo việc trong Phân công công việc</button></div>';
+    }
+    function find(k){ var p = k.split(':'); return (p[0]==='0'?D.st:p[0]==='1'?D.pl:D.pa)[+p[1]]; }
+    function onInput(e){
+      var el = e.target;
+      if (el.hasAttribute('data-drw-f')){ var r = find(el.getAttribute('data-drw-k')), f = el.getAttribute('data-drw-f'); if (r){ r[f] = /^(length_mm|qty|thickness_mm|width_mm)$/.test(f) ? drwNum(el.value) : el.value; var s = $('drwSum'); if (s) s.innerHTML = sumHtml(); } return; }
+      if (el.hasAttribute('data-drw-on')){ var r2 = find(el.getAttribute('data-drw-on')); if (r2){ r2._on = el.checked; var tr = el.closest('tr'); if (tr) tr.classList.toggle('off', !el.checked); var s2 = $('drwSum'); if (s2) s2.innerHTML = sumHtml(); } return; }
+      if (el.hasAttribute('data-drw-nham')){ var r3 = find(el.getAttribute('data-drw-nham')); if (r3){ r3.nham = el.checked; var s3 = $('drwSum'); if (s3) s3.innerHTML = sumHtml(); } return; }
+      if (el.hasAttribute('data-drw-recap')){ D.useRecap[el.getAttribute('data-drw-recap')] = el.checked; var s4 = $('drwSum'); if (s4) s4.innerHTML = sumHtml(); return; }
+      if (el.id==='drwBar'){ D.barLen = drwNum(el.value)||6; var s5 = $('drwSum'); if (s5) s5.innerHTML = sumHtml(); return; }
+      if (el.hasAttribute('data-drw-cpon')){ D.cp[+el.getAttribute('data-drw-cpon')]._on = el.checked; return; }
+      if (el.hasAttribute('data-drw-cpf')){ D.cp[+el.getAttribute('data-i')][el.getAttribute('data-drw-cpf')] = el.value; return; }
+      if (el.hasAttribute('data-drw-cpteam')){ D.cp[+el.getAttribute('data-drw-cpteam')]._team = el.value; return; }
+    }
+    function onClick(e){
+      var t = e.target;
+      var tabb = t.closest ? t.closest('[data-drw-tab]') : null;
+      if (tabb){ D.tab = tabb.getAttribute('data-drw-tab'); return renderRight(); }
+      var ab = t.closest ? t.closest('[data-drw]') : null;
+      if (ab){ var a = ab.getAttribute('data-drw'); if (a==='addvt') return addVt(); if (a==='addtd') return addTd(); }
+      if (t.tagName==='INPUT' || t.tagName==='SELECT' || t.tagName==='LABEL') return;
+      var tr = t.closest ? t.closest('tr[data-drw-page]') : null; if (tr) jump(+tr.getAttribute('data-drw-page'));
+    }
+    function addVt(){
+      if (readOnlyNote()) return;
+      var C = calc(), rows = [], tgt = ($('drwTarget')||{}).value||'', toCluster = !tgt, src = 'AI · '+D.name;
+      Object.keys(C.steel).forEach(function(k){
+        var g = C.steel[k];
+        var disp = k;
+        if (toCluster) rows.push({section:true, name:'THÉP HÌNH '+disp});
+        rows.push({name:disp, spec:'thép hình', unit:'Cây', qty:g.bars, note:(g.kg?('≈ '+g.kg+' kg · '):'')+'tổng dài ~'+(g.tot/1000).toFixed(1)+' m'+(g.useStated?' · theo số bản vẽ ghi':'')+' · '+src});
+      });
+      var pk = Object.keys(C.plates);
+      if (pk.length){
+        if (toCluster) rows.push({section:true, name:'TÔN / TẤM'});
+        pk.forEach(function(k){ var g = C.plates[k]; rows.push({name:'Tôn '+g.thick+'mm'+(g.nham?' (nhám/chống trượt)':''), spec:'tấm 1,5 × 6 m', unit:'Tấm', qty:g.sheets, note:(g.kg?('≈ '+g.kg+' kg · '):'')+(g.noDim?'thiếu kích thước, số chi tiết · ':'')+src}); });
+      }
+      var pa = D.pa.filter(function(r){ return r._on && (r.name||'').trim(); });
+      if (pa.length){
+        if (toCluster) rows.push({section:true, name:'VẬT TƯ KHÁC (từ bản vẽ)'});
+        pa.forEach(function(r){ rows.push({name:r.name.trim(), spec:(r.spec||'').trim()||null, unit:(r.unit||'').trim()||null, qty:drwNum(r.qty)||null, note:src+' tr.'+r.page}); });
+      }
+      if (!rows.length) return toast('Chưa tích dòng nào để thêm.');
+      var ord = STATE.orders[orderId]; ord.materials = ord.materials || [];
+      var maxNo = 0; ord.materials.forEach(function(m){ var n=parseInt(m&&m.no,10); if (!isNaN(n)&&n>maxNo) maxNo=n; });
+      var built = rows.map(function(r){ var mm = {no:'', name:r.name, spec:r.spec||null, unit:r.unit||null, qty:(r.qty==null?null:r.qty), status:null, supplier:null, note:r.note||null, reqDate:null}; if (r.section){ maxNo++; mm.no = String(maxNo); mm.section = true; } return mm; });
+      if (tgt){ var sp = vtSectionSpanForName(ord, tgt); var at = sp ? (sp.start + sp.count) : ord.materials.length; ord.materials.splice.apply(ord.materials, [at, 0].concat(built)); }
+      else ord.materials = ord.materials.concat(built);
+      patchOrder(orderId, {materials: ord.materials});
+      STATE.orderTab = 'vt'; renderAll();
+      toast('Đã thêm '+built.filter(function(r){ return !r.section; }).length+' dòng vật tư từ bản vẽ vào VT.', 3600);
+    }
+    function addTd(){
+      if (readOnlyNote()) return;
+      var have = {}; Object.keys(PQX.task).forEach(function(k){ var t = PQX.task[k]; if (t && t.orderId===orderId) have[stripDiacritics(t.title||'')] = 1; });
+      var made = 0, dup = 0, base = Date.now();
+      D.cp.filter(function(c){ return c._on && (c.name||'').trim(); }).forEach(function(c, i){
+        var title = c.name.trim()+(c.spec ? ' — '+c.spec.trim() : '');
+        if (have[stripDiacritics(title)]){ dup++; return; }
+        var doc = {id:pcNewId(), at:base+i, dept:(o.dept==='dien'?'dien':'cokhi'), title:title, orderId:orderId, code:o.code||'', who:'', team:c._team||'', date:'', start:'', prio:'', status:'Chưa bắt đầu', note:'Từ bản vẽ '+D.name+' tr.'+c.page, src:'ban-ve-AI'};
+        pqxSave('task','tasks',doc); made++;
+      });
+      if (!made && !dup) return toast('Chưa tích dòng nào.');
+      toast('Đã tạo '+made+' việc trong Phân công công việc'+(dup?(' ('+dup+' việc đã có nên bỏ qua)'):'')+'. Quản đốc / tổ trưởng vào gán người làm.', 5200);
+      STATE.view = 'tasks'; bd.remove(); if (D.timer) clearInterval(D.timer); renderAll(); window.scrollTo(0,0);
+    }
+  }
+  (function(){
+    var st = document.createElement('style');
+    st.textContent =
+      'html .drw-split{display:flex;gap:14px;align-items:flex-start;}html .drw-left{flex:0 0 42%;min-width:300px;position:sticky;top:0;}html .drw-right{flex:1;min-width:0;max-height:76vh;overflow:auto;padding-right:4px;}'+
+      '@media(max-width:1000px){html .drw-split{flex-direction:column;}html .drw-left{flex:none;width:100%;position:static;}html .drw-right{max-height:none;}}'+
+      'html .drw-b{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:700;}html .drw-b.ok{background:#d4edbc;color:#1d5c10;}html .drw-b.warn{background:#fff3d6;color:#8a5a00;}html .drw-b.bad{background:#fde8e6;color:#a3261c;}'+
+      'html .drw-row{cursor:pointer;}html .drw-row.off td{opacity:.55;}html .drw-row.flag td{background:#fff8f6;}html .drw-h{font-weight:800;margin:14px 0 4px;}'+
+      'html .drw-sum{background:var(--surface-2,#f1f3f4);border-radius:10px;padding:10px 12px;margin-bottom:8px;}html .drw-line{padding:4px 0;border-top:1px solid var(--border,#e1e5e9);}html .drw-line:first-of-type{border-top:0;}'+
+      'html .drw-tabs{display:flex;gap:8px;margin-bottom:8px;}';
+    document.head.appendChild(st);
   })();
 
   renderBanner();
