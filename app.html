@@ -1292,7 +1292,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-07c-may';
+  var BUILD_ID = '2026-10-07d-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3907,12 +3907,12 @@
         if (res.customer) document.getElementById('nfCustomer').value = res.customer;
         if (res.equipment) document.getElementById('nfEquipment').value = res.equipment;
         if (res.deliveryDate) document.getElementById('nfDate').value = res.deliveryDate;
-        pendingMats = pdfCleanRows(res.materials||[]);
+        pendingMats = pdfExpandElectric(pdfCleanRows(res.materials||[]));
         if (pendingMats.length){
           var html = '<p class="hint-txt" style="margin:12px 0 4px;">Đã nhận diện '+pendingMats.length+' hạng mục / thiết bị từ PDF — mỗi tên sẽ là 1 <b>cụm</b> trong "Công việc cần làm" (hạng mục con thêm sau):</p>';
-          pendingMats.forEach(function(m){ m.dept = pdfDeptOf(m.name); });
+          pendingMats.forEach(function(m){ if (!m._from) m.dept = pdfDeptOf(m.name); });
           html += '<table class="pdf-preview-table"><thead><tr><th>Tên hạng mục / thiết bị</th><th>ĐVT</th><th>SL</th><th>Bộ phận</th></tr></thead><tbody>';
-          pendingMats.forEach(function(m, i){ html += '<tr><td>'+esc(m.name)+'</td><td>'+esc(m.unit||'')+'</td><td>'+esc(fmtNum(m.qty))+'</td><td><select class="nf-dept" data-i="'+i+'"><option value="cokhi"'+(m.dept==='cokhi'?' selected':'')+'>Cơ khí</option><option value="dien"'+(m.dept==='dien'?' selected':'')+'>Điện</option></select></td></tr>'; });
+          pendingMats.forEach(function(m, i){ html += '<tr><td>'+esc(m.name)+(m._from ? ' <span class="hint-txt">(tủ điện nằm trong "'+esc(m._from)+'")</span>' : '')+'</td><td>'+esc(m.unit||'')+'</td><td>'+esc(fmtNum(m.qty))+'</td><td><select class="nf-dept" data-i="'+i+'"><option value="cokhi"'+(m.dept==='cokhi'?' selected':'')+'>Cơ khí</option><option value="dien"'+(m.dept==='dien'?' selected':'')+'>Điện</option></select></td></tr>'; });
           html += '</tbody></table><p class="hint-txt" style="margin:6px 0 0;">Hạng mục thuộc <b>Cơ khí</b> sẽ vào đơn Cơ khí, hạng mục thuộc <b>Điện</b> sẽ vào đơn Điện (cùng mã đơn). Anh đổi bộ phận từng dòng nếu cần.</p>';
           document.getElementById('nfMatsPreview').innerHTML = html + rawLinesBlock(res.rawLines);
           [].forEach.call(document.querySelectorAll('#nfMatsPreview .nf-dept'), function(sel){ sel.addEventListener('change', function(){ var r = pendingMats[+sel.getAttribute('data-i')]; if (r) r.dept = sel.value; }); });
@@ -4012,7 +4012,7 @@
         chain = chain.then(function(){
           return pdf.getPage(pnum).then(function(page){
             return page.getTextContent().then(function(content){
-              var items = content.items.map(function(it){ return {str:it.str, x:it.transform[4], y:Math.round(it.transform[5])}; });
+              var items = content.items.map(function(it){ return {str:it.str, x:it.transform[4], y:Math.round(it.transform[5]), w:it.width||0, h:it.height||10}; });
               items.sort(function(a,b){ return (b.y-a.y) || (a.x-b.x); });
               var curY=null, curLine=[], pageLines=[];
               var TOL=3;
@@ -4023,7 +4023,15 @@
               if (curLine.length) pageLines.push(curLine);
               pageLines.forEach(function(line){
                 line.sort(function(a,b){ return a.x-b.x; });
-                var txt = line.map(function(i){return i.str;}).join(' ').replace(/\s+/g,' ').trim();
+                // Nối các mảnh chữ sát nhau KHÔNG chèn dấu cách (tránh "tấ n", "0 , 5"); chỉ thêm cách khi có khoảng hở thật.
+                var txt = '';
+                line.forEach(function(i, k){
+                  if (k>0){ var pv = line[k-1], gap = i.x - (pv.x + pv.w); txt += (pv.w>0 && gap < Math.max(1.2, pv.h*0.18)) ? '' : ' '; }
+                  txt += i.str;
+                });
+                txt = txt.normalize('NFC').replace(/\s+/g,' ').trim();
+                // PDF Word hay tách phụ âm cuối khỏi chữ có dấu ("tấ n", "máy ngh iền" kiểu cũ): nối lại "<chữ có dấu> + n/m/c/t/p/ng/nh/ch" đứng lẻ
+                txt = txt.replace(/([áàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ])\s(ng|nh|ch|n|m|c|t|p)(?=\s|$|[:,.;)])/g, '$1$2');
                 if (txt) allLines.push(txt);
               });
             });
@@ -4167,11 +4175,17 @@
         var sp0 = stripTrailingUnitQty(b.lines[0]);
         if (sp0.unit) b.lines[0] = sp0.prefix;
       }
-      var name = (b.lines[0]||'').trim();
+      var name = (b.lines[0]||'').trim().replace(/\s*[:：]\s*$/,'');
       var specLines = b.lines.slice(1).map(function(s){return s.trim();}).filter(Boolean);
       if (!name) return;
       if (EXCLUDE_RE.test(stripDiacritics(name))) return;
-      out.push({no:String(bi+1), name:name, spec:specLines.join('; ').slice(0,600)||null, unit:b.unit, qty:b.qty, status:'Chưa xem', supplier:null, note:'Nhập từ PDF', issuedTo:null});
+      // Gạch đầu dòng kiểu "- Tủ điện khởi động 2 cấp" trong mô tả của máy = máy này có kèm tủ điện (phần Điện)
+      var elec = [];
+      specLines.forEach(function(sl){
+        var raw = sl.replace(/^[-–—\s]+/,'').trim(), pn = stripDiacritics(raw);
+        if (/^(tu|bang)\s+(dien|dieu khien|khoi dong|phan phoi|nguon)/.test(pn)) elec.push(raw.replace(/[:;.,]+\s*$/,'').slice(0,80));
+      });
+      out.push({no:String(bi+1), name:name, spec:specLines.join('; ').slice(0,600)||null, unit:b.unit, qty:b.qty, status:'Chưa xem', supplier:null, note:'Nhập từ PDF', issuedTo:null, elec:elec});
     });
     return out;
   }
@@ -4661,6 +4675,20 @@
   function pdfDeptOf(name){
     var n = ' '+stripDiacritics(String(name||'')).replace(/[^a-z0-9]+/g,' ').trim()+' ';
     return /\s(tu dien|tu dieu khien|bang dien|bang dieu khien|tu phan phoi|tu nguon|tu bu|tu servo|tu plc|tu inverter|tu hoa chat|he thong dien|he dieu khien|dieu khien|bien tan|plc|hmi|dong luc)\s/.test(n) ? 'dien' : 'cokhi';
+  }
+  // Máy có "tủ điện …" trong mô tả (VD đơn 2026-229) -> thêm 1 hạng mục Điện (trừ khi PDF đã có sẵn dòng Điện riêng).
+  function pdfExpandElectric(rows){
+    var out = rows.slice(), have = {}, hasElec = rows.some(function(r){ return pdfDeptOf(r.name)==='dien'; });
+    rows.forEach(function(r){ have[stripDiacritics(r.name)] = 1; });
+    if (hasElec) return out;
+    rows.forEach(function(r){
+      if (pdfDeptOf(r.name)==='dien') return;
+      (r.elec||[]).slice(0,1).forEach(function(n){
+        var k = stripDiacritics(n); if (have[k]) return; have[k] = 1;
+        out.push({no:'', name:n, spec:null, unit:null, qty:null, status:'Chưa xem', supplier:null, note:'Tủ điện đi kèm máy', issuedTo:null, dept:'dien', _from:r.name});
+      });
+    });
+    return out;
   }
   function pdfNewItem(name){
     return {name:name, cluster:null, requirement:null, status:null, note:null, qc:null, team:null, assignee:null, bv:false, vt:false};
