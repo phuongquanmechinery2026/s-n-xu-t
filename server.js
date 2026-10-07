@@ -121,6 +121,9 @@ function readBody(req) {
   });
 }
 
+// Zalo Bot: nhan yeu cau xuat hang tu nhom vat tu (xem zalo.js)
+const zalo = require('./zalo.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR });
+
 const server = http.createServer(function (req, res) {
   Promise.resolve().then(async function () {
     const u = new URL(req.url, 'http://x');
@@ -171,6 +174,8 @@ const server = http.createServer(function (req, res) {
         return sendJson(res, 500, { ok: false, error: String((e && e.message) || e) });
       }
     }
+
+    if (p.indexOf('/api/zalo/') === 0) { if (await zalo.handle(req, res, u, p, method)) return; }
 
     let m;
     if ((m = p.match(/^\/api\/rev\/([^/]+)$/))) return sendJson(res, 200, { rev: getRev(m[1]) });

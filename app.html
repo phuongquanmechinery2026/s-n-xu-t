@@ -1239,6 +1239,7 @@
       <div class="tab" data-view="mrp" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/></svg>Vật tư cần mua</div>
       <div class="tab" data-view="reqdate" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-9-9"/></svg>Vật tư theo ngày yêu cầu</div>
       <div class="tab" data-view="pr" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"/></svg>Đề nghị mua</div>
+      <div class="tab" data-view="xuat" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10v9H4zM14 10h4l3 3v3h-7zM9 12h-3M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Yêu cầu xuất hàng<span class="xh-badge" id="xhBadge" style="display:none;"></span></div>
       <div class="tab pq-later" data-view="issue" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Cấp phát vật tư</div>
       <div class="tab pq-later" data-view="kho" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10l8-6 8 6v10H4zM9 20v-6h6v6"/></svg>Kho &amp; Chất lượng</div>
       <button type="button" class="pq-more" id="pqMore" aria-expanded="false" title="Hiện thêm mục: Cấp phát vật tư, Kho &amp; Chất lượng">+ Mục khác</button>
@@ -1291,7 +1292,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-06m-may';
+  var BUILD_ID = '2026-10-07a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1959,7 +1960,7 @@
     {key:'tongquan', label:'Tổng quan', views:['dashboard']},
     {key:'congviec', label:'Công việc', views:['tasks']},
     {key:'donhang',  label:'Đơn hàng',  views:['current','yearly']},
-    {key:'vattukho', label:'Vật tư & Kho', views:['mrp','reqdate','pr','issue','kho']},
+    {key:'vattukho', label:'Vật tư & Kho', views:['mrp','reqdate','pr','xuat','issue','kho']},
     {key:'kehoach',  label:'Kế hoạch', views:['plan','lich','tiendo']},
     {key:'sheets',   label:'Sheets tham khảo', views:['electric']}
   ];
@@ -2010,7 +2011,7 @@
     document.getElementById('countYearly').textContent = ordersList().length;
     var main = document.getElementById('main');
     // Màn hình bảng/chi tiết -> rộng gần hết màn hình; Tổng quan/Kế hoạch -> vừa phải.
-    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo','pr','issue','tasks','kanban'].indexOf(STATE.view)>=0);
+    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo','pr','issue','tasks','kanban','xuat'].indexOf(STATE.view)>=0);
     if (STATE.view==='dashboard') main.innerHTML = renderDashboardPQ();
     else if (STATE.view==='current'){
       // Khi lọc "Đã giao": phải hiện được các đơn ĐÃ giao (không thì bấm chip
@@ -2032,6 +2033,7 @@
     else if (STATE.view==='kanban') main.innerHTML = renderKanban();
     else if (STATE.view==='pr') main.innerHTML = renderPR();
     else if (STATE.view==='issue') main.innerHTML = renderIssue();
+    else if (STATE.view==='xuat') main.innerHTML = renderXuat();
     else if (STATE.view==='electric') main.innerHTML = renderElectric();
     wireDynamic();
     resyncStatusColors();
@@ -5935,7 +5937,7 @@
      + Cấp phát vật tư. Dữ liệu mới nằm ở 2 ngăn riêng trong kho: "purchase"
      (phiếu đề nghị mua) và "issues" (phiếu cấp phát), không đổi cấu trúc đơn hàng.
      ========================================================================== */
-  var PQX = {pr:{}, iss:{}, sub:false, lsDone:false, sel:{}, prQ:'', issOrder:'', issDraft:{}, issForm:{}, kpi:{}, kpiTried:{}};
+  var PQX = {pr:{}, iss:{}, xh:{}, sub:false, lsDone:false, sel:{}, prQ:'', issOrder:'', issDraft:{}, issForm:{}, kpi:{}, kpiTried:{}};
   var PQX_LS = 'nmsx_pq_extra_v1';
   function pqxLsSave(){ try{ localStorage.setItem(PQX_LS, JSON.stringify({pr:PQX.pr, iss:PQX.iss, task:PQX.task||{}})); }catch(e){} }
   function pqxTyping(){ var a = document.activeElement; return !!(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.closest && a.closest('#main')); }
@@ -5946,14 +5948,15 @@
     }
     if (PQX.sub || !db) return;
     PQX.sub = true;
-    [['purchase','pr'],['issues','iss'],['tasks','task']].forEach(function(p){
+    [['purchase','pr'],['issues','iss'],['tasks','task'],['xuathang','xh']].forEach(function(p){
       try{
         db.collection(p[0]).onSnapshot(function(qs){
           var next = {};
           qs.docs.forEach(function(d){ var x = d.data(); if (x) next[d.id] = x; });
           Object.keys(PQX[p[1]]).forEach(function(id){ if (PQX[p[1]][id]._pending && !next[id]) next[id] = PQX[p[1]][id]; });
           PQX[p[1]] = next; pqxLsSave();
-          if (['pr','issue','dashboard','tasks','kanban'].indexOf(STATE.view)>=0 && !pqxTyping() && !document.querySelector('.modal-backdrop')) renderAll();
+          if (p[1]==='xh'){ try{ xhBadge(); }catch(e){} }
+          if (['pr','issue','dashboard','tasks','kanban','xuat'].indexOf(STATE.view)>=0 && !pqxTyping() && !document.querySelector('.modal-backdrop')) renderAll();
         }, function(){});
       }catch(e){}
     });
@@ -7548,6 +7551,250 @@
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !p.hasAttribute('hidden')) qaToggle(false); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', qaInit); else qaInit();
+
+  /* ===== YÊU CẦU XUẤT HÀNG (nhận từ nhóm Zalo vật tư) =====
+     Máy chủ web (zalo.js) nhận tin Zalo → AI đọc tên vật tư, số lượng, công trình → lưu vào ngăn "xuathang".
+     Trang này: xem yêu cầu, sửa, duyệt, lập phiếu xuất kho (in), tự ghi vào Cấp phát vật tư của đơn. */
+  var XH = {filter:'draft', zs:null, zsAt:0, zsErr:'', loading:false, msg:''};
+  var XH_ST = {draft:['Chờ duyệt','pill-warn'], approved:['Đã duyệt','pill-info'], issued:['Đã xuất kho','pill-good'], rejected:['Từ chối','pill-bad']};
+  function xhList(){ return Object.keys(PQX.xh||{}).map(function(k){ return PQX.xh[k]; }).filter(function(d){ return d && d.id; }).sort(function(a,b){ return (b.at||0)-(a.at||0); }); }
+  function xhUser(){ try{ return localStorage.getItem('nmsx_user_name')||''; }catch(e){ return ''; } }
+  function xhTime(ms){ var d = new Date(ms||Date.now()); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+fmtDate(pqxISO(d)); }
+  function xhOrders(){
+    return Object.keys(STATE.orders).map(function(k){ return STATE.orders[k]; }).filter(function(o){ return o && !o.legacy && o.code && rollupStatus(o)!=='ĐÃ GIAO'; })
+      .sort(function(a,b){ return String(a.code)<String(b.code) ? -1 : 1; });
+  }
+  function xhBadge(){
+    var el = document.getElementById('xhBadge'); if (!el) return;
+    var n = xhList().filter(function(d){ return d.status==='draft' && !d.notRequest; }).length;
+    el.textContent = n ? String(n) : ''; el.style.display = n ? '' : 'none';
+  }
+  function xhLoadStatus(force){
+    if (XH.loading) return;
+    if (!force && XH.zsAt && Date.now()-XH.zsAt < 60000) return;
+    XH.loading = true;
+    fetch('/api/zalo/status', {cache:'no-store'}).then(function(r){ if (!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(j){ XH.zs = j; XH.zsErr = ''; })
+      .catch(function(e){ XH.zs = null; XH.zsErr = (e && e.message) || 'lỗi'; })
+      .then(function(){ XH.loading = false; XH.zsAt = Date.now(); if (STATE.view==='xuat' && !pqxTyping() && !document.querySelector('.modal-backdrop')) renderAll(); });
+  }
+  function xhStatusPanel(){
+    var z = XH.zs, h = '<details class="panel xh-conn" style="margin-bottom:14px;"'+((z && (!z.tokenSet || !z.secretSet || (z.webhook && !z.webhook.url))) || (!z && XH.zsAt) ? ' open' : '')+'><summary class="panel-head" style="cursor:pointer;"><h2>Kết nối Zalo</h2>';
+    function row(ok, label, hint){ return '<div class="xh-row"><span class="xh-dot '+(ok===true?'ok':ok===false?'bad':'')+'">'+(ok===true?'✓':ok===false?'✕':'…')+'</span><b>'+esc(label)+'</b>'+(hint?'<span class="pqd-cap"> — '+esc(hint)+'</span>':'')+'</div>'; }
+    if (!z){
+      h += '<span class="pqd-cap">'+(XH.zsAt ? 'chưa đọc được' : 'đang kiểm tra…')+'</span></summary><div class="panel-body" style="padding:12px 16px;">'+
+        (XH.zsAt ? '<div class="empty-note">Bản này không nhận tin Zalo ('+esc(XH.zsErr)+'). Zalo chỉ gửi tin về bản web <b>chetao.onrender.com</b>. Anh vẫn dán tin vào ô bên dưới để thử.</div>' : '')+'</div></details>';
+      return h;
+    }
+    var hook = z.webhook && z.webhook.url ? z.webhook.url : '';
+    var hookOk = hook && hook === z.webhookUrl;
+    var me = z.me ? (z.me.display_name || z.me.name || z.me.id || '') : '';
+    h += '<span class="pqd-cap">'+((z.tokenSet && z.secretSet && hookOk) ? 'đã sẵn sàng' : 'chưa xong cài đặt')+'</span></summary><div class="panel-body" style="padding:12px 16px;">';
+    h += row(z.tokenSet, 'Token bot Zalo (ZALO_BOT_TOKEN trên Render)', z.tokenSet ? (me ? 'bot: '+me : (z.meError ? 'chưa gọi được Zalo: '+z.meError : '')) : 'chưa có');
+    h += row(z.secretSet, 'Mật khẩu webhook (ZALO_WEBHOOK_SECRET)', z.secretSet ? '' : 'chưa có hoặc dưới 8 ký tự');
+    h += row(z.aiSet, 'Khóa AI (ANTHROPIC_API_KEY)', z.aiSet ? 'model '+z.model : 'chưa có — hệ thống chỉ tách dòng bằng quy tắc, không dùng AI');
+    h += row(z.tokenSet ? !!hookOk : null, 'Webhook đã đăng ký với Zalo', hookOk ? hook : (hook ? 'đang trỏ tới '+hook+' (khác địa chỉ web này)' : 'chưa đăng ký'));
+    h += '<div class="xh-row"><b>Chi phí AI</b><span class="pqd-cap"> — tháng này $'+esc(String(z.monthUsd||0))+(z.capUsd ? ' / hạn mức $'+esc(String(z.capUsd)) : '')+' · tổng '+esc(String((z.usage&&z.usage.calls)||0))+' lượt đọc</span></div>';
+    h += '<div class="pqd-bar" style="padding:10px 0 0;"><button class="btn btn-sm" data-xh="status">Kiểm tra lại</button>'+
+      ((z.tokenSet && z.secretSet) ? '<button class="btn btn-sm btn-primary" data-xh="register">Đăng ký webhook với Zalo</button>' : '')+'</div></div></details>';
+    return h;
+  }
+  function xhOrderSelect(it, i, id, locked){
+    var cur = it.orderId||'', os = xhOrders(), found = !cur;
+    var s = '<select class="pqd-inp" data-xh-f="orderId" data-id="'+esc(id)+'" data-i="'+i+'"'+(locked?' disabled':'')+'><option value="">— chọn công trình —</option>';
+    os.forEach(function(o){ if (o.id===cur) found = true; s += '<option value="'+esc(o.id)+'"'+(o.id===cur?' selected':'')+'>'+esc(pqxOrderLabel(o))+(o.dept==='dien'?' (Điện)':'')+'</option>'; });
+    if (!found && STATE.orders[cur]) s += '<option value="'+esc(cur)+'" selected>'+esc(pqxOrderLabel(STATE.orders[cur]))+'</option>';
+    return s+'</select>';
+  }
+  function xhCard(d){
+    var st = XH_ST[d.status] || XH_ST.draft, locked = d.status==='issued' || d.status==='rejected';
+    var h = '<div class="panel xh-card" style="margin-bottom:14px;"><div class="panel-head" style="gap:10px;flex-wrap:wrap;"><h2 style="margin:0;"><span class="num">'+esc(d.id)+'</span></h2><span class="pill '+st[1]+'">'+esc(st[0])+'</span>'+
+      '<span class="pqd-cap">'+esc(xhTime(d.at))+' · <b>'+esc(d.fromName||'(không rõ người gửi)')+'</b>'+(d.source==='web'?' · dán tay':'')+'</span><span style="flex:1"></span>'+
+      '<button class="btn btn-sm btn-danger" data-xh="delreq" data-id="'+esc(d.id)+'" title="Xoá yêu cầu này">Xoá</button></div><div class="panel-body" style="padding:12px 16px;">';
+    h += '<div class="xh-src">'+(d.hasPhoto && d.photoSaved ? '<a href="/api/zalo/img/'+esc(d.id)+'" target="_blank" rel="noopener"><img class="xh-img" src="/api/zalo/img/'+esc(d.id)+'" alt="Ảnh trong tin nhắn"></a>' : (d.hasPhoto ? '<div class="pqd-cap">(có ảnh nhưng chưa tải được: '+esc(d.photoError||'')+')</div>' : ''))+
+      '<div class="xh-text">'+(d.text ? esc(d.text) : '<span class="pqd-cap">(tin nhắn không có chữ)</span>')+'</div></div>';
+    if (d.notRequest) h += '<div class="pqd-cap" style="margin:6px 0;color:var(--warn,#8a5a00);">Hệ thống thấy tin này không phải yêu cầu xuất hàng. Nếu đúng là yêu cầu, anh thêm dòng bên dưới hoặc bấm "Đọc lại bằng AI".</div>';
+    if (d.aiError) h += '<div class="pqd-cap" style="margin:6px 0;color:var(--bad,#c0362c);">AI: '+esc(d.aiError)+'</div>';
+    if (d.note) h += '<div class="pqd-cap" style="margin:6px 0;">Ghi chú trong tin: '+esc(d.note)+'</div>';
+    var items = d.items||[];
+    h += '<div class="table-wrap" style="border:none;margin-top:8px;"><table class="mrp-table pqd-table xh-items"><thead><tr><th style="width:36px;">#</th><th style="min-width:220px;">Tên vật tư</th><th style="min-width:130px;">Quy cách</th><th class="r" style="width:90px;">Số lượng</th><th style="width:80px;">ĐVT</th><th style="min-width:230px;">Công trình</th><th style="width:34px;"></th></tr></thead><tbody>';
+    if (!items.length) h += '<tr><td colspan="7" class="empty-note">Chưa có dòng vật tư nào.'+(locked?'':' Bấm "+ Thêm dòng".')+'</td></tr>';
+    items.forEach(function(it, i){
+      var dis = locked ? ' disabled' : '';
+      h += '<tr><td class="num pqd-cap">'+(i+1)+'</td>'+
+        '<td><input class="pqd-inp" data-xh-f="name" data-id="'+esc(d.id)+'" data-i="'+i+'" value="'+esc(it.name||'')+'"'+dis+'></td>'+
+        '<td><input class="pqd-inp" data-xh-f="spec" data-id="'+esc(d.id)+'" data-i="'+i+'" value="'+esc(it.spec||'')+'"'+dis+'></td>'+
+        '<td><input class="pqd-inp num" inputmode="decimal" data-xh-f="qty" data-id="'+esc(d.id)+'" data-i="'+i+'" value="'+esc(it.qty===''||it.qty==null?'':String(it.qty))+'"'+dis+'></td>'+
+        '<td><input class="pqd-inp" data-xh-f="unit" data-id="'+esc(d.id)+'" data-i="'+i+'" value="'+esc(it.unit||'')+'"'+dis+'></td>'+
+        '<td>'+xhOrderSelect(it, i, d.id, locked)+'</td>'+
+        '<td>'+(locked?'':'<button class="row-del" data-xh="del" data-id="'+esc(d.id)+'" data-i="'+i+'" title="Xoá dòng" aria-label="Xoá dòng">✕</button>')+'</td></tr>';
+    });
+    h += '</tbody></table></div><div class="pqd-err" id="xhErr-'+esc(d.id)+'"></div><div class="pqd-bar" style="padding:10px 0 0;flex-wrap:wrap;">';
+    if (d.status==='draft'){
+      h += '<button class="btn btn-sm" data-xh="add" data-id="'+esc(d.id)+'">+ Thêm dòng</button><button class="btn btn-sm" data-xh="ai" data-id="'+esc(d.id)+'">Đọc lại bằng AI</button><span style="flex:1"></span>'+
+        '<button class="btn btn-sm btn-danger" data-xh="reject" data-id="'+esc(d.id)+'">Từ chối</button><button class="btn btn-primary" data-xh="approve" data-id="'+esc(d.id)+'">Duyệt yêu cầu</button>';
+    } else if (d.status==='approved'){
+      h += '<span class="pqd-cap">Duyệt bởi '+esc(d.approvedBy||'')+' · '+esc(xhTime(d.approvedAt))+'</span><span style="flex:1"></span><button class="btn btn-sm" data-xh="reopen" data-id="'+esc(d.id)+'">Mở lại để sửa</button>'+
+        '<button class="btn btn-primary" data-xh="issue" data-id="'+esc(d.id)+'">Lập phiếu xuất kho &amp; in</button>';
+    } else if (d.status==='issued'){
+      h += '<span class="pqd-cap">Phiếu <b class="num">'+esc((d.slip||{}).id||'')+'</b> · '+esc(fmtDate((d.slip||{}).date))+' · lập bởi '+esc((d.slip||{}).by||'')+' · đã ghi vào Cấp phát vật tư ('+((d.slip||{}).issueIds||[]).length+' phiếu)</span><span style="flex:1"></span><button class="btn btn-primary" data-xh="print" data-id="'+esc(d.id)+'">In lại phiếu xuất kho</button>';
+    } else {
+      h += '<span class="pqd-cap">Đã từ chối'+(d.rejectedBy?' bởi '+esc(d.rejectedBy):'')+'</span><span style="flex:1"></span><button class="btn btn-sm" data-xh="reopen" data-id="'+esc(d.id)+'">Mở lại</button>';
+    }
+    return h+'</div></div></div>';
+  }
+  function renderXuat(){
+    pqxInit(); xhLoadStatus(false); xhBadge();
+    var all = xhList(), cnt = {draft:0, approved:0, issued:0, rejected:0};
+    all.forEach(function(d){ if (cnt[d.status]!=null) cnt[d.status]++; });
+    var list = all.filter(function(d){ return XH.filter==='all' || d.status===XH.filter; });
+    var h = '<div class="pqd-head"><div><h1>Yêu cầu xuất hàng</h1><div class="pqd-sub">Nhân viên nhắn vào nhóm Zalo vật tư (nhắc tên bot), hệ thống tự đọc tin và ảnh thành danh sách vật tư. Thủ kho kiểm tra, duyệt, lập phiếu xuất kho rồi in; phiếu tự ghi vào Cấp phát vật tư của đơn.</div></div></div>';
+    h += '<div class="stat-grid">'+statCard('Chờ duyệt', cnt.draft, 'accent-warn')+statCard('Đã duyệt, chờ xuất', cnt.approved, 'accent-info')+statCard('Đã xuất kho', cnt.issued, 'accent-good')+statCard('Từ chối', cnt.rejected, '')+'</div>';
+    h += xhStatusPanel();
+    h += '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Dán tin nhắn Zalo vào đây</h2></div><div class="panel-body" style="padding:12px 16px;"><textarea id="xhManual" class="pqd-inp" rows="3" style="width:100%;" placeholder="VD: Xuất cho đơn 2026-187: Motor 5,5kW x 1 con; Bi UCP 212 x 2 cái"></textarea><div class="pqd-bar" style="padding:8px 0 0;"><span class="pqd-cap">Dùng khi tin không tự về được, hoặc để thử.</span><span style="flex:1"></span><button class="btn btn-sm btn-primary" data-xh="manual">Tạo yêu cầu</button></div></div></div>';
+    h += '<div class="pqd-bar" style="padding:0 0 12px;flex-wrap:wrap;">'+[['draft','Chờ duyệt'],['approved','Đã duyệt'],['issued','Đã xuất kho'],['rejected','Từ chối'],['all','Tất cả']].map(function(f){
+      var n = f[0]==='all' ? all.length : cnt[f[0]];
+      return '<button class="btn btn-sm'+(XH.filter===f[0]?' btn-primary':'')+'" data-xh="filter" data-f="'+f[0]+'">'+f[1]+' ('+n+')</button>';
+    }).join('')+'</div>';
+    if (!list.length) h += '<div class="panel"><div class="empty-note">'+(all.length ? 'Không có yêu cầu nào ở mục này.' : 'Chưa có yêu cầu nào. Khi nhân viên nhắn vào nhóm Zalo, yêu cầu sẽ hiện ở đây.')+'</div></div>';
+    list.forEach(function(d){ h += xhCard(d); });
+    return h;
+  }
+
+  function xhDoc(id){ return PQX.xh && PQX.xh[id]; }
+  function xhSave(d){ pqxSave('xh', 'xuathang', d); xhBadge(); }
+  function xhErr(id, msg){ var e = document.getElementById('xhErr-'+id); if (e) e.textContent = msg||''; if (msg) toast(msg, 3600); }
+  function xhNextSlip(){
+    var y = new Date().getFullYear(), mx = 0;
+    Object.keys(PQX.xh||{}).forEach(function(k){ var s = PQX.xh[k].slip; var m = s && /^XK-(\d{4})-(\d+)$/.exec(s.id||''); if (m && +m[1]===y) mx = Math.max(mx, +m[2]); });
+    return 'XK-'+y+'-'+('00'+(mx+1)).slice(-3);
+  }
+  function xhIssue(id){
+    var d = xhDoc(id); if (!d) return;
+    var items = (d.items||[]).filter(function(i){ return (i.name||'').trim(); });
+    if (!items.length) return xhErr(id, 'Chưa có dòng vật tư nào.');
+    for (var i=0;i<items.length;i++){
+      var q = Number(String(items[i].qty).replace(',','.'));
+      if (!(q>0)) return xhErr(id, 'Dòng "'+items[i].name+'" chưa có số lượng lớn hơn 0.');
+      if (!items[i].orderId || !STATE.orders[items[i].orderId]) return xhErr(id, 'Dòng "'+items[i].name+'" chưa chọn công trình.');
+    }
+    var slipId = xhNextSlip(), groups = {}, order = [];
+    items.forEach(function(it){ if (!groups[it.orderId]){ groups[it.orderId] = []; order.push(it.orderId); } groups[it.orderId].push(it); });
+    var issueIds = [];
+    order.forEach(function(oid){
+      var o = STATE.orders[oid], keys = pqxKeys(o);
+      var lines = groups[oid].map(function(it){
+        var key = '';
+        (o.materials||[]).forEach(function(m, k){ if (!key && isRealMaterial(m) && norm(m.name)===norm(it.name)) key = keys[k]; });
+        return {key:key||('xh:'+norm(it.name)), name:it.name.trim(), spec:(it.spec||'').trim(), unit:(it.unit||'').trim(), qty:Number(String(it.qty).replace(',','.'))};
+      });
+      var doc = {id:pqxNextId('iss','CP'), dept:(o.dept==='dien'?'dien':'cokhi'), date:pqxToday(), orderId:o.id, code:o.code||'', team:'', receiver:d.fromName||d.requester||'(Zalo)',
+        note:'Xuất kho theo yêu cầu '+d.id+' · phiếu '+slipId, at:Date.now(), lines:lines, fromRequest:d.id, slipId:slipId};
+      pqxSave('iss','issues',doc); issueIds.push(doc.id);
+    });
+    d.status = 'issued'; d.slip = {id:slipId, date:pqxToday(), by:xhUser(), issueIds:issueIds};
+    xhSave(d); renderAll();
+    toast('Đã lập phiếu '+slipId+' và ghi '+issueIds.length+' phiếu cấp phát.', 3600);
+    setTimeout(function(){ xhPrint(id); }, 200);
+  }
+  function xhPrint(id){
+    var d = xhDoc(id); if (!d || !d.slip) return toast('Yêu cầu này chưa có phiếu xuất kho.');
+    var groups = {}, order = [];
+    (d.items||[]).filter(function(i){ return (i.name||'').trim(); }).forEach(function(it){ var k = it.orderId||''; if (!groups[k]){ groups[k] = []; order.push(k); } groups[k].push(it); });
+    var rows = '', stt = 0;
+    order.forEach(function(k){
+      var o = STATE.orders[k];
+      rows += '<tr class="og"><td colspan="6"><b>Công trình: '+esc(o ? (o.code||'')+' - '+orderTitle(o) : '(chưa rõ)')+'</b> ('+groups[k].length+' dòng)</td></tr>';
+      groups[k].forEach(function(l){ stt++; rows += '<tr><td class="c">'+stt+'</td><td>'+esc(l.name||'')+'</td><td>'+esc(l.spec||'')+'</td><td class="c">'+esc(l.unit||'')+'</td><td class="r">'+esc(fmtNum(Number(String(l.qty).replace(',','.'))))+'</td><td></td></tr>'; });
+    });
+    var html = '<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Phiếu '+esc(d.slip.id)+'</title><style>'+
+      '@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:13px;margin:0}'+
+      'h1{font-size:20px;text-align:center;margin:0 0 4px}.sub{text-align:center;margin:0 0 14px}'+
+      '.hd{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:6px}.co{font-weight:700}'+
+      'table.i{width:100%;margin:10px 0 12px;border-collapse:collapse}table.i td{padding:3px 0;vertical-align:top}table.i td.k{width:150px;color:#333}'+
+      'table.l{width:100%;border-collapse:collapse}table.l th,table.l td{border:1px solid #000;padding:5px 6px}table.l th{background:#eee}'+
+      '.c{text-align:center}.r{text-align:right}tr.og td{background:#f3f3f3;padding:6px}'+
+      '.sg{display:flex;justify-content:space-between;margin-top:30px;text-align:center}.sg div{width:24%}.sg b{display:block;margin-bottom:60px}'+
+      '</style></head><body>'+
+      '<div class="hd"><div class="co">NHÀ MÁY SẢN XUẤT PHƯƠNG QUÂN</div><div>Số phiếu: <b>'+esc(d.slip.id)+'</b></div></div>'+
+      '<h1>PHIẾU XUẤT KHO</h1><p class="sub">Ngày '+esc(fmtDate(d.slip.date))+'</p>'+
+      '<table class="i"><tr><td class="k">Người yêu cầu:</td><td>'+esc(d.fromName||d.requester||'')+'</td></tr>'+
+      '<tr><td class="k">Theo yêu cầu số:</td><td>'+esc(d.id)+' ('+esc(xhTime(d.at))+', qua Zalo)</td></tr>'+
+      '<tr><td class="k">Người duyệt:</td><td>'+esc(d.approvedBy||'')+'</td></tr>'+
+      '<tr><td class="k">Người lập phiếu:</td><td>'+esc(d.slip.by||'')+'</td></tr>'+
+      '<tr><td class="k">Ghi chú:</td><td>'+esc(d.note||'')+'</td></tr></table>'+
+      '<table class="l"><thead><tr><th style="width:36px">STT</th><th>Tên vật tư</th><th>Quy cách</th><th style="width:56px">ĐVT</th><th style="width:70px">Số lượng</th><th style="width:110px">Ghi chú</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<p>Tổng cộng: <b>'+stt+'</b> dòng vật tư.</p>'+
+      '<div class="sg"><div><b>Người yêu cầu</b>'+esc(d.fromName||d.requester||'')+'</div><div><b>Thủ kho</b></div><div><b>Trưởng bộ phận</b></div><div><b>Giám đốc</b></div></div>'+
+      '</'+'body></'+'html>';
+    var old = document.getElementById('pqPrintFrame'); if (old) old.remove();
+    var f = document.createElement('iframe'); f.id = 'pqPrintFrame';
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(f);
+    var dd = f.contentWindow.document; dd.open(); dd.write(html); dd.close();
+    setTimeout(function(){ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(er){ toast('Trình duyệt không cho in trực tiếp, thử lại.'); } }, 300);
+  }
+  function xhPost(url, body){
+    return fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})}).then(function(r){ return r.json().catch(function(){ return {ok:false, error:'HTTP '+r.status}; }); });
+  }
+  function xhClick(e){
+    var b = e.target.closest ? e.target.closest('[data-xh]') : null; if (!b) return;
+    var a = b.getAttribute('data-xh'), id = b.getAttribute('data-id'), d = id ? xhDoc(id) : null, who = xhUser() || '(chưa nhập tên)';
+    if (a==='filter'){ XH.filter = b.getAttribute('data-f'); return renderAll(); }
+    if (a==='status'){ XH.zsAt = 0; xhLoadStatus(true); return toast('Đang kiểm tra kết nối Zalo…'); }
+    if (a==='register'){
+      return showConfirmModal('Đăng ký địa chỉ nhận tin của web này với Zalo? Sau bước này mọi tin nhắn gửi cho bot sẽ được chuyển về web.', function(){
+        xhPost('/api/zalo/register-webhook').then(function(j){ toast(j.ok ? 'Đã đăng ký webhook với Zalo.' : 'Zalo báo lỗi: '+(j.error || JSON.stringify(j.zalo||'').slice(0,160)), 5200); XH.zsAt = 0; xhLoadStatus(true); });
+      });
+    }
+    if (a==='manual'){
+      var ta = document.getElementById('xhManual'), t = ta ? ta.value.trim() : ''; if (!t) return toast('Chưa dán nội dung tin nhắn.');
+      b.disabled = true;
+      return xhPost('/api/zalo/manual', {text:t, fromName:xhUser()}).then(function(j){ b.disabled = false; if (j.ok){ ta.value = ''; XH.filter = 'draft'; toast('Đã tạo yêu cầu '+(j.doc&&j.doc.id)+'.'); } else toast('Không tạo được: '+(j.error||'lỗi'), 4200); });
+    }
+    if (!d) return;
+    if (a==='add'){ d.items = d.items||[]; d.items.push({name:'', spec:'', qty:'', unit:'', orderCode:d.orderCode||'', orderId:d.orderId||''}); xhSave(d); return renderAll(); }
+    if (a==='del'){ d.items.splice(+b.getAttribute('data-i'), 1); xhSave(d); return renderAll(); }
+    if (a==='approve'){
+      var ok = (d.items||[]).some(function(i){ return (i.name||'').trim(); });
+      if (!ok) return xhErr(id, 'Chưa có dòng vật tư nào để duyệt.');
+      d.status = 'approved'; d.approvedBy = who; d.approvedAt = Date.now(); xhSave(d); return renderAll();
+    }
+    if (a==='reject'){ return showConfirmModal('Từ chối yêu cầu '+id+'?', function(){ d.status = 'rejected'; d.rejectedBy = who; xhSave(d); renderAll(); }); }
+    if (a==='reopen'){ d.status = 'draft'; xhSave(d); return renderAll(); }
+    if (a==='issue') return xhIssue(id);
+    if (a==='print') return xhPrint(id);
+    if (a==='delreq'){ return showConfirmModal('Xoá hẳn yêu cầu '+id+'? (Phiếu cấp phát đã ghi trước đó không bị xoá.)', function(){ pqxDel('xh','xuathang',id); xhBadge(); renderAll(); }); }
+    if (a==='ai'){
+      return showConfirmModal('Đọc lại bằng AI sẽ thay toàn bộ các dòng vật tư hiện tại (kể cả dòng anh đã sửa). Tiếp tục?', function(){
+        toast('AI đang đọc…', 8000);
+        xhPost('/api/zalo/reparse/'+encodeURIComponent(id), {}).then(function(j){ if (j.ok && j.doc){ PQX.xh[id] = j.doc; renderAll(); toast('Đã đọc lại.'); } else toast('Không đọc lại được: '+(j.error||'lỗi'), 4200); });
+      });
+    }
+  }
+  function xhChange(e){
+    var el = e.target; if (!el.getAttribute || !el.hasAttribute('data-xh-f')) return;
+    var d = xhDoc(el.getAttribute('data-id')); if (!d) return;
+    var i = +el.getAttribute('data-i'), f = el.getAttribute('data-xh-f'), it = (d.items||[])[i]; if (!it) return;
+    if (f==='qty'){ var raw = el.value.trim().replace(',','.'); it.qty = raw==='' ? '' : (isNaN(Number(raw)) ? it.qty : Number(raw)); }
+    else if (f==='orderId'){ it.orderId = el.value; it.orderCode = el.value && STATE.orders[el.value] ? (STATE.orders[el.value].code||'') : ''; }
+    else it[f] = el.value;
+    xhSave(d);
+  }
+  (function(){
+    var st = document.createElement('style');
+    st.textContent =
+      'html .xh-card .xh-src{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;}'+
+      'html .xh-card .xh-text{flex:1;min-width:240px;white-space:pre-wrap;background:var(--surface-2,#f1f3f4);border-radius:8px;padding:10px 12px;line-height:1.5;}'+
+      'html .xh-card .xh-img{max-height:150px;max-width:220px;border-radius:8px;border:1px solid var(--border,#d5dae0);display:block;}'+
+      'html .xh-conn .xh-row{padding:5px 0;border-top:1px solid var(--border,#e1e5e9);}html .xh-conn .xh-row:first-child{border-top:0;}'+
+      'html .xh-conn .xh-dot{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:50%;margin-right:8px;font-size:12px;font-weight:700;background:#e8eaed;}'+
+      'html .xh-conn .xh-dot.ok{background:#d4edbc;color:#1d5c10;}html .xh-conn .xh-dot.bad{background:#fde8e6;color:#a3261c;}'+
+      'html #tabs .tab .xh-badge{display:inline-block;margin-left:6px;min-width:18px;padding:0 6px;border-radius:999px;background:var(--bad,#c0362c);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;}';
+    document.head.appendChild(st);
+    var main = document.getElementById('main');
+    if (main){ main.addEventListener('click', xhClick); main.addEventListener('change', xhChange); }
+  })();
 
   renderBanner();
   loadFromSeedOnly();
