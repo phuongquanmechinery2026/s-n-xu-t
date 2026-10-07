@@ -1292,7 +1292,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-07b-may';
+  var BUILD_ID = '2026-10-07c-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3910,10 +3910,12 @@
         pendingMats = pdfCleanRows(res.materials||[]);
         if (pendingMats.length){
           var html = '<p class="hint-txt" style="margin:12px 0 4px;">Đã nhận diện '+pendingMats.length+' hạng mục / thiết bị từ PDF — mỗi tên sẽ là 1 <b>cụm</b> trong "Công việc cần làm" (hạng mục con thêm sau):</p>';
-          html += '<table class="pdf-preview-table"><thead><tr><th>Tên hạng mục / thiết bị</th><th>ĐVT</th><th>SL</th></tr></thead><tbody>';
-          pendingMats.forEach(function(m){ html += '<tr><td>'+esc(m.name)+'</td><td>'+esc(m.unit||'')+'</td><td>'+esc(fmtNum(m.qty))+'</td></tr>'; });
-          html += '</tbody></table>';
+          pendingMats.forEach(function(m){ m.dept = pdfDeptOf(m.name); });
+          html += '<table class="pdf-preview-table"><thead><tr><th>Tên hạng mục / thiết bị</th><th>ĐVT</th><th>SL</th><th>Bộ phận</th></tr></thead><tbody>';
+          pendingMats.forEach(function(m, i){ html += '<tr><td>'+esc(m.name)+'</td><td>'+esc(m.unit||'')+'</td><td>'+esc(fmtNum(m.qty))+'</td><td><select class="nf-dept" data-i="'+i+'"><option value="cokhi"'+(m.dept==='cokhi'?' selected':'')+'>Cơ khí</option><option value="dien"'+(m.dept==='dien'?' selected':'')+'>Điện</option></select></td></tr>'; });
+          html += '</tbody></table><p class="hint-txt" style="margin:6px 0 0;">Hạng mục thuộc <b>Cơ khí</b> sẽ vào đơn Cơ khí, hạng mục thuộc <b>Điện</b> sẽ vào đơn Điện (cùng mã đơn). Anh đổi bộ phận từng dòng nếu cần.</p>';
           document.getElementById('nfMatsPreview').innerHTML = html + rawLinesBlock(res.rawLines);
+          [].forEach.call(document.querySelectorAll('#nfMatsPreview .nf-dept'), function(sel){ sel.addEventListener('change', function(){ var r = pendingMats[+sel.getAttribute('data-i')]; if (r) r.dept = sel.value; }); });
         } else {
           document.getElementById('nfMatsPreview').innerHTML = rawLinesBlock(res.rawLines);
         }
@@ -3926,26 +3928,45 @@
       var customer = document.getElementById('nfCustomer').value.trim();
       var date = document.getElementById('nfDate').value;
       if (!code || !customer || !date){ toast('Vui lòng nhập đủ Mã đơn hàng, Thông tin khách hàng và Ngày giao.'); return; }
-      var id = (STATE.dept==='dien' ? 'D-' : '') + sanitizeCode(code);
-      if (STATE.orders[id]){ toast('Mã đơn hàng này đã tồn tại.'); return; }
       var req = document.getElementById('nfReq').value || null;
       var status = document.getElementById('nfStatus2').value || null;
       var equipName = document.getElementById('nfEquipment').value.trim();
-      var order = {
-        id:id, code:code, legacy:false, customerInfo:composeCustomerInfo(customer, equipName), requirement:req, note:null,
-        dept: (STATE.dept==='dien' ? 'dien' : undefined),
-        items: [],
-        progressSnapshots: date ? [{cluster:null, banve:null, vattu:null, tien:null, deliveryDate:date}] : [],
-        materials:[], progress:[], sourceSheets:[]
-      };
-      if (equipName){ order.items.push({name:equipName, requirement:req, status:status, note:null, cluster:null, qc:null, bv:false, vt:false}); }
-      // Tên hạng mục từ PDF -> mỗi tên là 1 CỤM trong "Công việc cần làm"
-      // (không đụng vào "Vật tư"; hạng mục con anh Quốc tự thêm sau).
-      pdfApplyRows(order, pdfCleanRows(pendingMats));
-      saveOrder(order);
+      var rows = pdfCleanRows(pendingMats);
+      // Nhóm hạng mục theo bộ phận. Không có PDF/hạng mục -> giữ cách cũ: 1 đơn theo bộ phận đang chọn.
+      var groups = {cokhi:[], dien:[]};
+      if (rows.length){
+        rows.forEach(function(r){ groups[r.dept==='dien' ? 'dien' : 'cokhi'].push(r); });
+        if (equipName && !rows.some(function(r){ return stripDiacritics(r.name)===stripDiacritics(equipName); })){ groups[pdfDeptOf(equipName)].unshift({name:equipName}); }
+      } else {
+        groups[STATE.dept==='dien' ? 'dien' : 'cokhi'].push({name:equipName||'', _manual:true});
+      }
+      var made = [], skipped = [];
+      ['cokhi','dien'].forEach(function(dp){
+        var g = groups[dp]; if (!g.length) return;
+        var id = (dp==='dien' ? 'D-' : '') + sanitizeCode(code);
+        if (STATE.orders[id]){ skipped.push((dp==='dien'?'Điện':'Cơ khí')+' '+code); return; }
+        var first = (g[0] && g[0].name) || '';
+        var order = {
+          id:id, code:code, legacy:false, customerInfo:composeCustomerInfo(customer, first), requirement:req, note:null,
+          dept: (dp==='dien' ? 'dien' : undefined),
+          items: [],
+          progressSnapshots: date ? [{cluster:null, banve:null, vattu:null, tien:null, deliveryDate:date}] : [],
+          materials:[], progress:[], sourceSheets:[]
+        };
+        if (g.length===1 && g[0]._manual){
+          if (first){ order.items.push({name:first, requirement:req, status:status, note:null, cluster:null, qc:null, bv:false, vt:false}); }
+        } else {
+          // Mỗi tên hạng mục = 1 hạng mục thật + 1 dòng tiêu đề bên Vật tư (mô hình 06n)
+          pdfApplyRows(order, g);
+          order.items.forEach(function(it){ it.requirement = req; it.status = status; });
+        }
+        saveOrder(order);
+        made.push({id:id, label:(dp==='dien'?'Điện':'Cơ khí')});
+      });
+      if (!made.length){ toast('Mã đơn hàng này đã tồn tại ('+skipped.join(', ')+').'); return; }
       backdrop.remove();
-      openOrder(id, 'td');
-      toast('Đã thêm đơn hàng '+code);
+      openOrder(made[0].id, 'td');
+      toast('Đã thêm đơn '+made.map(function(x){ return x.label; }).join(' + ')+' '+code+(skipped.length ? ' (bỏ qua vì đã có: '+skipped.join(', ')+')' : ''), 4200);
     };
     setTimeout(function(){ document.getElementById('nfCode').focus(); }, 30);
   }
@@ -4013,6 +4034,12 @@
     return chain.then(function(){ return allLines; });
   }
 
+  function pdfParseDM(str, year){
+    var m = /(\d{1,2})[.\/\-](\d{1,2})(?:[.\/\-](\d{2,4}))?/.exec(String(str||'')); if (!m) return null;
+    var d = +m[1], mo = +m[2], y = m[3] ? (+m[3] < 100 ? 2000 + (+m[3]) : +m[3]) : year;
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    return y+'-'+('0'+mo).slice(-2)+'-'+('0'+d).slice(-2);
+  }
   function parseOrderFieldsFromLines(lines){
     var joined = lines.join('\n');
     var res = {};
@@ -4031,9 +4058,25 @@
     if (extra) res.customer = (res.customer ? res.customer+'\n' : '') + extra;
     m = /(?:Tên\s*(?:sản\s*phẩm|thiết\s*bị|hàng\s*hóa)|Hạng\s*mục\s*chính)\s*:?\s*(.+)/i.exec(joined);
     if (m) res.equipment = m[1].split('\n')[0].trim();
-    m = /(?:Đến\s*ngày\s*giao|Ngày\s*giao(?:\s*hàng)?)\s*:?\s*([\d.\/\-]{6,12})/i.exec(joined);
-    if (m) res.deliveryDate = parseFlexibleDate(m[1]);
+    // Ngày giao: PDF hay ghi "06.12" (không có năm) -> lấy NĂM HIỆN HÀNH (theo đồng hồ máy); nếu ngày giao nhỏ hơn ngày bắt đầu thì là năm sau.
+    var yNow = new Date().getFullYear();
+    m = /Từ\s*ngày\s*:?\s*(\d{1,2}[.\/\-]\d{1,2}(?:[.\/\-]\d{2,4})?)/i.exec(joined);
+    var startIso = m ? pdfParseDM(m[1], yNow) : null;
+    m = /(?:Đến\s*ngày\s*giao|Ngày\s*giao(?:\s*hàng)?)\s*:?\s*(\d{1,2}[.\/\-]\d{1,2}(?:[.\/\-]\d{2,4})?)/i.exec(joined);
+    if (m){
+      var hasYear = /^\d{1,2}[.\/\-]\d{1,2}[.\/\-]\d{2,4}$/.test(m[1].trim());
+      var endIso = pdfParseDM(m[1], yNow);
+      if (endIso && !hasYear && startIso && endIso < startIso) endIso = pdfParseDM(m[1], yNow+1);
+      res.deliveryDate = endIso;
+    }
+    if (!res.deliveryDate && startIso){
+      m = /Thời\s*gian\s*:?\s*(\d{1,3})\s*ngày/i.exec(joined);
+      if (m){ var dd0 = new Date(startIso+'T00:00:00'); dd0.setDate(dd0.getDate()+(+m[1])); res.deliveryDate = pqxISO(dd0); }
+    }
     res.materials = parseHangMucBlocks(lines);
+    var labelEquip = !!res.equipment;
+    var firstMat = pdfCleanRows(res.materials)[0];
+    if (!labelEquip && firstMat) res.equipment = firstMat.name;
     if (!res.equipment && lines.length){
       var cand = lines.slice(0,8).find(function(l){ return l.length>6 && l===l.toUpperCase() && /[A-ZÀ-Ỵ]/.test(l); });
       if (cand) res.equipment = cand.trim();
@@ -4074,7 +4117,7 @@
     var blocks = [];
     var cur = null;
     body.forEach(function(rawLine){
-      var t = (rawLine||'').trim();
+      var t = (rawLine||'').trim().replace(/(^|\s)(Cá|Chiế|Bộ|Cụ|Tấ|Cuộ)\s+(i|c|m|n)(?=\s|$)/g, function(all, sp, a, b){ return sp+({'Cá:i':'Cái','Chiế:c':'Chiếc','Cụ:m':'Cụm','Tấ:m':'Tấm','Cuộ:n':'Cuộn'}[a+':'+b] || all); });
       if (!t) return;
       var digitPrefix = null;
       var content = t;
@@ -4099,6 +4142,9 @@
         cur.lines.push(content);
         return;
       }
+      // mảnh ĐVT + SL đứng riêng (có thể kèm 1 ký tự lạ như "Cái i 1"): gán cho hạng mục đang mở, KHÔNG tạo hạng mục mới
+      var loneRe = new RegExp('^('+unitAlt+')(\\s+\\S)?\\s+(\\d+(?:[.,]\\d+)?)\\s*$','i'), lm = loneRe.exec(content);
+      if (lm){ if (cur.unit==null){ cur.unit = lm[1]; cur.qty = parseFloat(lm[3].replace(',','.')); } return; }
       var split = stripTrailingUnitQty(content);
       if (digitPrefix && !split.prefix){
         // mảnh ĐVT/SL lạc trôi (vd "Cái 1" đứng riêng) — gán cho hạng mục đang mở, không tách dòng mới
@@ -4592,6 +4638,9 @@
       var plain = stripDiacritics(n);
       if (/van\s*chuyen|lap\s*dat|chuyen\s*giao\s*cong\s*nghe/.test(plain)) return false;
       if (isGarbageName(n)) return false;
+      // Mảnh ĐVT lạc ("Cái 1", "Cá i 1") không phải tên hạng mục
+      var letters = plain.replace(/[^a-z]/g,'');
+      if (letters.length<=5 && /^(cai|chiec|bo|cum|he|may|to|bang|cap|doi|buc|con|tam|cay|met|kg|lan|chuyen)/.test(letters)) return false;
       // Mảnh vỡ do PDF xuống dòng giữa câu: kết thúc bằng liên từ / dấu nối
       // ("… máy sấy và", "… x", "… -", "… của").
       if (/\b(va|hoac|hay|cua|cho|voi|den|tu)\s*$/.test(plain)) return false;
@@ -4608,6 +4657,11 @@
   //     Kết quả / Ghi chú / bản vẽ-vật tư… y hệt các hạng mục khác — đơn 2026-191)
   //   • tab "Vật tư": 1 DÒNG TIÊU ĐỀ (section) để thêm vật tư riêng cho thiết bị đó
   // KHÔNG tạo cụm rỗng, KHÔNG thêm ghi chú tự động.
+  // Phân loại hạng mục đọc từ PDF: tên thuộc tủ điện / điều khiển / biến tần / PLC… -> Điện; còn lại -> Cơ khí.
+  function pdfDeptOf(name){
+    var n = ' '+stripDiacritics(String(name||'')).replace(/[^a-z0-9]+/g,' ').trim()+' ';
+    return /\s(tu dien|tu dieu khien|bang dien|bang dieu khien|tu phan phoi|tu nguon|tu bu|tu servo|tu plc|tu inverter|tu hoa chat|he thong dien|he dieu khien|dieu khien|bien tan|plc|hmi|dong luc)\s/.test(n) ? 'dien' : 'cokhi';
+  }
   function pdfNewItem(name){
     return {name:name, cluster:null, requirement:null, status:null, note:null, qc:null, team:null, assignee:null, bv:false, vt:false};
   }
