@@ -1637,7 +1637,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-08e-may';
+  var BUILD_ID = '2026-10-08f-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -8999,7 +8999,8 @@ function stockMatch(name, spec, rows) {
     var p = d.parse; if (!p) return '';
     var by = p.by==='ai' ? 'AI' : 'quy tắc (không AI)';
     var lv = p.level==='cao' ? '<b style="color:var(--good,#1f8a4c);">tin cậy cao</b>' : '<b style="color:var(--warn,#8a5a00);">cần kiểm tra</b>';
-    return '<div class="pqd-cap" style="margin:6px 0;">Cách đọc: '+by+' · '+lv+((p.notes||[]).length ? ' — '+esc(p.notes.join('; ')) : '')+'</div>';
+    var alt = (d.altItems||[]).length ? '<div class="pqd-cap" style="margin:2px 0 6px;">Quy tắc đọc là: '+d.altItems.map(function(i){ return esc(i.name)+(i.spare?' (dự phòng)':'')+' × '+esc(String(i.qty))+' '+esc(i.unit||'')+(i.order_code?' → '+esc(i.order_code):''); }).join(' · ')+'</div>' : '';
+    return '<div class="pqd-cap" style="margin:6px 0;">Cách đọc: '+by+' · '+lv+((p.notes||[]).length ? ' — '+esc(p.notes.join('; ')) : '')+'</div>'+alt;
   }
   renderBanner();
   loadFromSeedOnly();

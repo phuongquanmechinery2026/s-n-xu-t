@@ -668,14 +668,26 @@ module.exports = function (ctx) {
     doc.note = String(parsed.note || '').trim();
     doc.intent = (['mua', 'xuat', 'hoi', 'chua_ro', 'khac'].indexOf(parsed.intent) >= 0) ? parsed.intent : (doc.items.length ? 'chua_ro' : 'khac');
     if (!doc.items.length && !String(doc.text || '').trim() && doc.hasPhoto && doc.intent === 'khac') doc.intent = 'chua_ro';
-    doc.parse = parsed.parse || { by: 'ai', level: 'cao', notes: [] };
+    if (parsed.parse) doc.parse = parsed.parse;
+    else {
+      // AI doc xong -> doi chieu voi bo quy tac: chi "tin cay cao" (tu dien) khi 2 ben doc giong nhau
+      const ru = ruleParse(doc.text || '');
+      const sig = function (arr) { return (arr || []).map(function (i) { return (Number(i.qty) || 0) + '|' + String(i.order_code || i.orderCode || '').toUpperCase() + '|' + (i.spare ? 1 : 0); }).sort().join(','); };
+      const hasText = String(doc.text || '').trim().length > 0;
+      const agree = hasText && ru.items.length === doc.items.length && sig(ru.items) === sig(doc.items);
+      doc.parse = { by: 'ai', level: agree ? 'cao' : 'thap', notes: [] };
+      if (agree) doc.parse.notes.push('AI và quy tắc đọc giống nhau');
+      else if (!hasText) doc.parse.notes.push('tin chỉ có ảnh — thủ kho kiểm tra trước khi điền');
+      else doc.parse.notes.push('AI đọc ' + doc.items.length + ' dòng, quy tắc đọc ' + ru.items.length + ' dòng, hai bên khác nhau — kiểm tra trước khi điền');
+      if (!agree && hasText && ru.items.length) doc.altItems = ru.items.slice(0, 12).map(function (i) { return { name: i.name, qty: i.qty, unit: i.unit, order_code: i.order_code, spare: !!i.spare, note: i.note || '' }; });
+    }
     doc.notRequest = doc.intent === 'khac';
     if (doc.intent === 'khac') doc.status = 'ignored'; else if (doc.intent === 'hoi') doc.status = 'answered';
     attachStock(doc);
     doc.needDate = /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.need_date || '')) ? String(parsed.need_date) : '';
     if (parsed.requester && !doc.requester) doc.requester = String(parsed.requester).trim();
     // Yeu cau MUA do AI doc va xac dinh duoc cong trinh -> tu dien vao VT + lap de nghi mua
-    if (doc.intent === 'mua' && (doc.ai || (doc.parse && doc.parse.by === 'rule' && doc.parse.level === 'cao')) && doc.status !== 'applied' && doc.items.length && doc.items.every(function (it) { return it.orderId && it.qty > 0; })) {
+    if (doc.intent === 'mua' && (doc.parse && doc.parse.level === 'cao') && doc.status !== 'applied' && doc.items.length && doc.items.every(function (it) { return it.orderId && it.qty > 0; })) {
       try { applyBuy(doc); } catch (e) { doc.aiError = (doc.aiError ? doc.aiError + ' | ' : '') + 'Khong tu dien duoc: ' + String((e && e.message) || e); }
     }
     return doc;
