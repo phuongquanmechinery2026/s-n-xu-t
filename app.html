@@ -1637,7 +1637,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-08i-may';
+  var BUILD_ID = '2026-10-08j-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -9060,6 +9060,98 @@ function stockMatch(name, spec, rows) {
     var pend = false;
     function fix(){ pend = false; document.querySelectorAll('input:not([autocomplete]),textarea:not([autocomplete])').forEach(function(i){ if (i.type==='password' || i.type==='hidden' || i.type==='file') return; i.setAttribute('autocomplete','off'); }); }
     try { new MutationObserver(function(){ if (!pend){ pend = true; setTimeout(fix, 60); } }).observe(document.body, {childList:true, subtree:true}); fix(); } catch (e) {}
+  })();
+  /* ===== 08j: ĐỌC KẾ HOẠCH BẰNG GIỌNG NÓI (phát loa) — dùng giọng đọc có sẵn của trình duyệt, MIỄN PHÍ ===== */
+  var SPK = {on:false, q:[], rate:0.95, scope:'week', voice:''};
+  var SPK_W = ['không','một','hai','ba','bốn','năm','sáu','bảy','tám','chín'];
+  function spkDig(x){ return String(x).replace(/\d/g, function(d){ return ' '+SPK_W[+d]+' '; }).replace(/\s+/g,' ').trim(); }
+  function spkCode(o){ var m = /^\d{4}-(DL)?(\d+)$/i.exec(o.code||''); return m ? ((m[1] ? 'đơn lẻ ' : 'đơn ')+spkDig(m[2])) : ('đơn '+(o.code||'')); }
+  function spkClean(t){ return String(t||'').replace(/[:+]\s*\+?\d+\s*hạng mục khác/gi,'').replace(/\s*\(.*?\)\s*/g,' ').replace(/[–—\-]{1,2}/g,' ').replace(/[\/:;]+/g,', ').replace(/\s+/g,' ').replace(/(, )+/g,', ').trim().toLowerCase(); }
+  function spkCust(o){ var c = o && o.customerInfo ? String(o.customerInfo).split(/[\r\n]+/)[0] : ''; c = c.split(/\s+[-–]\s+/)[0]; return spkClean(c).replace(/^công ty (cổ phần |tnhh |cp )?/,'công ty ').slice(0,60); }
+  function spkDM(iso){ var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m ? ('ngày '+(+m[3])+' tháng '+(+m[2])) : ''; }
+  function spkScript(scope){
+    var d = new Date(), dow = ['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'][d.getDay()];
+    var dept = STATE.dept==='dien' ? 'Điện' : 'Cơ khí';
+    var late = [], soon = [], next = [], later = 0, nodate = 0, wait = [];
+    var cur = currentWorkOrders();
+    cur.forEach(function(o){
+      if (orderProdDone(o)){ wait.push(o); return; }
+      var sn = headlineSnapshot(o), dr = sn && sn.deliveryDate ? daysRemaining(sn.deliveryDate) : null;
+      if (dr===null){ nodate++; return; }
+      var x = {o:o, dr:dr, sn:sn};
+      if (dr<0) late.push(x); else if (dr<=7) soon.push(x); else if (dr<=14) next.push(x); else later++;
+    });
+    var byDr = function(a,b){ return a.dr-b.dr; }; late.sort(byDr); soon.sort(byDr); next.sort(byDr);
+    var line = function(x, kind){
+      var t = spkCode(x.o)+', '+spkClean(orderTitle(x.o)).slice(0,80);
+      var c = spkCust(x.o); if (c) t += ', khách '+c;
+      t += ', hạn giao '+spkDM(x.sn.deliveryDate);
+      t += kind==='late' ? ', trễ '+Math.abs(x.dr)+' ngày.' : (x.dr===0 ? ', giao hôm nay.' : ', còn '+x.dr+' ngày.');
+      return t;
+    };
+    var L = [];
+    L.push('Xin chào. Hôm nay là '+dow+', ngày '+d.getDate()+' tháng '+(d.getMonth()+1)+' năm '+d.getFullYear()+'. Kế hoạch sản xuất bộ phận '+dept+'.');
+    L.push('Hiện có '+cur.length+' đơn đang làm.');
+    if (late.length){ L.push('Có '+late.length+' đơn trễ hạn giao.'); late.forEach(function(x){ L.push(line(x,'late')); }); } else L.push('Không có đơn nào trễ hạn.');
+    if (soon.length){ L.push('Trong bảy ngày tới có '+soon.length+' đơn đến hạn giao.'); soon.forEach(function(x){ L.push(line(x,'soon')); }); } else L.push('Bảy ngày tới chưa có đơn nào đến hạn giao.');
+    if (scope==='all'){
+      if (next.length){ L.push('Từ tám đến mười bốn ngày tới có '+next.length+' đơn.'); next.forEach(function(x){ L.push(line(x,'soon')); }); }
+      if (later) L.push('Còn '+later+' đơn giao sau hai tuần nữa.');
+      if (nodate) L.push('Có '+nodate+' đơn chưa có ngày giao.');
+      if (wait.length){ L.push('Có '+wait.length+' đơn đã sản xuất xong, đang chờ giao.'); wait.slice(0,8).forEach(function(o){ L.push(spkCode(o)+', '+spkClean(orderTitle(o)).slice(0,60)+'.'); }); }
+    }
+    L.push('Hết bản kế hoạch. Chúc anh chị một ngày làm việc hiệu quả.');
+    return L.join('\n');
+  }
+  function spkVoices(){ try { return (window.speechSynthesis ? window.speechSynthesis.getVoices() : []).filter(function(v){ return /^vi/i.test(v.lang); }); } catch(e){ return []; } }
+  function spkStop(){ SPK.on = false; SPK.q = []; try { window.speechSynthesis.cancel(); } catch(e){} var b = document.getElementById('spkGo'); if (b) b.textContent = '▶ Đọc ngay'; var st = document.getElementById('spkSt'); if (st) st.textContent = ''; }
+  function spkSay(text){
+    if (!window.speechSynthesis) return toast('Trình duyệt này không hỗ trợ đọc thành tiếng.');
+    spkStop(); SPK.on = true;
+    var parts = []; String(text||'').split('\n').forEach(function(ln){ ln = ln.trim(); while (ln.length > 180){ var i = ln.lastIndexOf(',', 180); if (i < 40) i = ln.lastIndexOf(' ', 180); if (i < 1) i = 180; parts.push(ln.slice(0, i+1)); ln = ln.slice(i+1).trim(); } if (ln) parts.push(ln); });
+    var vs = spkVoices(), pick = null; vs.forEach(function(v){ if (SPK.voice && v.name===SPK.voice) pick = v; }); if (!pick) pick = vs[0] || null;
+    if (!pick){ spkStop(); return toast('Máy chưa có giọng đọc TIẾNG VIỆT nên em không đọc (tránh đọc bằng giọng tiếng Anh). Xem hướng dẫn màu vàng trong khung.', 6000); }
+    var total = parts.length, n = 0, b = document.getElementById('spkGo'); if (b) b.textContent = '■ Dừng';
+    parts.forEach(function(t){
+      var u = new SpeechSynthesisUtterance(t); u.lang = 'vi-VN'; u.rate = SPK.rate; u.voice = pick;
+      u.onend = function(){ n++; var st = document.getElementById('spkSt'); if (st && SPK.on) st.textContent = 'Đang đọc '+n+'/'+total; if (n>=total) spkStop(); };
+      u.onerror = function(){ n++; if (n>=total) spkStop(); };
+      window.speechSynthesis.speak(u);
+    });
+  }
+  function spkOpen(){
+    var old = document.getElementById('spkModal'); if (old) old.remove();
+    var vs = spkVoices();
+    var warn = (!window.speechSynthesis) ? '<div class="note" style="background:#fde8e6;border-radius:8px;padding:8px 12px;margin:8px 0;">Trình duyệt này không hỗ trợ đọc thành tiếng. Hãy dùng Chrome hoặc Edge.</div>'
+      : (!vs.length ? '<div class="pqd-cap" style="background:#fff4d6;border-radius:8px;padding:8px 12px;margin:8px 0;color:#7a5a00;">Máy này chưa có giọng đọc <b>tiếng Việt</b> nên máy <b>sẽ không đọc</b> (không đọc bằng giọng tiếng Anh). Cách có giọng Việt: dùng trình duyệt <b>Microsoft Edge</b> (có sẵn giọng "Microsoft HoaiMy / NamMinh" tiếng Việt, miễn phí) hoặc Windows → Cài đặt → Thời gian &amp; ngôn ngữ → Giọng nói → thêm giọng Tiếng Việt.</div>' : '');
+    var bd = document.createElement('div'); bd.className = 'modal-backdrop'; bd.id = 'spkModal';
+    bd.innerHTML = '<div class="modal wide" style="max-width:min(760px,96vw);"><h3>🔊 Đọc kế hoạch (phát loa)</h3>'+
+      '<div class="pqd-cap">Máy đọc to bản kế hoạch bằng giọng có sẵn của trình duyệt — <b>miễn phí</b>, không gọi AI. Nối loa vào máy (dây hoặc Bluetooth) là phát ra loa. Bộ phận đang chọn: <b>'+(STATE.dept==='dien'?'Điện':'Cơ khí')+'</b>.</div>'+warn+
+      '<div class="pqd-bar" style="padding:8px 0;flex-wrap:wrap;gap:12px;"><label class="pqd-cap">Nội dung <select id="spkScope" class="pqd-inp" style="width:auto;"><option value="week">Trễ hạn + 7 ngày tới</option><option value="all">Đầy đủ (kèm 2 tuần, chờ giao…)</option></select></label>'+
+      '<label class="pqd-cap">Tốc độ <select id="spkRate" class="pqd-inp" style="width:auto;"><option value="0.8">Chậm</option><option value="0.95">Vừa</option><option value="1.15">Nhanh</option></select></label>'+
+      (vs.length > 1 ? '<label class="pqd-cap">Giọng <select id="spkVoice" class="pqd-inp" style="width:auto;max-width:220px;">'+vs.map(function(v){ return '<option value="'+esc(v.name)+'">'+esc(v.name)+'</option>'; }).join('')+'</select></label>' : '')+'</div>'+
+      '<textarea id="spkText" class="pqd-inp" rows="12" style="width:100%;font-size:13.5px;"></textarea>'+
+      '<div class="pqd-cap" style="margin-top:4px;">Anh sửa chữ trong khung trên được; máy sẽ đọc đúng nội dung khung. <span id="spkSt"></span></div>'+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="spkClose">Đóng</button><button class="btn btn-primary" id="spkGo">▶ Đọc ngay</button></div></div>';
+    document.body.appendChild(bd);
+    var $ = function(id){ return document.getElementById(id); };
+    $('spkScope').value = SPK.scope; $('spkRate').value = String(SPK.rate);
+    var fill = function(){ SPK.scope = $('spkScope').value; $('spkText').value = spkScript(SPK.scope); };
+    fill();
+    $('spkScope').onchange = function(){ spkStop(); fill(); };
+    $('spkRate').onchange = function(){ SPK.rate = +$('spkRate').value; };
+    if ($('spkVoice')) $('spkVoice').onchange = function(){ SPK.voice = $('spkVoice').value; };
+    $('spkGo').onclick = function(){ if (SPK.on) spkStop(); else spkSay($('spkText').value); };
+    $('spkClose').onclick = function(){ spkStop(); bd.remove(); };
+  }
+  try { if (window.speechSynthesis) window.speechSynthesis.getVoices(); } catch(e){}
+  (function spkInit(){
+    setTimeout(function(){
+      if (document.getElementById('spkBtn')) return;
+      var chip0 = document.getElementById('pqWhoChip') || document.getElementById('btnGotoCurrent'); if (!chip0 || !chip0.parentNode) return;
+      var b = document.createElement('button'); b.className = 'btn'; b.id = 'spkBtn'; b.type = 'button'; b.title = 'Đọc to kế hoạch ra loa (miễn phí)'; b.textContent = '🔊 Đọc kế hoạch';
+      chip0.parentNode.insertBefore(b, chip0); b.addEventListener('click', spkOpen);
+    }, 600);
   })();
   renderBanner();
   loadFromSeedOnly();
