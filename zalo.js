@@ -185,7 +185,7 @@ module.exports = function (ctx) {
     const system = 'Bạn là trợ lý kho và mua hàng của Nhà máy Phương Quân (cơ khí và điện). Hôm nay là ' + vnToday() + '. Nhân viên nhắn tin Zalo (kèm ảnh nếu có) để YÊU CẦU MUA vật tư (đặt mua, nhờ người đi mua) hoặc YÊU CẦU XUẤT vật tư có sẵn từ kho. ' +
       'intent: "mua" nếu nhờ mua / đề xuất mua / đặt mua / đặt hàng / mua giúp; "xuat" nếu xin lấy / xuất từ kho; "hoi" nếu chỉ hỏi còn hàng / có trong kho không; "khac" nếu là tin thường (chào hỏi, trao đổi, không đòi mua hay xuất). Tuyệt đối không coi tin thường là yêu cầu. Dòng tiêu đề kiểu "CÔNG TY … - MS : 2026-232 - TĐ : 23/10/2026" nghĩa là MS = mã công trình, TĐ = ngày tiến độ giao của cả công trình (KHÔNG phải ngày cần hàng). Dòng nằm dưới chữ "mua dự phòng"/"DP"/"dự phòng" thì spare = true (vật tư mua dự phòng), còn lại spare = false. need_date: hạn cần hàng dạng YYYY-MM-DD nếu tin nhắn nói (ví dụ "cần ngày 20/10", "trước thứ 6"), không có thì chuỗi rỗng; mỗi vật tư cũng có need_date riêng (giống hạn chung nếu không khác). ' +
       'Hãy trích danh sách vật tư: name (tên vật tư, giữ nguyên chữ nhân viên viết), spec (quy cách/kích thước nếu có, không có thì chuỗi rỗng), qty (số lượng là số; không rõ thì 0), unit (đơn vị: cái, bộ, mét, cây, tấm, kg…; không rõ thì rỗng), order_code (mã công trình của dòng đó nếu rõ). ' +
-      'order_code ở cấp trên là mã công trình chung của yêu cầu (dạng 2026-187, 2026-DL09…). Chỉ dùng mã có trong danh sách công trình đang làm bên dưới; nếu tin nhắn nhắc tên khách hoặc tên máy thì chọn mã tương ứng; không chắc thì để rỗng. ' +
+      'Nếu một dòng nhắc TÊN KHÁCH (ví dụ "htx thượng nhật", "cty vitech") thì order_code của dòng đó là mã công trình của khách đó trong danh sách bên dưới — KHÔNG lấy mã của dòng khác. order_code ở cấp trên là mã công trình chung của yêu cầu (dạng 2026-187, 2026-DL09…). Chỉ dùng mã có trong danh sách công trình đang làm bên dưới; nếu tin nhắn nhắc tên khách hoặc tên máy thì chọn mã tương ứng; không chắc thì để rỗng. ' +
       'requester: tên người cần nhận hàng nếu tin nhắn nói rõ, không thì rỗng. note: ghi chú ngắn (hạn cần, nơi giao…) nếu có. ' +
       'is_request = false nếu tin nhắn không phải yêu cầu xuất vật tư (chào hỏi, hỏi thăm…). Tách mỗi vật tư thành một dòng; các thông số như đường kính, kích thước, số rãnh… đi vào spec. Ghi chú thêm như "thay thế cho…" đi vào note. Không bịa thêm vật tư không có trong tin/ảnh. Trả lời đúng định dạng JSON yêu cầu.\n\nDanh sách công trình đang làm (mã | hạng mục | khách):\n' + activeOrdersText();
     const payload = {
@@ -229,8 +229,8 @@ module.exports = function (ctx) {
   }
   function normItems(res, topCode) {
     return (res.items || []).map(function (it) {
-      const code = String(it.order_code || topCode || '').trim();
-      return { name: String(it.name || '').trim(), spec: String(it.spec || '').trim(), qty: (typeof it.qty === 'number' && isFinite(it.qty) && it.qty > 0) ? it.qty : '', unit: String(it.unit || '').trim(), orderCode: code, orderId: orderIdByCode(code), needDate: /^\d{4}-\d{2}-\d{2}$/.test(String(it.need_date || '')) ? String(it.need_date) : '', spare: !!it.spare, who: String(it.who || '').slice(0, 80), note: String(it.note || '').slice(0, 120) };
+      const code = String(it.order_code || (it.who ? '' : topCode) || '').trim();
+      return { name: String(it.name || '').trim(), spec: String(it.spec || '').trim(), qty: (typeof it.qty === 'number' && isFinite(it.qty) && it.qty > 0) ? it.qty : '', unit: String(it.unit || '').trim(), orderCode: code, orderId: orderIdByCode(code), needDate: /^\d{4}-\d{2}-\d{2}$/.test(String(it.need_date || '')) ? String(it.need_date) : '', spare: !!it.spare, who: String(it.who || '').slice(0, 80), fallback: String(it.fallback || '').trim(), note: String(it.note || '').slice(0, 120) };
     }).filter(function (it) { return it.name; });
   }
   function saveDoc(id, patch, replace) {
@@ -301,7 +301,9 @@ module.exports = function (ctx) {
     const L = usageLoad(), day = L.day;
     const b = day.by[ident.key] = day.by[ident.key] || { name: ident.name, msgs: 0, draws: 0, usd: 0 };
     b.name = ident.name || b.name; b.owner = !!owner;
-    if (kind === 'msg') b.msgs += 1; else if (kind === 'draw') b.draws += 1;
+    if (kind === 'msg' || kind === 'ask') b.msgs += 1; else if (kind === 'draw') b.draws += 1;
+    if (kind === 'ask') b.asks = (b.asks || 0) + 1;
+    day.kinds = day.kinds || {}; day.kinds[kind] = roundU((day.kinds[kind] || 0) + (usd || 0));
     b.usd = roundU(b.usd + (usd || 0));
     if (owner) day.ownerUsd = roundU(day.ownerUsd + (usd || 0)); else day.usd = roundU(day.usd + (usd || 0));
     const ks = Object.keys(L.U).sort(); while (ks.length > 62) delete L.U[ks.shift()];
@@ -382,6 +384,56 @@ module.exports = function (ctx) {
   }
 
 
+  /* ---------------- HOI NHANH BANG AI (chi tra loi tu du lieu nha may) ---------------- */
+  function askSnapshot(q) {
+    const O = ctx.loadColl('orders'), T = ctx.loadColl('tasks'), P = ctx.loadColl('purchase');
+    const ord = [], mats = [];
+    Object.keys(O).forEach(function (id) {
+      const o = O[id]; if (!o || o.legacy) return;
+      const its = (o.items || []).filter(function (i) { return i && String(i.name || '').trim(); });
+      if (its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) return;
+      let due = ''; (o.progressSnapshots || []).forEach(function (sn) { if (sn && sn.deliveryDate && (!due || sn.deliveryDate < due)) due = sn.deliveryDate; });
+      let have = 0, need = 0;
+      (o.materials || []).forEach(function (m) {
+        if (!m || isSec(m) || !String(m.name || '').trim()) return;
+        if (/da co|da nhan|da mua|nhap kho|du kho/.test(stripD(m.status || ''))) have++;
+        else { need++; if (mats.length < 240) mats.push((o.code || id) + ': ' + String(m.name).replace(/\s+/g, ' ').slice(0, 70) + (m.spec ? ' ' + m.spec : '') + ' | ' + (m.qty != null ? m.qty : '') + ' ' + (m.unit || '') + ' | ' + (m.status || 'chưa xem') + (m.reqDate ? ' | cần ' + m.reqDate : '') + (m.supplier ? ' | NCC ' + m.supplier : '')); }
+      });
+      ord.push((o.code || id) + (o.dept === 'dien' ? ' [Điện]' : ' [Cơ khí]') + ' | ' + String(o.customerInfo || '').replace(/\s+/g, ' ').slice(0, 60) + ' | giao ' + (due ? due.slice(0, 10) : '?') + ' | hạng mục: ' + its.map(function (i) { return String(i.name).slice(0, 30) + '(' + (i.status || '-') + ')'; }).join('; ').slice(0, 220) + ' | VT: đã có ' + have + ', cần ' + need);
+    });
+    const tasks = [];
+    Object.keys(T).forEach(function (id) { const x = T[id]; if (x && x.status !== 'Xong' && tasks.length < 120) tasks.push((x.code || '') + ': ' + String(x.title || '').slice(0, 70) + ' | ' + (x.who || 'chưa có người') + (x.team ? ' (' + x.team + ')' : '') + (x.date ? ' | hạn ' + x.date : '') + ' | ' + (x.status || '')); });
+    const prs = Object.keys(P).sort().slice(-15).map(function (id) { const x = P[id]; return id + ' | ' + (x.status || '') + ' | ' + (x.date || '') + ' | ' + ((x.lines || []).length) + ' dòng | ' + (x.by || ''); });
+    let stock = [];
+    try { stock = RULES.stockMatch(q, '', khoRows()).slice(0, 6).map(function (x) { return x.n + ' | tồn ' + x.q + ' ' + (x.u || '') + ' | ' + x.wh; }); } catch (e) {}
+    return 'ĐƠN ĐANG LÀM (' + ord.length + '):\n' + ord.join('\n') + '\n\nVẬT TƯ CẦN MUA / CHƯA CÓ (' + mats.length + ' dòng đầu):\n' + mats.join('\n') + '\n\nVIỆC ĐANG MỞ (' + tasks.length + '):\n' + tasks.join('\n') + '\n\nPHIẾU ĐỀ NGHỊ MUA GẦN ĐÂY:\n' + prs.join('\n') + (stock.length ? '\n\nTỒN KHO LIÊN QUAN ĐẾN CÂU HỎI:\n' + stock.join('\n') : '');
+  }
+  function aiAsk(q, history) {
+    const c = cfg();
+    if (c.aiMock) return Promise.resolve({ answer: '[thử] ' + q, usage: { input: 0, output: 0, usd: 0 } });
+    if (!c.aiKey) return Promise.reject(new Error('Chua co ANTHROPIC_API_KEY'));
+    const msgs = [];
+    (Array.isArray(history) ? history : []).slice(-6).forEach(function (h) {
+      const role = h && h.role === 'assistant' ? 'assistant' : 'user'; const text = String((h && h.text) || '').slice(0, 800);
+      if (!text) return;
+      if (!msgs.length && role !== 'user') return;
+      if (msgs.length && msgs[msgs.length - 1].role === role) { msgs[msgs.length - 1].content += '\n' + text; return; }
+      msgs.push({ role: role, content: text });
+    });
+    if (msgs.length && msgs[msgs.length - 1].role === 'user') msgs.pop();
+    msgs.push({ role: 'user', content: q });
+    const sys = 'Bạn là trợ lý hỏi đáp của Nhà máy Phương Quân (cơ khí và điện), trả lời cho anh Quốc (chủ) và nhân viên. Hôm nay là ' + vnToday() + '. Chỉ dựa vào DỮ LIỆU NHÀ MÁY bên dưới; không bịa; nếu dữ liệu không có thì nói rõ "không có trong dữ liệu". Trả lời tiếng Việt, ngắn gọn, đi thẳng vào ý, dạng gạch đầu dòng nếu có nhiều mục, kèm số liệu. Khi nhắc đơn thì viết mã dạng 2026-187. Không dùng bảng markdown.';
+    const payload = { model: c.model, max_tokens: 900, system: [{ type: 'text', text: sys }, { type: 'text', text: 'DỮ LIỆU NHÀ MÁY (lúc này):\n' + askSnapshot(q).slice(0, 60000), cache_control: { type: 'ephemeral' } }], messages: msgs };
+    return request(c.aiBase + '/v1/messages', { method: 'POST', timeout: 60000, headers: { 'content-type': 'application/json', 'x-api-key': c.aiKey, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(payload) }).then(function (r) {
+      const j = jsonOf(r);
+      if (r.status !== 200 || !j) throw new Error('AI loi HTTP ' + r.status + ': ' + r.body.toString('utf8').slice(0, 200));
+      let txt = ''; (j.content || []).forEach(function (b2) { if (b2 && b2.type === 'text') txt += b2.text; });
+      const u = j.usage || {}; const pr = priceOf(c.model);
+      const inTok = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) * 1.25 + (u.cache_read_input_tokens || 0) * 0.1;
+      return { answer: txt.trim() || '(AI không trả lời)', usage: { input: u.input_tokens || 0, output: u.output_tokens || 0, usd: Math.round(((inTok * pr.i + (u.output_tokens || 0) * pr.o) / 1e6) * 100000) / 100000 } };
+    });
+  }
+
   /* ---------------- Yeu cau MUA: tu dien vao VT cua don + lap phieu de nghi mua ---------------- */
   function stripD(x) { return String(x == null ? '' : x).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase(); }
   function vnToday() { return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10); }
@@ -399,6 +451,51 @@ module.exports = function (ctx) {
     Object.keys(P).forEach(function (id) { const m = /^DN-(\d{4})-(\d+)$/.exec(id); if (m && +m[1] === y) mx = Math.max(mx, +m[2]); });
     return 'DN-' + y + '-' + ('00' + (mx + 1)).slice(-3);
   }
+  /* ---------------- Doan cong trinh theo TEN KHACH ("htx thuong nhat" -> 2026-076) ---------------- */
+  const CUST_STOP = ['htx', 'hop', 'tac', 'xa', 'cty', 'cong', 'ty', 'tnhh', 'cp', 'co', 'phan', 'so', 'nha', 'may', 'mr', 'anh', 'chi', 'ong', 'ba'];
+  const ELEC_RX = /(bien tan|mccb|aptomat|contactor|khoi dong tu|role|relay|plc|hmi|tu dien|nut nhan|den bao|cap dien|day dien|cam bien|encoder)/;
+  function resolveHint(it) {
+    const ws = stripD(it.who || '').replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function (w) { return w.length >= 2 && CUST_STOP.indexOf(w) < 0; });
+    if (!ws.length) return null;
+    const O = ctx.loadColl('orders'); let hits = [];
+    Object.keys(O).forEach(function (id) {
+      const o = O[id]; if (!o || o.legacy) return;
+      const hay = stripD((o.customerInfo || '') + ' ' + (o.items || []).map(function (i) { return (i && i.name) || ''; }).join(' '));
+      if (ws.every(function (w) { return hay.indexOf(w) >= 0; })) hits.push(o);
+    });
+    if (!hits.length) return null;
+    const elec = ELEC_RX.test(stripD(String(it.name || '') + ' ' + String(it.spec || '')));
+    const byDept = hits.filter(function (o) { return elec ? o.dept === 'dien' : o.dept !== 'dien'; });
+    if (byDept.length) hits = byDept;
+    if (hits.length > 1) {
+      const live = hits.filter(function (o) { const its = (o.items || []).filter(function (i) { return i && String(i.name || '').trim(); }); return !(its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })); });
+      if (live.length) hits = live;
+    }
+    if (hits.length > 1) { // hoa nhau: chon don co vat tu giong ten vat tu dang xin
+      const qw = stripD(String(it.name || '')).replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function (w) { return w.length >= 3; });
+      const sc = hits.map(function (o) { const mh = stripD((o.materials || []).map(function (m) { return (m && m.name) || ''; }).join(' ')); return qw.filter(function (w) { return mh.indexOf(w) >= 0; }).length; });
+      const mx = Math.max.apply(null, sc);
+      if (mx > 0 && sc.filter(function (x) { return x === mx; }).length === 1) return { pick: hits[sc.indexOf(mx)] };
+      return { cands: hits.map(function (o) { return o.code || o.id; }) };
+    }
+    return hits.length === 1 ? { pick: hits[0] } : null;
+  }
+  function resolveItems(doc) {
+    (doc.items || []).forEach(function (it) {
+      if (it.orderId) return;
+      const r = it.who ? resolveHint(it) : null;
+      if (r && r.pick) { it.orderCode = r.pick.code || r.pick.id; it.orderId = r.pick.id; it.hintResolved = true; }
+      else if (r && r.cands) { it.hintCands = r.cands.slice(0, 6); }          // khach co nhieu don: de thu kho chon, KHONG tu lay ma chung
+      else if (it.fallback) { it.orderCode = it.fallback; it.orderId = orderIdByCode(it.fallback); }
+    });
+    if (doc.parse && doc.parse.by === 'rule') {
+      const allId = doc.items.length > 0 && doc.items.every(function (i) { return i.orderId; });
+      const okAll = doc.intent === 'mua' && allId && doc.items.every(function (i) { return i.qty > 0; }) && !doc.parse.unsure;
+      doc.parse.level = okAll ? 'cao' : 'thap';
+      if (allId) doc.parse.notes = (doc.parse.notes || []).filter(function (n) { return n.indexOf('chưa rõ công trình') < 0; });
+    }
+  }
+
   /* ---------------- Ton kho (so sanh co / khong) ---------------- */
   function khoRows() {
     const K = ctx.loadColl('kho'); let rows = [];
@@ -683,6 +780,7 @@ module.exports = function (ctx) {
     }
     doc.notRequest = doc.intent === 'khac';
     if (doc.intent === 'khac') doc.status = 'ignored'; else if (doc.intent === 'hoi') doc.status = 'answered';
+    resolveItems(doc);
     attachStock(doc);
     doc.needDate = /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.need_date || '')) ? String(parsed.need_date) : '';
     if (parsed.requester && !doc.requester) doc.requester = String(parsed.requester).trim();
@@ -800,6 +898,33 @@ module.exports = function (ctx) {
       c.people = people;
       c.ownerZalo = (Array.isArray(b.ownerZalo) ? b.ownerZalo : []).map(String).filter(function (x) { return /^[A-Za-z0-9_\-]{1,60}$/.test(x); }).slice(0, 10);
       aiCfgSave(c); ctx.sendJson(res, 200, { ok: true }); return true;
+    }
+
+    // ---- Chi phi AI (chi chu): /api/zalo/ai/usage ----
+    if (p === '/api/zalo/ai/usage' && method === 'GET') {
+      const c = aiCfg();
+      if (!((c.ownerHash || (ctx.authOn && ctx.authOn())) && ownerMode(req))) { ctx.sendJson(res, 403, { ok: false, error: 'Chỉ chủ mới xem được chi phí AI' }); return true; }
+      const M = ctx.loadColl('zalo_meta'); const U0 = M.usage || {}; const L = usageLoad();
+      const days = Object.keys(L.U).sort().slice(-30).map(function (k) { return { date: k, usd: L.U[k].usd, ownerUsd: L.U[k].ownerUsd, kinds: L.U[k].kinds || {} }; });
+      ctx.sendJson(res, 200, { ok: true, month: monthSpend(), monthKey: new Date().toISOString().slice(0, 7), cap: capOf(), calls: U0.calls || 0, fails: U0.fails || 0, total: U0.usd || 0, model: cfg().model, days: days, today: L.day, monthTable: U0.month || {} });
+      return true;
+    }
+    // ---- Hoi nhanh bang AI: /api/zalo/ask {q, history} ----
+    if (p === '/api/zalo/ask' && method === 'POST') {
+      let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+      const q = String(b.q || '').trim().slice(0, 600);
+      if (!q) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa có câu hỏi' }); return true; }
+      const c0 = cfg(); if (!c0.aiKey && !c0.aiMock) { ctx.sendJson(res, 200, { ok: false, error: 'noai' }); return true; }
+      const ident = identOfReq(req), owner = ownerMode(req);
+      const g = gate('msg', ident, owner); if (!g.ok) { ctx.sendJson(res, 200, { ok: false, error: g.reason, limit: true }); return true; }
+      const capUsd = capOf(); if (capUsd && monthSpend() >= capUsd) { ctx.sendJson(res, 200, { ok: false, error: 'Đã dùng hết hạn mức AI tháng này (' + capUsd + ' USD)', limit: true }); return true; }
+      if (!rateOk()) { ctx.sendJson(res, 200, { ok: false, error: 'Hỏi quá nhiều trong 1 giờ, thử lại sau', limit: true }); return true; }
+      try {
+        const r = await aiAsk(q, b.history);
+        addUsage(r.usage.usd, true); usageAdd(ident, 'ask', r.usage.usd, owner);
+        ctx.sendJson(res, 200, { ok: true, answer: r.answer, usd: owner ? r.usage.usd : undefined });
+      } catch (e) { addUsage(0, false); ctx.sendJson(res, 200, { ok: false, error: String((e && e.message) || e) }); }
+      return true;
     }
 
     // ---- Doc ban ve: /api/zalo/draw/start (POST {name,mime,data(base64),careful}) va /api/zalo/draw/job/<id> (GET) ----

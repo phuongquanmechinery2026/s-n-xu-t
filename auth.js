@@ -197,6 +197,7 @@ module.exports = function (ctx) {
         if (to && e.t > to) continue;
         if (q.u && e.u !== q.u) continue;
         if (q.c && e.c !== q.c) continue;
+        if (q.id && e.id !== q.id) continue;
         if (needle && stripD(e.lb + ' ' + e.id + ' ' + (e.ch || []).join(' ') + ' ' + e.n + ' ' + e.u).toLowerCase().indexOf(needle) < 0) continue;
         if (skipped < offset) { skipped++; continue; }
         if (items.length >= limit) { more = true; break outer; }

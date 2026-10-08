@@ -1637,7 +1637,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-08f-may';
+  var BUILD_ID = '2026-10-08g-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2947,6 +2947,7 @@
     html += '<button class="btn btn-sm" data-pdf-import="'+esc(o.id)+'">'+ICO.pdf+' Đọc PDF</button>';
     html += '<button class="btn btn-sm btn-primary" data-draw-ai="'+esc(o.id)+'" title="AI đọc bản vẽ PDF/ảnh, bóc tách vật tư và đề xuất việc cần làm">Đọc bản vẽ (AI)</button>';
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
+    if (auOwner()) html += '<button class="btn btn-sm" data-order-hist="'+esc(o.id)+'" data-order-code="'+esc(o.code||'')+'" title="Ai đã sửa gì trong đơn này (chỉ chủ xem)">🕘 Lịch sử đơn</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
     html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:164px"><col style="width:13%"><col style="width:14%"><col style="width:44px"></colgroup><thead><tr>';
     ['STT','Tên gọi','Quy cách','ĐVT','SL','Tình trạng','Ngày yêu cầu','Nhà cung cấp','Ghi chú',''].forEach(function(h){html+='<th>'+h+'</th>';});
@@ -3543,12 +3544,14 @@
       (o.items||[]).forEach(function(it){ if (!(it.name||'').trim()) return; monItems++; if (itemDone(it)) monDone++; });
     });
 
+    var LM = STATE.lichMode || 'all';
+    Object.keys(byDay).forEach(function(k){ if (LM==='prog') byDay[k].mats = []; if (LM==='mat') byDay[k].ords = []; if (!byDay[k].ords.length && !byDay[k].mats.length) delete byDay[k]; });
     var html = '<div class="lich-bar">';
     html += '<button class="btn btn-sm" data-lich-nav="-1">‹ Tháng trước</button>';
     html += '<div class="lich-title">Tháng '+m+' / '+y+'</div>';
     html += '<button class="btn btn-sm" data-lich-nav="1">Tháng sau ›</button>';
     html += '<button class="btn btn-sm" data-lich-nav="0">Về tháng này</button>';
-    html += '<span class="hint-txt" style="margin-left:auto;">Đơn / cụm phải giao và vật tư phải về — theo ngày.</span>';
+    html += '<span class="lich-mode" style="margin-left:auto;display:inline-flex;gap:4px;">'+[['all','Tất cả'],['prog','🚚 Tiến độ giao hàng'],['mat','📦 Vật tư cần về']].map(function(x){ return '<button class="btn btn-sm'+(LM===x[0]?' btn-primary':'')+'" data-lich-mode="'+x[0]+'">'+x[1]+'</button>'; }).join('')+'</span>';
     html += '</div>';
 
     html += '<div class="stat-grid" style="margin:4px 0 14px;">';
@@ -3569,10 +3572,10 @@
       html += '<div class="cal-cell'+(dk===todayIso?' today':'')+(has?' has':'')+(STATE.lichDay===dk?' sel':'')+'" data-lich-day="'+dk+'">';
       html += '<div class="cal-daynum">'+day+'</div>';
       ev.ords.slice(0,4).forEach(function(x){
-        html += '<div class="cal-chip '+lichChipCls(x.o, x.cluster, dk)+'" title="'+esc(orderTitle(x.o))+(x.cluster?' · '+esc(x.cluster):'')+'"><b>'+esc(x.o.code||'')+'</b> '+esc(x.cluster||orderTitle(x.o))+'</div>';
+        html += '<div class="cal-chip '+lichChipCls(x.o, x.cluster, dk)+'" title="Giao hàng: '+esc(orderTitle(x.o))+(x.cluster?' · '+esc(x.cluster):'')+'">🚚 <b>'+esc(x.o.code||'')+'</b> '+esc(x.cluster||orderTitle(x.o))+'</div>';
       });
       if (ev.ords.length>4) html += '<div class="cal-more">+'+(ev.ords.length-4)+' đơn nữa</div>';
-      if (ev.mats.length) html += '<div class="cal-chip lc-mat">Vật tư: '+ev.mats.length+' dòng</div>';
+      if (ev.mats.length) html += '<div class="cal-chip lc-mat">📦 Vật tư cần về: '+ev.mats.length+' dòng</div>';
       html += '</div>';
     }
     html += '</div></div>';
@@ -5829,6 +5832,7 @@
       el.addEventListener('click', function(e){ e.stopPropagation(); setView('reqdate'); });
     });
     // ---- Lịch tháng ----
+    document.querySelectorAll('[data-lich-mode]').forEach(function(el){ el.addEventListener('click', function(){ STATE.lichMode = el.getAttribute('data-lich-mode'); STATE.lichDay = ''; renderAll(); }); });
     document.querySelectorAll('[data-lich-nav]').forEach(function(el){
       el.addEventListener('click', function(){
         var d = +el.getAttribute('data-lich-nav');
@@ -7970,19 +7974,29 @@
     box.innerHTML = QA.log.map(function(m){ return '<div class="qa-msg '+(m.me ? 'me' : 'bot')+'">'+(m.me ? esc(m.t) : m.t)+'</div>'; }).join('');
     box.scrollTop = box.scrollHeight;
   }
+  function qaFmt(a){
+    var h = esc(String(a||'')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    return h.replace(/\b(20\d{2}-(?:DL)?\d{2,3})\b/g, function(m){ var o = STATE.orders[m] || STATE.orders['D-'+m]; return o ? '<button type="button" class="qa-code" data-qa-open="'+esc(o.id)+'" data-qa-tab="vt">'+m+'</button>' : m; });
+  }
   function qaAsk(text){
     text = String(text||'').trim(); if (!text) return;
     QA.log.push({me:true, t:text});
-    var ans; try { ans = qaAnswer(text); } catch (e){ ans = 'Có lỗi khi tra dữ liệu: '+esc((e && e.message) || e); }
-    QA.log.push({me:false, t:ans});
-    qaRender();
+    var local = function(extra){ var ans; try { ans = qaAnswer(text); } catch (e){ ans = 'Có lỗi khi tra dữ liệu: '+esc((e && e.message) || e); } return ans+(extra||''); };
+    if (!(window.NMSX_AUTH && window.NMSX_AUTH.on)){ QA.log.push({me:false, t:local()}); return qaRender(); }
+    var pend = {me:false, t:'<span class="qa-cap">Đang hỏi AI…</span>'}; QA.log.push(pend); qaRender(); QA.hist = QA.hist || [];
+    fetch('/api/zalo/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({q:text, history:QA.hist.slice(-6)})}).then(function(r){ return r.json(); }).then(function(j){
+      var i = QA.log.indexOf(pend);
+      if (j && j.ok){ pend.t = qaFmt(j.answer)+(j.usd!=null ? '<div class="qa-cap" style="margin-top:6px;">AI · '+(j.usd*26000<1 ? '<1' : Math.round(j.usd*26000))+' đ</div>' : ''); QA.hist.push({role:'user', text:text}, {role:'assistant', text:j.answer}); }
+      else pend.t = local((j && j.error && j.error!=='noai') ? '<div class="qa-cap" style="margin-top:6px;">(AI chưa trả lời được: '+esc(j.error)+' — em tra bằng cách thường.)</div>' : '');
+      qaRender();
+    }).catch(function(){ pend.t = local('<div class="qa-cap" style="margin-top:6px;">(Không gọi được AI — em tra bằng cách thường.)</div>'); qaRender(); });
   }
   function qaToggle(force){
     var p = document.getElementById('qaPanel'); if (!p) return;
     var open = force==null ? p.hasAttribute('hidden') : !!force;
     if (open){
       p.removeAttribute('hidden');
-      if (!QA.log.length) QA.log.push({me:false, t:'Xin chào'+(function(){ try { var n = localStorage.getItem('nmsx_user_name'); return n ? ' '+esc(n) : ''; } catch (e){ return ''; } })()+'! Em là ô <b>Hỏi nhanh</b> — miễn phí, trả lời thẳng từ dữ liệu của app (bộ phận '+qaLabelDept()+').<br>'+qaHelp('')});
+      if (!QA.log.length) QA.log.push({me:false, t:'Xin chào'+(function(){ try { var n = localStorage.getItem('nmsx_user_name'); return n ? ' '+esc(n) : ''; } catch (e){ return ''; } })()+'! Em là ô <b>Hỏi nhanh</b> — anh hỏi tự do bằng AI (câu đơn giản em tra miễn phí), trả lời thẳng từ dữ liệu của app (bộ phận '+qaLabelDept()+').<br>'+qaHelp('')});
       qaRender();
       var inp = document.getElementById('qaInput'); if (inp) setTimeout(function(){ try { inp.focus(); } catch (e){} }, 50);
     } else p.setAttribute('hidden', '');
@@ -8092,7 +8106,7 @@
     var s = '<select class="pqd-inp" data-xh-f="orderId" data-id="'+esc(id)+'" data-i="'+i+'"'+(locked?' disabled':'')+'><option value="">— chọn công trình —</option>';
     os.forEach(function(o){ if (o.id===cur) found = true; s += '<option value="'+esc(o.id)+'"'+(o.id===cur?' selected':'')+'>'+esc(pqxOrderLabel(o))+(o.dept==='dien'?' (Điện)':'')+'</option>'; });
     if (!found && STATE.orders[cur]) s += '<option value="'+esc(cur)+'" selected>'+esc(pqxOrderLabel(STATE.orders[cur]))+'</option>';
-    return s+'</select>';
+    return s+'</select>'+(it.hintResolved ? '<div class="pqd-cap" style="font-size:11px;">theo tên khách "'+esc(it.who||'')+'"</div>' : '')+(!cur && it.hintCands && it.hintCands.length ? '<div class="pqd-cap" style="font-size:11px;color:var(--warn,#8a5a00);">Khách "'+esc(it.who||'')+'" có nhiều đơn: '+esc(it.hintCands.join(', '))+' — chọn đúng đơn</div>' : '');
   }
   function xhCard(d){
     var st = XH_ST[d.status] || XH_ST.draft, locked = d.status==='issued' || d.status==='rejected' || d.status==='applied';
@@ -8796,9 +8810,9 @@
     load();
   }
 
-  function auAudit(){
+  function auAudit(pre){ pre = pre || {};
     var AUD = {items:[], offset:0, more:false};
-    var bd = auModal('<h3>Lịch sử chỉnh sửa</h3><div class="pqd-cap">Ai sửa gì, lúc nào (ghi từ khi bật đăng nhập). Chỉ chủ nhà máy xem được.</div>'+
+    var bd = auModal('<h3>Lịch sử chỉnh sửa'+(pre.title ? ' — '+esc(pre.title) : '')+'</h3><div class="pqd-cap">Ai sửa gì, lúc nào (ghi từ khi bật đăng nhập). Chỉ chủ nhà máy xem được.</div>'+
       '<div class="pqd-bar" style="padding:8px 0;flex-wrap:wrap;gap:8px;"><select id="auFu" class="pqd-inp" style="width:auto;"><option value="">Tất cả người</option></select>'+
       '<select id="auFc" class="pqd-inp" style="width:auto;"><option value="">Tất cả loại</option><option value="orders">Đơn hàng</option><option value="tasks">Công việc</option><option value="purchase">Đề nghị mua</option><option value="issues">Chi phí</option><option value="xuathang">Xuất hàng</option><option value="users">Tài khoản</option><option value="auth">Đăng nhập</option></select>'+
       '<input id="auFq" class="pqd-inp" style="width:170px;" placeholder="Tìm: mã đơn, tên vật tư…"><label class="pqd-cap">Từ <input type="date" id="auFf" class="pqd-inp" style="width:auto;"></label><label class="pqd-cap">đến <input type="date" id="auFt" class="pqd-inp" style="width:auto;"></label><button class="btn btn-primary" id="auFgo">Xem</button></div>'+
@@ -8818,7 +8832,7 @@
     }
     function load(reset){
       if (reset){ AUD.items = []; AUD.offset = 0; $('auAList').textContent = 'Đang tải…'; }
-      var q = '?limit=100&offset='+AUD.offset+'&u='+encodeURIComponent($('auFu').value)+'&c='+encodeURIComponent($('auFc').value)+'&q='+encodeURIComponent($('auFq').value)+'&from='+$('auFf').value+'&to='+$('auFt').value;
+      var q = '?limit=100&offset='+AUD.offset+'&id='+encodeURIComponent(pre.id||'')+'&u='+encodeURIComponent($('auFu').value)+'&c='+encodeURIComponent($('auFc').value)+'&q='+encodeURIComponent($('auFq').value)+'&from='+$('auFf').value+'&to='+$('auFt').value;
       auApi('/api/auth/audit'+q).then(function(j){
         if (!j.ok){ $('auAList').textContent = j.error||'Không tải được.'; return; }
         AUD.items = AUD.items.concat(j.items); AUD.offset = AUD.items.length; AUD.more = !!j.more; render();
@@ -8827,6 +8841,7 @@
     $('auFgo').onclick = function(){ load(true); };
     $('auAmore').onclick = function(){ load(false); };
     $('auFq').addEventListener('keydown', function(e){ if (e.key==='Enter') load(true); });
+    if (pre.c) $('auFc').value = pre.c;
     load(true);
   }
   if (auOwner()) setTimeout(function(){
@@ -9002,6 +9017,50 @@ function stockMatch(name, spec, rows) {
     var alt = (d.altItems||[]).length ? '<div class="pqd-cap" style="margin:2px 0 6px;">Quy tắc đọc là: '+d.altItems.map(function(i){ return esc(i.name)+(i.spare?' (dự phòng)':'')+' × '+esc(String(i.qty))+' '+esc(i.unit||'')+(i.order_code?' → '+esc(i.order_code):''); }).join(' · ')+'</div>' : '';
     return '<div class="pqd-cap" style="margin:6px 0;">Cách đọc: '+by+' · '+lv+((p.notes||[]).length ? ' — '+esc(p.notes.join('; ')) : '')+'</div>'+alt;
   }
+  /* ===== 08g: chi phí AI (chỉ chủ) + chặn trình duyệt tự điền tên đăng nhập vào ô nhập liệu ===== */
+  var AIC = {d:null};
+  function aiUsd(v){ v = Number(v)||0; return '$'+(v < 1 ? v.toFixed(3) : v.toFixed(2)); }
+  function aiVnd(v){ return Math.round((Number(v)||0)*26000).toLocaleString('vi-VN')+' đ'; }
+  function aiCostRefresh(){
+    auApi('/api/zalo/ai/usage').then(function(j){
+      if (!j || !j.ok) return; AIC.d = j;
+      var b = document.getElementById('aiCostChip'); if (b) b.textContent = 'AI '+aiUsd(j.month)+' / $'+j.cap;
+    });
+  }
+  function aiCostOpen(){
+    var d = AIC.d; if (!d) return aiCostRefresh();
+    var days = (d.days||[]).slice(-14).reverse(), by = (d.today && d.today.by) || {}, kinds = (d.today && d.today.kinds) || {};
+    var h = '<h3>Chi phí AI <span class="pqd-cap">(chỉ chủ xem)</span></h3>'+
+      '<div class="pqd-bar" style="padding:6px 0;gap:22px;flex-wrap:wrap;"><div><div class="pqd-cap">Tháng '+esc(d.monthKey)+'</div><b style="font-size:20px;">'+aiUsd(d.month)+'</b> <span class="pqd-cap">≈ '+aiVnd(d.month)+'</span></div>'+
+      '<div><div class="pqd-cap">Trần tháng</div><b style="font-size:20px;">$'+esc(String(d.cap||'∞'))+'</b> <span class="pqd-cap">'+(d.cap ? Math.round(d.month/d.cap*100)+'% đã dùng' : '')+'</span></div>'+
+      '<div><div class="pqd-cap">Tổng từ đầu</div><b>'+aiUsd(d.total)+'</b> <span class="pqd-cap">'+esc(String(d.calls))+' lượt'+(d.fails ? ', '+esc(String(d.fails))+' lỗi' : '')+'</span></div></div>'+
+      '<div class="pqd-cap">Model đọc tin / hỏi nhanh: '+esc(d.model||'')+'. Số tiền tính theo giá công bố và 26.000 đ/USD, chỉ để tham khảo — số chính thức xem ở console.anthropic.com → Billing.</div>';
+    h += '<div class="drw-h">Hôm nay</div><div class="pqd-cap">Người thường $'+(Number(d.today&&d.today.usd)||0).toFixed(3)+' · chủ $'+(Number(d.today&&d.today.ownerUsd)||0).toFixed(3)+' · đọc tin Zalo $'+(Number(kinds.msg)||0).toFixed(3)+' · hỏi nhanh $'+(Number(kinds.ask)||0).toFixed(3)+' · đọc bản vẽ $'+(Number(kinds.draw)||0).toFixed(3)+'</div>';
+    var keys = Object.keys(by);
+    h += keys.length ? '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th>Người</th><th class="r">Tin</th><th class="r">Hỏi</th><th class="r">Bản vẽ</th><th class="r">Tiền</th></tr></thead><tbody>'+keys.map(function(k){ var x = by[k]; return '<tr><td>'+esc(x.name||k)+(x.owner ? ' <span class="pqd-cap">(chủ)</span>' : '')+'</td><td class="r">'+esc(String(x.msgs||0))+'</td><td class="r">'+esc(String(x.asks||0))+'</td><td class="r">'+esc(String(x.draws||0))+'</td><td class="r">'+aiUsd(x.usd)+'</td></tr>'; }).join('')+'</tbody></table></div>' : '<div class="pqd-cap">Hôm nay chưa ai dùng AI.</div>';
+    h += '<div class="drw-h">14 ngày gần nhất</div><div class="table-wrap" style="border:none;max-height:240px;overflow:auto;"><table class="mrp-table pqd-table"><thead><tr><th>Ngày</th><th class="r">Người thường</th><th class="r">Chủ</th><th class="r">Tổng</th><th class="r">≈ đồng</th></tr></thead><tbody>'+
+      (days.length ? days.map(function(x){ var tot = (Number(x.usd)||0)+(Number(x.ownerUsd)||0); return '<tr><td>'+esc(fmtDate(x.date))+'</td><td class="r">'+aiUsd(x.usd)+'</td><td class="r">'+aiUsd(x.ownerUsd)+'</td><td class="r"><b>'+aiUsd(tot)+'</b></td><td class="r">'+aiVnd(tot)+'</td></tr>'; }).join('') : '<tr><td colspan="5" class="empty-note">Chưa có dữ liệu.</td></tr>')+'</tbody></table></div>';
+    var bd = auModal(h+'<div class="modal-actions"><button class="btn btn-ghost" id="aicClose">Đóng</button></div>', true);
+    document.getElementById('aicClose').onclick = function(){ bd.remove(); };
+  }
+  (function aiCostInit(){
+    if (!auOwner()) return;
+    setTimeout(function(){
+      var chip0 = document.getElementById('pqWhoChip'); if (!chip0 || document.getElementById('aiCostChip')) return;
+      var b = document.createElement('button'); b.className = 'btn'; b.id = 'aiCostChip'; b.type = 'button'; b.title = 'Chi phí AI tháng này (chỉ chủ xem)'; b.textContent = 'AI …';
+      chip0.parentNode.insertBefore(b, chip0); b.addEventListener('click', aiCostOpen);
+      aiCostRefresh(); setInterval(aiCostRefresh, 180000);
+    }, 800);
+  })();
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-order-hist]'); if (!b) return;
+    auAudit({c:'orders', id:b.getAttribute('data-order-hist'), title:'đơn '+(b.getAttribute('data-order-code')||'')});
+  });
+  (function noAutofill(){
+    var pend = false;
+    function fix(){ pend = false; document.querySelectorAll('input:not([autocomplete]),textarea:not([autocomplete])').forEach(function(i){ if (i.type==='password' || i.type==='hidden' || i.type==='file') return; i.setAttribute('autocomplete','off'); }); }
+    try { new MutationObserver(function(){ if (!pend){ pend = true; setTimeout(fix, 60); } }).observe(document.body, {childList:true, subtree:true}); fix(); } catch (e) {}
+  })();
   renderBanner();
   loadFromSeedOnly();
   boot();

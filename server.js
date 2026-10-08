@@ -126,6 +126,18 @@ function readBody(req) {
 const auth = require('./auth.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR });
 const zalo = require('./zalo.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR, sessionOf: auth.sessionOf, authOn: auth.authOn });
 
+// Lam sach chu trong vat tu truoc khi luu: chu tieng Viet chuan NFC, bo xuong dong trong o (copy tu Sheet hay co "\n" lam dinh chu: "80\ndày" -> "80dày")
+function cleanOrderDoc(o) {
+  if (!o || typeof o !== 'object' || !Array.isArray(o.materials)) return o;
+  o.materials.forEach(function (m) {
+    if (!m || typeof m !== 'object') return;
+    ['name', 'spec', 'note', 'supplier', 'unit'].forEach(function (f) {
+      if (typeof m[f] === 'string') { let v = m[f].normalize('NFC'); if (v.indexOf('\n') >= 0 || v.indexOf('\r') >= 0) v = v.replace(/\s*[\r\n]+\s*/g, ' ').replace(/ {2,}/g, ' ').trim(); m[f] = v; }
+    });
+  });
+  return o;
+}
+
 const server = http.createServer(function (req, res) {
   Promise.resolve().then(async function () {
     const u = new URL(req.url, 'http://x');
@@ -195,6 +207,7 @@ const server = http.createServer(function (req, res) {
       if (method === 'PUT') {
         const body = await readBody(req);
         const data = body.trim() ? JSON.parse(body) : {};
+        if (c === 'orders') Object.keys(data).forEach(function (k) { cleanOrderDoc(data[k]); });
         const mode = u.searchParams.get('mode') || 'replace';
         const prev = auth.authOn() ? loadColl(c) : null;
         if (mode === 'merge') { const cur = loadColl(c); Object.assign(cur, data); saveColl(c, cur); if (prev) auth.recordBulk(req, c, prev, cur); }
@@ -217,6 +230,7 @@ const server = http.createServer(function (req, res) {
       if (method === 'PUT') {
         const body = await readBody(req);
         const patch = body.trim() ? JSON.parse(body) : {};
+        if (c === 'orders') cleanOrderDoc(patch);
         const mode = u.searchParams.get('mode') || 'set';
         const before = auth.authOn() && data[id] != null ? auth.clone(data[id]) : null;
         if (mode === 'update' && data[id] && typeof data[id] === 'object') Object.assign(data[id], patch);

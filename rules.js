@@ -130,7 +130,7 @@ function parseMessage(text) {
   if (intent === 'mua' && !items.length) notes.push('chưa thấy dòng vật tư nào (có thể ở ảnh hoặc tin trước)');
   const level = (intent === 'mua' && allQty && allCode && !unsure) ? 'cao' : 'thap';
   return { is_request: isReq && intent !== 'khac', intent: intent, need_date: '', order_code: top, requester: '', items: items, note: '',
-    parse: { by: 'rule', level: level, notes: notes } };
+    parse: { by: 'rule', level: level, notes: notes, unsure: unsure } };
 }
 
 function parseSeg(seg0, prev, top, inSpare, firstCode) {
@@ -140,8 +140,14 @@ function parseSeg(seg0, prev, top, inSpare, firstCode) {
   let code = ''; const mcd = /\b(20\d{2}-(?:dl)?\d{2,3})\b/i.exec(seg);
   if (mcd) { code = mcd[1].toUpperCase(); seg = (seg.slice(0, mcd.index) + ' ' + seg.slice(mcd.index + mcd[0].length)).trim(); sd = stripD(seg); }
   let who = '';
-  const mcty = /\b(?:cty|cong ty)\s+(.+)$/.exec(sd);
-  if (mcty) { who = seg.slice(mcty.index).replace(/^\S+\s+(?=\S)/, '').trim(); seg = seg.slice(0, mcty.index).trim(); sd = stripD(seg); }
+  const mcty = /\b(htx|hop tac xa|cty|cong ty|co so|tnhh|nha may)\s+(.+)$/.exec(sd);
+  if (mcty) {
+    who = seg.slice(mcty.index).trim();
+    if (mcty[1] === 'cty') who = who.replace(/^\S+\s+/, ''); else if (mcty[1] === 'cong ty') who = who.replace(/^\S+\s+\S+\s+/, '');
+    seg = seg.slice(0, mcty.index).trim(); sd = stripD(seg);
+    const mth = /\s+(thay the|thay cho|cua)\s*$/.exec(sd);
+    if (mth) { seg = seg.slice(0, mth.index).trim(); sd = stripD(seg); }
+  }
   let spare = !!inSpare;
   if (/(^|[\s,(\-])(dp|d\.p|du phong)([\s,)\-]|$)/.test(sd)) {
     spare = true;
@@ -152,7 +158,7 @@ function parseSeg(seg0, prev, top, inSpare, firstCode) {
   sd = stripD(seg);
   if (!seg) return null;
   const mk = function (name, spec, qty, unit, unsure) {
-    return { unsure: !!unsure, item: { name: String(name).replace(/[\s,;:\-–]+$/, '').trim(), spec: String(spec || '').trim(), qty: qty, unit: String(unit || '').trim(), order_code: code || top || '', spare: spare, who: who } };
+    return { unsure: !!unsure, item: { name: String(name).replace(/[\s,;:\-–]+$/, '').trim(), spec: String(spec || '').trim(), qty: qty, unit: String(unit || '').trim(), order_code: code || (who ? '' : (top || '')), fallback: code ? '' : (top || ''), spare: spare, who: who } };
   };
   // "1 sua mn a lai" / "1" (them N cai cua vat tu truoc, cho don khac / du phong)
   let m = new RegExp('^' + NUM + '\\s*(.*)$').exec(sd);
