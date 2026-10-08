@@ -1637,7 +1637,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-08g-may';
+  var BUILD_ID = '2026-10-08i-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3468,7 +3468,7 @@
       var overdue = items.some(function(x){ return daysRemaining(x.snap.deliveryDate)<0; });
       html += '<div class="plan-week"><div class="plan-week-head'+(overdue?' overdue':'')+'">Tuần '+fmtDate(wsDate.toISOString().slice(0,10))+' – '+fmtDate(weDate.toISOString().slice(0,10))+' <span style="font-weight:600;opacity:.85;">('+items.length+' mục)</span></div><div class="plan-week-body">';
       items.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+planCust(x.o)+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
       });
       html += '</div></div>';
     });
@@ -3544,14 +3544,14 @@
       (o.items||[]).forEach(function(it){ if (!(it.name||'').trim()) return; monItems++; if (itemDone(it)) monDone++; });
     });
 
-    var LM = STATE.lichMode || 'all';
-    Object.keys(byDay).forEach(function(k){ if (LM==='prog') byDay[k].mats = []; if (LM==='mat') byDay[k].ords = []; if (!byDay[k].ords.length && !byDay[k].mats.length) delete byDay[k]; });
+    var SH = STATE.lichShow || (STATE.lichShow = {prog:true, mat:true});
+    Object.keys(byDay).forEach(function(k){ if (!SH.prog) byDay[k].ords = []; if (!SH.mat) byDay[k].mats = []; if (!byDay[k].ords.length && !byDay[k].mats.length) delete byDay[k]; });
     var html = '<div class="lich-bar">';
     html += '<button class="btn btn-sm" data-lich-nav="-1">‹ Tháng trước</button>';
     html += '<div class="lich-title">Tháng '+m+' / '+y+'</div>';
     html += '<button class="btn btn-sm" data-lich-nav="1">Tháng sau ›</button>';
     html += '<button class="btn btn-sm" data-lich-nav="0">Về tháng này</button>';
-    html += '<span class="lich-mode" style="margin-left:auto;display:inline-flex;gap:4px;">'+[['all','Tất cả'],['prog','🚚 Tiến độ giao hàng'],['mat','📦 Vật tư cần về']].map(function(x){ return '<button class="btn btn-sm'+(LM===x[0]?' btn-primary':'')+'" data-lich-mode="'+x[0]+'">'+x[1]+'</button>'; }).join('')+'</span>';
+    html += '<span class="lich-mode" style="margin-left:auto;display:inline-flex;gap:4px;">'+[['prog','🚚 Xuất hàng (giao cho khách)'],['mat','📦 Vật tư phải về']].map(function(x){ return '<button class="btn btn-sm'+(SH[x[0]]?' btn-primary':'')+'" data-lich-toggle="'+x[0]+'" title="'+(SH[x[0]]?'Đang HIỆN — bấm để ẨN':'Đang ẨN — bấm để HIỆN')+'">'+(SH[x[0]]?'✓ ':'✕ ')+x[1]+'</button>'; }).join('')+'</span>';
     html += '</div>';
 
     html += '<div class="stat-grid" style="margin:4px 0 14px;">';
@@ -3592,11 +3592,11 @@
       var ev = byDay[dk];
       html += '<div class="lich-day-grp"><div class="lich-day-hd">'+fmtDate(dk)+' — '+(daysRemaining(dk)<0?('<span style="color:var(--bad);">quá hạn '+Math.abs(daysRemaining(dk))+' ngày</span>'):(daysRemaining(dk)===0?'hôm nay':('còn '+daysRemaining(dk)+' ngày'))) + '</div>';
       ev.ords.forEach(function(x){
-        html += '<div class="lich-row" data-goto-td="'+esc(x.o.id)+'"><span class="lc-dot '+lichChipCls(x.o,x.cluster,dk)+'"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.cluster?' · <b>'+esc(x.cluster)+'</b>':'')+'</span>'+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="lich-row" data-goto-td="'+esc(x.o.id)+'"><span class="lc-dot '+lichChipCls(x.o,x.cluster,dk)+'"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.cluster?' · <b>'+esc(x.cluster)+'</b>':'')+planCust(x.o)+'</span>'+remainingPillForOrder(x.o)+'</div>';
       });
       ev.mats.forEach(function(x){
         var cls = matStatusClass(x.m.status);
-        html += '<div class="lich-row mat" data-goto-vt="'+esc(x.o.id)+'"><span class="lc-dot lc-mat"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">📦 '+esc(x.m.name||'(vật tư)')+(x.m.qty!=null?' — '+esc(fmtNum(x.m.qty))+' '+esc(x.m.unit||''):'')+'</span><span class="pill '+(cls==='mst-good'?'pill-good':(cls==='mst-info'?'pill-info':'pill-bad'))+'">'+esc(x.m.status||'Chưa xem')+'</span></div>';
+        html += '<div class="lich-row mat" data-goto-vt="'+esc(x.o.id)+'"><span class="lc-dot lc-mat"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">📦 '+esc(x.m.name||'(vật tư)')+(x.m.qty!=null?' — '+esc(fmtNum(x.m.qty))+' '+esc(x.m.unit||''):'')+planCust(x.o)+'</span><span class="pill '+(cls==='mst-good'?'pill-good':(cls==='mst-info'?'pill-info':'pill-bad'))+'">'+esc(x.m.status||'Chưa xem')+'</span></div>';
       });
       html += '</div>';
     });
@@ -3692,7 +3692,7 @@
     inWin.sort(function(a,b){ return a.dd-b.dd; }).forEach(function(x){
       var cp = avgProgress(x.o); var pct = cp.tien!=null?Math.round(cp.tien*100):null;
       var dr = daysRemaining(_isoOf(x.dd));
-      html += '<div class="lich-row" data-goto-td="'+esc(x.o.id)+'"><span class="lc-dot '+lichChipCls(x.o,null,_isoOf(x.dd))+'"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+'</span>'+
+      html += '<div class="lich-row" data-goto-td="'+esc(x.o.id)+'"><span class="lc-dot '+lichChipCls(x.o,null,_isoOf(x.dd))+'"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+
         '<span class="pill '+(dr<0?'pill-bad':(dr<=7?'pill-warn':'pill-neutral'))+'">'+fmtDate(_isoOf(x.dd))+' · '+(dr<0?('trễ '+Math.abs(dr)):(dr+' ngày'))+'</span>'+
         '<span class="pill pill-neutral">'+(pct==null?'—':pct+'%')+'</span></div>';
     });
@@ -5832,7 +5832,7 @@
       el.addEventListener('click', function(e){ e.stopPropagation(); setView('reqdate'); });
     });
     // ---- Lịch tháng ----
-    document.querySelectorAll('[data-lich-mode]').forEach(function(el){ el.addEventListener('click', function(){ STATE.lichMode = el.getAttribute('data-lich-mode'); STATE.lichDay = ''; renderAll(); }); });
+    document.querySelectorAll('[data-lich-toggle]').forEach(function(el){ el.addEventListener('click', function(){ var k = el.getAttribute('data-lich-toggle'); STATE.lichShow = STATE.lichShow || {prog:true, mat:true}; STATE.lichShow[k] = !STATE.lichShow[k]; STATE.lichDay = ''; renderAll(); }); });
     document.querySelectorAll('[data-lich-nav]').forEach(function(el){
       el.addEventListener('click', function(){
         var d = +el.getAttribute('data-lich-nav');
