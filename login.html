@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Đăng nhập — Nhà máy Phương Quân</title>
+<style>
+:root{--bg:#eef1f4;--card:#fff;--text:#16202b;--muted:#55616d;--line:#c9d0d6;--accent:#1f5fa8;--bad:#c0362c;--good:#1f8a4c;}
+@media (prefers-color-scheme:dark){:root{--bg:#10161c;--card:#1a232c;--text:#e8edf2;--muted:#9aa7b3;--line:#33414d;--accent:#5fa0e6;--bad:#ff7b6e;--good:#4fcf86;}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.box{width:100%;max-width:400px;background:var(--card);border-radius:16px;padding:26px 24px 20px;box-shadow:0 10px 36px rgba(0,0,0,.14)}
+.brand{text-align:center;margin-bottom:14px}
+.brand b{display:block;font-size:13px;letter-spacing:.06em;color:var(--accent)}
+.brand h1{margin:4px 0 0;font-size:20px}
+.tabs{display:flex;background:var(--bg);border-radius:10px;padding:3px;margin:14px 0 16px}
+.tabs button{flex:1;border:0;background:none;font:inherit;font-weight:600;padding:8px 0;border-radius:8px;color:var(--muted);cursor:pointer}
+.tabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+.hint{font-size:12px;color:var(--muted);margin-top:3px}
+.inp{position:relative}
+input[type=text],input[type=password]{width:100%;font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text)}
+input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+.eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:6px 8px}
+.btn{width:100%;margin-top:16px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:11px;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:wait}
+.msg{min-height:20px;margin-top:10px;font-size:13.5px}
+.msg.bad{color:var(--bad)}.msg.good{color:var(--good)}
+.chk{display:flex;gap:8px;align-items:center;font-weight:400;margin:12px 0 0}
+.meter{display:flex;gap:4px;margin-top:6px}.meter i{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.rules{font-size:12px;color:var(--muted);margin-top:5px}.rules span.ok{color:var(--good)}
+.link{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:0;text-decoration:underline}
+.foot{text-align:center;margin-top:12px}
+.note{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--muted);margin-top:12px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="brand"><b>NHÀ MÁY SẢN XUẤT PHƯƠNG QUÂN</b><h1 id="ttl">Đăng nhập hệ thống</h1></div>
+
+  <div class="tabs" id="tabs"><button type="button" id="tLogin" class="on">Đăng nhập</button><button type="button" id="tReg">Đăng ký</button></div>
+
+  <form id="fLogin" autocomplete="on">
+    <label for="lu">Tên đăng nhập</label>
+    <input type="text" id="lu" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20">
+    <label for="lp">Mật khẩu</label>
+    <div class="inp"><input type="password" id="lp" name="password" autocomplete="current-password" maxlength="100"><button type="button" class="eye" data-eye="lp">Hiện</button></div>
+    <label class="chk"><input type="checkbox" id="lr" checked> Ghi nhớ đăng nhập trên máy này (30 ngày)</label>
+    <button class="btn" type="submit" id="bLogin">Đăng nhập</button>
+    <div class="msg" id="mLogin"></div>
+    <div class="foot"><button type="button" class="link" id="bForgot">Quên mật khẩu?</button></div>
+  </form>
+
+  <form id="fReg" class="hide" autocomplete="off">
+    <div class="note hide" id="firstNote"><b>Lần đầu sử dụng.</b> Người đăng ký đầu tiên sẽ là <b>CHỦ</b> — có quyền duyệt/xóa người dùng và xem lịch sử chỉnh sửa.</div>
+    <label for="rn">Họ và tên</label>
+    <input type="text" id="rn" autocomplete="name" maxlength="40" placeholder="Ví dụ: Nguyễn Văn A">
+    <label for="ru">Tên đăng nhập</label>
+    <input type="text" id="ru" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="vd: nguyenvana">
+    <div class="hint">3–20 ký tự: chữ thường không dấu, số, dấu chấm hoặc gạch dưới.</div>
+    <label for="rp">Mật khẩu</label>
+    <div class="inp"><input type="password" id="rp" autocomplete="new-password" maxlength="100"><button type="button" class="eye" data-eye="rp">Hiện</button></div>
+    <div class="meter" id="meter"><i></i><i></i><i></i><i></i></div>
+    <div class="rules" id="rules"><span id="r1">• ít nhất 8 ký tự</span> &nbsp;<span id="r2">• có chữ</span> &nbsp;<span id="r3">• có số</span></div>
+    <label for="rp2">Nhập lại mật khẩu</label>
+    <div class="inp"><input type="password" id="rp2" autocomplete="new-password" maxlength="100"><button type="button" class="eye" data-eye="rp2">Hiện</button></div>
+    <button class="btn" type="submit" id="bReg">Đăng ký</button>
+    <div class="msg" id="mReg"></div>
+    <div class="note" id="regNote">Sau khi đăng ký, tài khoản cần được <b>chủ nhà máy duyệt</b> mới đăng nhập được.</div>
+  </form>
+
+  <div id="forgot" class="hide">
+    <div class="note"><b>Nhân viên:</b> báo chủ nhà máy đặt lại mật khẩu cho bạn (mục <i>Quản lý người dùng</i>).</div>
+    <div class="note"><b>Chủ nhà máy:</b> nhập mã PIN chủ (đã đặt ở mục Hạn mức AI) để đặt mật khẩu mới.</div>
+    <label for="fp">Mã PIN chủ</label>
+    <input type="password" id="fp" autocomplete="off" maxlength="40">
+    <label for="fw">Mật khẩu mới của chủ</label>
+    <div class="inp"><input type="password" id="fw" autocomplete="new-password" maxlength="100"><button type="button" class="eye" data-eye="fw">Hiện</button></div>
+    <button class="btn" type="button" id="bReset">Đặt lại mật khẩu chủ</button>
+    <div class="msg" id="mForgot"></div>
+    <div class="foot"><button type="button" class="link" id="bBack">← Quay lại đăng nhập</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var hasOwner = true;
+  function say(id, txt, cls){ var e = $(id); e.textContent = txt || ''; e.className = 'msg' + (cls ? ' '+cls : ''); }
+  function api(path, body){
+    return fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Lỗi máy chủ (HTTP '+r.status+')'}; }); })
+      .catch(function(){ return {ok:false, error:'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'}; });
+  }
+  function store(token, remember){
+    try{ localStorage.removeItem('nmsx_auth_token'); sessionStorage.removeItem('nmsx_auth_token'); }catch(e){}
+    try{ (remember ? localStorage : sessionStorage).setItem('nmsx_auth_token', token); }catch(e){}
+  }
+  function showTab(reg){
+    $('fLogin').className = reg ? 'hide' : ''; $('fReg').className = reg ? '' : 'hide'; $('forgot').className = 'hide'; $('tabs').className = 'tabs';
+    $('tLogin').className = reg ? '' : 'on'; $('tReg').className = reg ? 'on' : '';
+    $('ttl').textContent = reg ? (hasOwner ? 'Đăng ký tài khoản' : 'Tạo tài khoản chủ') : 'Đăng nhập hệ thống';
+    setTimeout(function(){ $(reg ? 'rn' : 'lu').focus(); }, 30);
+  }
+  $('tLogin').onclick = function(){ showTab(false); };
+  $('tReg').onclick = function(){ showTab(true); };
+  $('bForgot').onclick = function(){ $('fLogin').className = 'hide'; $('tabs').className = 'tabs hide'; $('forgot').className = ''; $('ttl').textContent = 'Quên mật khẩu'; };
+  $('bBack').onclick = function(){ showTab(false); };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-eye]'), function(b){
+    b.onclick = function(){ var i = $(b.getAttribute('data-eye')); var show = i.type === 'password'; i.type = show ? 'text' : 'password'; b.textContent = show ? 'Ẩn' : 'Hiện'; };
+  });
+
+  /* thanh do manh mat khau */
+  function pwCheck(){
+    var v = $('rp').value, a = v.length >= 8, b = /[A-Za-z]/.test(v), c = /[0-9]/.test(v), d = v.length >= 12 && /[^A-Za-z0-9]/.test(v);
+    $('r1').className = a ? 'ok' : ''; $('r2').className = b ? 'ok' : ''; $('r3').className = c ? 'ok' : '';
+    var score = (a && b && c ? 2 : (v ? 1 : 0)) + (v.length >= 10 ? 1 : 0) + (d ? 1 : 0);
+    var cols = ['#c0362c','#e08a1e','#d6b800','#1f8a4c'];
+    Array.prototype.forEach.call($('meter').children, function(el, i){ el.style.background = (v && i < score) ? cols[Math.max(0, score-1)] : ''; });
+  }
+  $('rp').addEventListener('input', pwCheck);
+  $('ru').addEventListener('input', function(){ var s = this.value.toLowerCase(); if (s !== this.value) this.value = s; });
+  $('lu').addEventListener('input', function(){ var s = this.value.toLowerCase().trim(); if (s !== this.value) this.value = s; });
+
+  $('fLogin').addEventListener('submit', function(e){
+    e.preventDefault();
+    var u = $('lu').value.trim().toLowerCase(), p = $('lp').value;
+    if (!u || !p){ say('mLogin', 'Nhập tên đăng nhập và mật khẩu.', 'bad'); return; }
+    $('bLogin').disabled = true; say('mLogin', 'Đang đăng nhập…');
+    api('/api/auth/login', {username:u, password:p, remember:$('lr').checked}).then(function(j){
+      $('bLogin').disabled = false;
+      if (!j.ok){ say('mLogin', j.error || 'Không đăng nhập được.', 'bad'); return; }
+      store(j.token, $('lr').checked); say('mLogin', 'Đăng nhập thành công…', 'good');
+      location.replace('/');
+    });
+  });
+  $('fReg').addEventListener('submit', function(e){
+    e.preventDefault();
+    var n = $('rn').value, u = $('ru').value.trim().toLowerCase(), p = $('rp').value, p2 = $('rp2').value;
+    if (n.replace(/\s+/g,' ').trim().length < 2){ say('mReg', 'Nhập họ và tên.', 'bad'); return; }
+    if (!/^[a-z0-9][a-z0-9._]{2,19}$/.test(u)){ say('mReg', 'Tên đăng nhập 3–20 ký tự: chữ thường không dấu, số, dấu chấm hoặc gạch dưới.', 'bad'); return; }
+    if (p.length < 8 || !/[A-Za-z]/.test(p) || !/[0-9]/.test(p)){ say('mReg', 'Mật khẩu tối thiểu 8 ký tự, có cả chữ và số.', 'bad'); return; }
+    if (p !== p2){ say('mReg', 'Hai lần nhập mật khẩu chưa giống nhau.', 'bad'); return; }
+    $('bReg').disabled = true; say('mReg', 'Đang đăng ký…');
+    api('/api/auth/register', {name:n, username:u, password:p, password2:p2}).then(function(j){
+      $('bReg').disabled = false;
+      if (!j.ok){ say('mReg', j.error || 'Không đăng ký được.', 'bad'); return; }
+      if (j.owner){ store(j.token, true); say('mReg', 'Đã tạo tài khoản chủ. Đang vào hệ thống…', 'good'); location.replace('/'); return; }
+      $('fReg').reset(); pwCheck();
+      say('mReg', 'Đăng ký thành công! Vui lòng chờ chủ nhà máy duyệt, sau đó đăng nhập bằng tên "' + u + '".', 'good');
+    });
+  });
+  $('bReset').onclick = function(){
+    var pin = $('fp').value, pw = $('fw').value;
+    if (!pin || !pw){ say('mForgot', 'Nhập mã PIN chủ và mật khẩu mới.', 'bad'); return; }
+    say('mForgot', 'Đang xử lý…');
+    api('/api/auth/owner-reset', {pin:pin, password:pw}).then(function(j){
+      if (!j.ok){ say('mForgot', j.error || 'Không đặt lại được.', 'bad'); return; }
+      say('mForgot', 'Đã đặt lại. Đăng nhập bằng tên "' + j.username + '" và mật khẩu mới.', 'good'); $('fp').value = ''; $('fw').value = '';
+    });
+  };
+
+  /* khoi dong: da dang nhap roi thi vao thang; chua co chu thi hien "Tao tai khoan chu" */
+  var q = location.search;
+  if (/[?&]e=1/.test(q)) say('mLogin', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'bad');
+  var tok = ''; try{ tok = sessionStorage.getItem('nmsx_auth_token') || localStorage.getItem('nmsx_auth_token') || ''; }catch(e){}
+  fetch('/api/auth/status').then(function(r){ return r.json(); }).then(function(s){
+    hasOwner = !!s.hasOwner;
+    if (!hasOwner){ $('tabs').className = 'tabs hide'; $('firstNote').className = 'note'; $('regNote').className = 'hide'; $('bReg').textContent = 'Tạo tài khoản chủ'; showTab(true); }
+    else if (tok && !/[?&]e=1/.test(q)){
+      fetch('/api/auth/me', {headers:{Authorization:'Bearer '+tok}}).then(function(r){ if (r.ok) location.replace('/'); }).catch(function(){});
+    }
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>

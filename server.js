@@ -122,7 +122,9 @@ function readBody(req) {
 }
 
 // Zalo Bot: nhan yeu cau xuat hang tu nhom vat tu (xem zalo.js)
-const zalo = require('./zalo.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR });
+// Dang ky / dang nhap / lich su chinh sua (xem auth.js). Chua co tai khoan chu thi moi thu mo nhu cu.
+const auth = require('./auth.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR });
+const zalo = require('./zalo.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR, sessionOf: auth.sessionOf, authOn: auth.authOn });
 
 const server = http.createServer(function (req, res) {
   Promise.resolve().then(async function () {
@@ -158,6 +160,13 @@ const server = http.createServer(function (req, res) {
       return sendText(res, 404, 'no sheet file');
     }
 
+    if (p === '/login' || p === '/login/') return sendBytes(res, 200, 'text/html; charset=utf-8', auth.loginHtml());
+    if (p.indexOf('/api/auth/') === 0) { if (await auth.handle(req, res, u, p, method)) return; }
+    if (p.indexOf('/api/') === 0) {
+      const g = auth.allow(req, p, method);
+      if (!g.ok) return sendJson(res, g.status, { error: g.error, needLogin: g.status === 401 });
+    }
+
     if (p === '/api/ping') return sendJson(res, 200, { ok: true, app: 'nmsx-pq', port: PORT, env: 'render' });
 
     // Tai lai Sheet Dien truc tiep tu Google (cong khai, khong can dang nhap)
@@ -187,8 +196,9 @@ const server = http.createServer(function (req, res) {
         const body = await readBody(req);
         const data = body.trim() ? JSON.parse(body) : {};
         const mode = u.searchParams.get('mode') || 'replace';
-        if (mode === 'merge') { const cur = loadColl(c); Object.assign(cur, data); saveColl(c, cur); }
-        else saveColl(c, data);
+        const prev = auth.authOn() ? loadColl(c) : null;
+        if (mode === 'merge') { const cur = loadColl(c); Object.assign(cur, data); saveColl(c, cur); if (prev) auth.recordBulk(req, c, prev, cur); }
+        else { saveColl(c, data); if (prev) auth.recordBulk(req, c, prev, data); }
         return sendBytes(res, 204, 'text/plain', Buffer.alloc(0));
       }
     }
@@ -201,16 +211,18 @@ const server = http.createServer(function (req, res) {
         return sendJson(res, 200, { exists: has, data: has ? data[id] : null });
       }
       if (method === 'DELETE') {
-        if (Object.prototype.hasOwnProperty.call(data, id)) { delete data[id]; saveColl(c, data); }
+        if (Object.prototype.hasOwnProperty.call(data, id)) { const old = data[id]; delete data[id]; saveColl(c, data); auth.record(req, c, id, old, null); }
         return sendBytes(res, 204, 'text/plain', Buffer.alloc(0));
       }
       if (method === 'PUT') {
         const body = await readBody(req);
         const patch = body.trim() ? JSON.parse(body) : {};
         const mode = u.searchParams.get('mode') || 'set';
+        const before = auth.authOn() && data[id] != null ? auth.clone(data[id]) : null;
         if (mode === 'update' && data[id] && typeof data[id] === 'object') Object.assign(data[id], patch);
         else data[id] = patch;
         saveColl(c, data);
+        auth.record(req, c, id, before, data[id]);
         return sendBytes(res, 204, 'text/plain', Buffer.alloc(0));
       }
     }
@@ -221,7 +233,7 @@ const server = http.createServer(function (req, res) {
     if (p === '/api/export' && method === 'GET') {
       const names = fs.readdirSync(DATA_DIR).filter(function (f) { return f.endsWith('.json'); }).map(function (f) { return f.slice(0, -5); });
       const out = {};
-      names.forEach(function (n) { out[n] = loadColl(n); });
+      names.forEach(function (n) { if (n !== 'sessions') out[n] = loadColl(n); });
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Content-Disposition': 'attachment; filename="nmsx-sao-luu-' + new Date().toISOString().slice(0, 10) + '.json"',
@@ -232,7 +244,8 @@ const server = http.createServer(function (req, res) {
     if (p === '/api/import' && method === 'POST') {
       const body = await readBody(req);
       const obj = JSON.parse(body);
-      Object.keys(obj).forEach(function (n) { saveColl(n, obj[n] || {}); });
+      Object.keys(obj).forEach(function (n) { if (n !== 'sessions') saveColl(n, obj[n] || {}); });
+      auth.invalidate();
       return sendJson(res, 200, { ok: true, collections: Object.keys(obj) });
     }
 

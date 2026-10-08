@@ -300,8 +300,16 @@ module.exports = function (ctx) {
     return ok;
   }
   // Chua dat PIN chu -> chua co "chu": tam coi moi nguoi nhu chu (van bi tran thang), UI nhac dat PIN
-  function ownerMode(req) { const c = aiCfg(); if (!c.ownerHash) return true; return pinOk(String(req.headers['x-owner-pin'] || '')); }
+  function authSession(req) { return ctx.authOn && ctx.authOn() && ctx.sessionOf ? ctx.sessionOf(req) : null; }
+  function ownerMode(req) {
+    const as = authSession(req);
+    if (as && as.role === 'owner') return true;
+    if (ctx.authOn && ctx.authOn()) { const c1 = aiCfg(); return !!c1.ownerHash && pinOk(String(req.headers['x-owner-pin'] || '')); }
+    const c = aiCfg(); if (!c.ownerHash) return true; return pinOk(String(req.headers['x-owner-pin'] || ''));
+  }
   function identOfReq(req) {
+    const as = authSession(req);
+    if (as) return { key: 'w:' + (stripD(as.name).replace(/[^a-z0-9]/g, '') || 'khach'), name: as.name };
     let name = ''; try { name = decodeURIComponent(String(req.headers['x-user-name'] || '')).trim().slice(0, 60); } catch (e) {}
     return { key: 'w:' + (stripD(name).replace(/[^a-z0-9]/g, '') || 'khach'), name: name || '(chưa nhập tên)' };
   }
@@ -725,10 +733,11 @@ module.exports = function (ctx) {
     if (p === '/api/zalo/ai/settings' && method === 'GET') {
       const c = aiCfg(), ident = identOfReq(req), owner = ownerMode(req), L = usageLoad();
       const me = L.day.by[ident.key] || { msgs: 0, draws: 0 }, pp = c.people[ident.key] || {};
-      const out = { ok: true, ownerSet: !!c.ownerHash, owner: owner && !!c.ownerHash, limits: c.limits,
+      const ownEff = !!c.ownerHash || !!(ctx.authOn && ctx.authOn());
+      const out = { ok: true, ownerSet: ownEff, owner: owner && ownEff, limits: c.limits,
         you: { key: ident.key, name: ident.name, msgsToday: me.msgs, drawsToday: me.draws, msgMax: pp.zaloPerDay != null ? pp.zaloPerDay : c.limits.zaloPerDay, drawMax: pp.drawPerDay != null ? pp.drawPerDay : c.limits.drawPerDay },
         dayUsd: L.day.usd, ownerDayUsd: L.day.ownerUsd, monthUsd: monthSpend(), capUsd: capOf() };
-      if (owner && c.ownerHash) {
+      if (owner && ownEff) {
         out.people = c.people; out.ownerZalo = c.ownerZalo; out.todayBy = L.day.by; out.seen = seenZalo();
         out.history = Object.keys(L.U).sort().slice(-14).map(function (k) { return { date: k, usd: L.U[k].usd, ownerUsd: L.U[k].ownerUsd }; });
       }
@@ -748,7 +757,7 @@ module.exports = function (ctx) {
     }
     if (p === '/api/zalo/ai/settings' && method === 'POST') {
       const c = aiCfg();
-      if (!c.ownerHash || !pinOk(String(req.headers['x-owner-pin'] || ''))) { ctx.sendJson(res, 403, { ok: false, error: 'Chỉ chủ (có PIN) mới sửa được hạn mức' }); return true; }
+      if (!((c.ownerHash || (ctx.authOn && ctx.authOn())) && ownerMode(req))) { ctx.sendJson(res, 403, { ok: false, error: 'Chỉ chủ mới sửa được hạn mức' }); return true; }
       let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
       const L0 = b.limits || {};
       c.limits = { zaloPerDay: numIn(L0.zaloPerDay, 0, 1000, c.limits.zaloPerDay), drawPerDay: numIn(L0.drawPerDay, 0, 100, c.limits.drawPerDay), dayUsdCap: numIn(L0.dayUsdCap, 0, 1000, c.limits.dayUsdCap) };
