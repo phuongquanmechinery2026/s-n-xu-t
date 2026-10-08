@@ -1540,9 +1540,9 @@
       <div class="tab" data-view="mrp" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/></svg>Vật tư cần mua</div>
       <div class="tab" data-view="reqdate" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-9-9"/></svg>Vật tư theo ngày yêu cầu</div>
       <div class="tab" data-view="pr" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"/></svg>Đề nghị mua</div>
-      <div class="tab" data-view="xuat" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10v9H4zM14 10h4l3 3v3h-7zM9 12h-3M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Yêu cầu xuất hàng<span class="xh-badge" id="xhBadge" style="display:none;"></span></div>
+      <div class="tab" data-view="xuat" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10v9H4zM14 10h4l3 3v3h-7zM9 12h-3M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Yêu cầu mua / xuất<span class="xh-badge" id="xhBadge" style="display:none;"></span></div>
       <div class="tab pq-later" data-view="issue" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Cấp phát vật tư</div>
-      <div class="tab pq-later" data-view="kho" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10l8-6 8 6v10H4zM9 20v-6h6v6"/></svg>Kho &amp; Chất lượng</div>
+      <div class="tab" data-view="kho" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10l8-6 8 6v10H4zM9 20v-6h6v6"/></svg>Kho &amp; Chất lượng</div>
       <button type="button" class="pq-more" id="pqMore" aria-expanded="false" title="Hiện thêm mục: Cấp phát vật tư, Kho &amp; Chất lượng">+ Mục khác</button>
       <div class="pq-navlbl">Kế hoạch</div>
       <div class="tab" data-view="plan" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"/></svg>Kế hoạch</div>
@@ -1637,7 +1637,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-08d-may';
+  var BUILD_ID = '2026-10-08e-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3773,7 +3773,8 @@
       if (/da co|da mua|nhap kho|du kho/.test(stripDiacritics(m.status||''))) matHave++; else matNeed++;
     });});
     var mrpRows = computeMrpRows(cw);
-    var html = '<div class="kho-note">'+ICO.factory+' <span>Xưởng chưa ghi nhận số liệu tồn kho thực tế (nhập/xuất kho theo từng mã vật tư) trong sheet gốc, nên mục "Kho" ở đây tổng hợp trạng thái vật tư trong <b>Công việc hiện tại</b> và dùng chung số liệu với "Vật tư cần mua" (bấm vào ô "Dòng vật tư cần mua" hoặc bất kỳ dòng nào bên dưới để xem đầy đủ) — khi nào bắt đầu ghi sổ kho, phần này có thể mở rộng thành tra cứu tồn kho đầy đủ như AMIS.</span></div>';
+    var html = '<div class="kho-note"'+(khoHas()?' style="display:none;"':'')+'>'+ICO.factory+' <span>Xưởng chưa ghi nhận số liệu tồn kho thực tế (nhập/xuất kho theo từng mã vật tư) trong sheet gốc, nên mục "Kho" ở đây tổng hợp trạng thái vật tư trong <b>Công việc hiện tại</b> và dùng chung số liệu với "Vật tư cần mua" (bấm vào ô "Dòng vật tư cần mua" hoặc bất kỳ dòng nào bên dưới để xem đầy đủ) — khi nào bắt đầu ghi sổ kho, phần này có thể mở rộng thành tra cứu tồn kho đầy đủ như AMIS.</span></div>';
+    html += khoPanel();
     html += '<div class="kho-stat-grid">';
     html += statCard('Dòng vật tư đã có', matHave, 'accent-good');
     html += statCard('Dòng vật tư cần mua', matNeed, 'accent-warn', ' data-goto-mrp="1" title="Xem chi tiết trong \'Vật tư cần mua\'"');
@@ -8042,8 +8043,8 @@
   /* ===== YÊU CẦU XUẤT HÀNG (nhận từ nhóm Zalo vật tư) =====
      Máy chủ web (zalo.js) nhận tin Zalo → AI đọc tên vật tư, số lượng, công trình → lưu vào ngăn "xuathang".
      Trang này: xem yêu cầu, sửa, duyệt, lập phiếu xuất kho (in), tự ghi vào Cấp phát vật tư của đơn. */
-  var XH = {filter:'draft', zs:null, zsAt:0, zsErr:'', loading:false, msg:''};
-  var XH_ST = {draft:['Chờ xử lý','pill-warn'], approved:['Đã duyệt','pill-info'], issued:['Đã xuất kho','pill-good'], rejected:['Từ chối','pill-bad'], applied:['Đã điền vào VT','pill-good'], undone:['Đã hoàn tác','pill-neutral']};
+  var XH = {filter:'draft', kind:'all', zs:null, zsAt:0, zsErr:'', loading:false, msg:''};
+  var XH_ST = {draft:['Chờ xử lý','pill-warn'], approved:['Đã duyệt','pill-info'], issued:['Đã xuất kho','pill-good'], rejected:['Từ chối','pill-bad'], applied:['Đã điền vào VT','pill-good'], undone:['Đã hoàn tác','pill-neutral'], ignored:['Tin thường','pill-neutral'], answered:['Đã tra kho','pill-info']};
   function xhList(){ return Object.keys(PQX.xh||{}).map(function(k){ return PQX.xh[k]; }).filter(function(d){ return d && d.id; }).sort(function(a,b){ return (b.at||0)-(a.at||0); }); }
   function xhUser(){ try{ return localStorage.getItem('nmsx_user_name')||''; }catch(e){ return ''; } }
   function xhTime(ms){ var d = new Date(ms||Date.now()); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+fmtDate(pqxISO(d)); }
@@ -8095,17 +8096,18 @@
   }
   function xhCard(d){
     var st = XH_ST[d.status] || XH_ST.draft, locked = d.status==='issued' || d.status==='rejected' || d.status==='applied';
-    var h = '<div class="panel xh-card" style="margin-bottom:14px;"><div class="panel-head" style="gap:10px;flex-wrap:wrap;"><h2 style="margin:0;"><span class="num">'+esc(d.id)+'</span></h2><span class="pill '+st[1]+'">'+esc(st[0])+'</span>'+(d.intent==='mua'?'<span class="pill pill-info">MUA</span>':(d.intent==='xuat'?'<span class="pill pill-neutral">XUẤT KHO</span>':''))+
+    var h = '<div class="panel xh-card" style="margin-bottom:14px;"><div class="panel-head" style="gap:10px;flex-wrap:wrap;"><h2 style="margin:0;"><span class="num">'+esc(d.id)+'</span></h2><span class="pill '+st[1]+'">'+esc(st[0])+'</span>'+xhKindPill(d)+
       '<span class="pqd-cap">'+esc(xhTime(d.at))+' · <b>'+esc(d.fromName||'(không rõ người gửi)')+'</b>'+(d.source==='web'?' · dán tay':'')+'</span><span style="flex:1"></span>'+
       '<button class="btn btn-sm btn-danger" data-xh="delreq" data-id="'+esc(d.id)+'" title="Xoá yêu cầu này">Xoá</button></div><div class="panel-body" style="padding:12px 16px;">';
     h += '<div class="xh-src">'+(d.hasPhoto && d.photoSaved ? '<a href="/api/zalo/img/'+esc(d.id)+auTq()+'" target="_blank" rel="noopener"><img class="xh-img" src="/api/zalo/img/'+esc(d.id)+auTq()+'" alt="Ảnh trong tin nhắn"></a>' : (d.hasPhoto ? '<div class="pqd-cap">(có ảnh nhưng chưa tải được: '+esc(d.photoError||'')+')</div>' : ''))+
       '<div class="xh-text">'+(d.text ? esc(d.text) : '<span class="pqd-cap">(tin nhắn không có chữ)</span>')+'</div></div>';
-    if (d.notRequest) h += '<div class="pqd-cap" style="margin:6px 0;color:var(--warn,#8a5a00);">Hệ thống thấy tin này không phải yêu cầu xuất hàng. Nếu đúng là yêu cầu, anh thêm dòng bên dưới hoặc bấm "Đọc lại bằng AI".</div>';
+    if (d.notRequest || d.intent==='khac') h += '<div class="pqd-cap" style="margin:6px 0;color:var(--warn,#8a5a00);">Hệ thống xếp tin này là TIN THƯỜNG (không đòi mua hay xuất). Nếu đúng là yêu cầu, bấm nút "Đề xuất MUA" hoặc "Yêu cầu XUẤT KHO" bên dưới.</div>';
+    h += xhParseNote(d);
     if (d.aiError) h += '<div class="pqd-cap" style="margin:6px 0;color:var(--bad,#c0362c);">AI: '+esc(d.aiError)+'</div>';
     if (d.note) h += '<div class="pqd-cap" style="margin:6px 0;">Ghi chú trong tin: '+esc(d.note)+'</div>';
     var items = d.items||[];
-    h += '<div class="table-wrap" style="border:none;margin-top:8px;"><table class="mrp-table pqd-table xh-items"><thead><tr><th style="width:36px;">#</th><th style="min-width:220px;">Tên vật tư</th><th style="min-width:130px;">Quy cách</th><th class="r" style="width:90px;">Số lượng</th><th style="width:80px;">ĐVT</th><th style="min-width:230px;">Công trình</th><th style="width:34px;"></th></tr></thead><tbody>';
-    if (!items.length) h += '<tr><td colspan="7" class="empty-note">Chưa có dòng vật tư nào.'+(locked?'':' Bấm "+ Thêm dòng".')+'</td></tr>';
+    h += '<div class="table-wrap" style="border:none;margin-top:8px;"><table class="mrp-table pqd-table xh-items"><thead><tr><th style="width:36px;">#</th><th style="min-width:220px;">Tên vật tư</th><th style="min-width:130px;">Quy cách</th><th class="r" style="width:90px;">Số lượng</th><th style="width:80px;">ĐVT</th><th style="min-width:230px;">Công trình</th><th style="width:64px;text-align:center;">Dự phòng</th><th style="min-width:170px;">Kho (có / không)</th><th style="width:34px;"></th></tr></thead><tbody>';
+    if (!items.length) h += '<tr><td colspan="9" class="empty-note">Chưa có dòng vật tư nào.'+(locked?'':' Bấm "+ Thêm dòng".')+'</td></tr>';
     items.forEach(function(it, i){
       var dis = locked ? ' disabled' : '';
       h += '<tr><td class="num pqd-cap">'+(i+1)+'</td>'+
@@ -8114,12 +8116,13 @@
         '<td><input class="pqd-inp num" inputmode="decimal" data-xh-f="qty" data-id="'+esc(d.id)+'" data-i="'+i+'" value="'+esc(it.qty===''||it.qty==null?'':String(it.qty))+'"'+dis+'></td>'+
         '<td><input class="pqd-inp" data-xh-f="unit" data-id="'+esc(d.id)+'" data-i="'+i+'" value="'+esc(it.unit||'')+'"'+dis+'></td>'+
         '<td>'+xhOrderSelect(it, i, d.id, locked)+'</td>'+
+        '<td class="c" style="text-align:center;"><input type="checkbox" data-xh-f="spare" data-id="'+esc(d.id)+'" data-i="'+i+'"'+(it.spare?' checked':'')+dis+' title="Mua dự phòng"></td><td>'+khoBadge(it)+'</td>'+
         '<td>'+(locked?'':'<button class="row-del" data-xh="del" data-id="'+esc(d.id)+'" data-i="'+i+'" title="Xoá dòng" aria-label="Xoá dòng">✕</button>')+'</td></tr>';
     });
     h += '</tbody></table></div><div class="pqd-err" id="xhErr-'+esc(d.id)+'"></div><div class="pqd-bar" style="padding:10px 0 0;flex-wrap:wrap;">';
     if (d.status==='draft'){
-      h += '<button class="btn btn-sm" data-xh="add" data-id="'+esc(d.id)+'">+ Thêm dòng</button><button class="btn btn-sm" data-xh="ai" data-id="'+esc(d.id)+'">Đọc lại bằng AI</button><span style="flex:1"></span>'+
-        '<button class="btn btn-sm btn-danger" data-xh="reject" data-id="'+esc(d.id)+'">Từ chối</button>'+(d.intent==='mua' ? '<button class="btn btn-primary" data-xh="apply" data-id="'+esc(d.id)+'">Điền vào VT &amp; lập đề nghị mua</button>' : '<button class="btn btn-primary" data-xh="approve" data-id="'+esc(d.id)+'">Duyệt yêu cầu</button>');
+      h += xhKindBtns(d)+'<button class="btn btn-sm" data-xh="add" data-id="'+esc(d.id)+'">+ Thêm dòng</button><button class="btn btn-sm" data-xh="ai" data-id="'+esc(d.id)+'">Đọc lại bằng AI</button><span style="flex:1"></span>'+
+        '<button class="btn btn-sm btn-danger" data-xh="reject" data-id="'+esc(d.id)+'">Từ chối</button>'+(d.intent==='chua_ro' ? '<span class="pqd-cap">← chọn loại tin trước</span>' : (d.intent==='mua' ? '<button class="btn btn-primary" data-xh="apply" data-id="'+esc(d.id)+'">Điền vào VT &amp; lập đề nghị mua</button>' : '<button class="btn btn-primary" data-xh="approve" data-id="'+esc(d.id)+'">Duyệt yêu cầu</button>'));
     } else if (d.status==='approved'){
       h += '<span class="pqd-cap">Duyệt bởi '+esc(d.approvedBy||'')+' · '+esc(xhTime(d.approvedAt))+'</span><span style="flex:1"></span><button class="btn btn-sm" data-xh="reopen" data-id="'+esc(d.id)+'">Mở lại để sửa</button>'+
         '<button class="btn btn-primary" data-xh="issue" data-id="'+esc(d.id)+'">Lập phiếu xuất kho &amp; in</button>';
@@ -8132,6 +8135,8 @@
       h += '<span class="pqd-cap">Đã hoàn tác phần điền vào VT và huỷ phiếu đề nghị mua tương ứng.</span><span style="flex:1"></span><button class="btn btn-sm" data-xh="reopen" data-id="'+esc(d.id)+'">Mở lại để sửa</button>';
     } else if (d.status==='issued'){
       h += '<span class="pqd-cap">Phiếu <b class="num">'+esc((d.slip||{}).id||'')+'</b> · '+esc(fmtDate((d.slip||{}).date))+' · lập bởi '+esc((d.slip||{}).by||'')+' · đã ghi vào Cấp phát vật tư ('+((d.slip||{}).issueIds||[]).length+' phiếu)</span><span style="flex:1"></span><button class="btn btn-primary" data-xh="print" data-id="'+esc(d.id)+'">In lại phiếu xuất kho</button>';
+    } else if (d.status==='ignored' || d.status==='answered'){
+      h += (d.status==='answered' ? '<span class="pqd-cap">Tin hỏi tồn kho — bot đã trả lời trong nhóm.</span>' : '<span class="pqd-cap">Tin thường, không cần xử lý.</span>')+'<span style="flex:1"></span>'+xhKindBtns(d);
     } else {
       h += '<span class="pqd-cap">Đã từ chối'+(d.rejectedBy?' bởi '+esc(d.rejectedBy):'')+'</span><span style="flex:1"></span><button class="btn btn-sm" data-xh="reopen" data-id="'+esc(d.id)+'">Mở lại</button>';
     }
@@ -8139,17 +8144,19 @@
   }
   function renderXuat(){
     pqxInit(); xhLoadStatus(false); xhBadge();
-    var all = xhList(), cnt = {draft:0, approved:0, issued:0, rejected:0, applied:0, undone:0};
+    khoLoad(false);
+    var all = xhList(), cnt = {draft:0, approved:0, issued:0, rejected:0, applied:0, undone:0, ignored:0, answered:0};
     all.forEach(function(d){ if (cnt[d.status]!=null) cnt[d.status]++; });
-    var list = all.filter(function(d){ return XH.filter==='all' || d.status===XH.filter; });
-    var h = '<div class="pqd-head"><div><h1>Yêu cầu xuất hàng</h1><div class="pqd-sub">Nhân viên nhắn vào nhóm Zalo vật tư (nhắc tên bot), hệ thống tự đọc tin và ảnh thành danh sách vật tư. Thủ kho kiểm tra, duyệt, lập phiếu xuất kho rồi in; phiếu tự ghi vào Cấp phát vật tư của đơn.</div></div></div>';
+    var list = all.filter(function(d){ return (XH.filter==='all' || d.status===XH.filter) && (XH.kind==='all' || (d.intent||'')===XH.kind); });
+    var h = '<div class="pqd-head"><div><h1>Yêu cầu mua / xuất hàng</h1><div class="pqd-sub">Nhân viên nhắn vào nhóm Zalo vật tư (nhắc tên bot), hệ thống tự đọc tin và ảnh thành danh sách vật tư. Thủ kho kiểm tra, duyệt, lập phiếu xuất kho rồi in; phiếu tự ghi vào Cấp phát vật tư của đơn.</div></div></div>';
     h += '<div class="stat-grid">'+statCard('Chờ xử lý', cnt.draft, 'accent-warn')+statCard('Đã điền vào VT', cnt.applied, 'accent-good')+statCard('Đã duyệt, chờ xuất', cnt.approved, 'accent-info')+statCard('Đã xuất kho', cnt.issued, 'accent-good')+'</div>';
     h += '<div class="pqd-cap" style="margin:0 0 12px;">Yêu cầu <b>MUA</b> do AI đọc được và có mã công trình sẽ <b>tự điền vào VT</b> của đơn (tình trạng "Yêu cầu đặt") kèm phiếu đề nghị mua — có nút Hoàn tác. Yêu cầu <b>XUẤT KHO</b> chờ thủ kho duyệt. Trong nhóm Zalo bot chỉ đọc tin có <b>nhắc tên bot (@)</b>; nhắn riêng cho bot thì không cần.</div>'+xhStatusPanel()+xhAiPanel();
     h += '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Dán tin nhắn Zalo vào đây</h2></div><div class="panel-body" style="padding:12px 16px;"><textarea id="xhManual" class="pqd-inp" rows="3" style="width:100%;" placeholder="VD: Xuất cho đơn 2026-187: Motor 5,5kW x 1 con; Bi UCP 212 x 2 cái"></textarea><div class="pqd-bar" style="padding:8px 0 0;"><span class="pqd-cap">Dùng khi tin không tự về được, hoặc để thử.</span><span style="flex:1"></span><button class="btn btn-sm btn-primary" data-xh="manual">Tạo yêu cầu</button></div></div></div>';
-    h += '<div class="pqd-bar" style="padding:0 0 12px;flex-wrap:wrap;">'+[['draft','Chờ xử lý'],['applied','Đã điền vào VT'],['approved','Đã duyệt'],['issued','Đã xuất kho'],['rejected','Từ chối'],['undone','Đã hoàn tác'],['all','Tất cả']].map(function(f){
+    h += '<div class="pqd-bar" style="padding:0 0 12px;flex-wrap:wrap;">'+[['draft','Chờ xử lý'],['applied','Đã điền vào VT'],['approved','Đã duyệt'],['issued','Đã xuất kho'],['rejected','Từ chối'],['undone','Đã hoàn tác'],['answered','Đã tra kho'],['ignored','Tin thường'],['all','Tất cả']].map(function(f){
       var n = f[0]==='all' ? all.length : cnt[f[0]];
       return '<button class="btn btn-sm'+(XH.filter===f[0]?' btn-primary':'')+'" data-xh="filter" data-f="'+f[0]+'">'+f[1]+' ('+n+')</button>';
     }).join('')+'</div>';
+    h += '<div class="pqd-bar" style="padding:0 0 12px;flex-wrap:wrap;"><span class="pqd-cap">Loại tin:</span>'+[['all','Tất cả'],['mua','Đề xuất MUA'],['xuat','XUẤT KHO'],['chua_ro','Chưa rõ'],['hoi','Hỏi kho']].map(function(f){ var n = f[0]==='all' ? all.length : all.filter(function(d){ return (d.intent||'')===f[0]; }).length; return '<button class="btn btn-sm'+(XH.kind===f[0]?' btn-primary':'')+'" data-xh="kind" data-f="'+f[0]+'">'+f[1]+' ('+n+')</button>'; }).join('')+'</div>';
     if (!list.length) h += '<div class="panel"><div class="empty-note">'+(all.length ? 'Không có yêu cầu nào ở mục này.' : 'Chưa có yêu cầu nào. Khi nhân viên nhắn vào nhóm Zalo, yêu cầu sẽ hiện ở đây.')+'</div></div>';
     list.forEach(function(d){ h += xhCard(d); });
     return h;
@@ -8236,6 +8243,8 @@
     var a = b.getAttribute('data-xh'), id = b.getAttribute('data-id'), d = id ? xhDoc(id) : null, who = xhUser() || '(chưa nhập tên)';
     if (a.indexOf('ai-')===0) return xhAiClick(a, b);
     if (a==='filter'){ XH.filter = b.getAttribute('data-f'); return renderAll(); }
+    if (a==='kind'){ XH.kind = b.getAttribute('data-f'); return renderAll(); }
+    if (a==='setintent'){ var dd = xhDoc(id); if (!dd) return; var kk = b.getAttribute('data-k'); dd.intent = kk; dd.notRequest = (kk==='khac'); if (kk==='khac') dd.status = 'ignored'; else if (dd.status==='ignored' || dd.status==='answered') dd.status = 'draft'; xhSave(dd); return renderAll(); }
     if (a==='openvt'){ var oid = b.getAttribute('data-oid'); if (STATE.orders[oid]) openOrder(oid, 'vt'); return; }
     if (a==='status'){ XH.zsAt = 0; xhLoadStatus(true); return toast('Đang kiểm tra kết nối Zalo…'); }
     if (a==='register'){
@@ -8287,6 +8296,7 @@
     var d = xhDoc(el.getAttribute('data-id')); if (!d) return;
     var i = +el.getAttribute('data-i'), f = el.getAttribute('data-xh-f'), it = (d.items||[])[i]; if (!it) return;
     if (f==='qty'){ var raw = el.value.trim().replace(',','.'); it.qty = raw==='' ? '' : (isNaN(Number(raw)) ? it.qty : Number(raw)); }
+    else if (f==='spare'){ it.spare = !!el.checked; }
     else if (f==='orderId'){ it.orderId = el.value; it.orderCode = el.value && STATE.orders[el.value] ? (STATE.orders[el.value].code||'') : ''; }
     else it[f] = el.value;
     xhSave(d);
@@ -8825,6 +8835,172 @@
       var chip = document.getElementById('pqWhoChip'); if (chip && n){ chip.title = n+' người đăng ký đang chờ anh duyệt — bấm để mở'; var s = chip.querySelector('span'); if (s) s.textContent = pqWhoGet()+' ('+n+' chờ duyệt)'; }
     });
   }, 1500);
+  /* ===== 08e: tồn kho (Kho Cơ Khí / Kho Tổ Điện) để so sánh "có / không" + phân loại tin Zalo ===== */
+  var KHOM = (function(){
+    function stripD(x){ return String(x==null?'':x).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/gi,'d').toLowerCase(); }
+var KHO_STOP = {cai:1,bo:1,cay:1,tam:1,loai:1,hang:1,cho:1,va:1,the:1,thay:1,thep:1,x:1,mm:1,m:1,cm:1,kg:1,o:1,con:1,chiec:1,cty:1,cong:1,ty:1,dai:1,rong:1,day:1,phi:1,no:1,tron:1,ong:1};
+function khoWords(s) {
+  var t = stripD(s).replace(/[^a-z0-9]+/g, ' ').trim();
+  return t ? t.split(' ') : [];
+}
+function khoCodes(words) { // ma ky hieu: co chu so, dai >= 4 (23228, h2328, kcly550...)
+  return words.filter(function (w) { return /\d/.test(w) && w.length >= 4; });
+}
+// rows: [{c,n,u,q,wh}] ; tra ve toi da 3 dong gan nhat: [{c,n,u,q,wh,score}]
+function stockMatch(name, spec, rows) {
+  var qw = khoWords(String(name || '') + ' ' + String(spec || ''));
+  if (!qw.length || !rows || !rows.length) return [];
+  var qcodes = khoCodes(qw);
+  var qtext = qw.filter(function (w) { return !/\d/.test(w) && w.length >= 3 && !KHO_STOP[w]; });
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r._w) { r._w = khoWords((r.c || '') + ' ' + (r.n || '')); r._s = r._w.join(''); }
+    var rw = r._w, score = 0, tw = 0;
+    if (qcodes.length) {
+      var hit = 0;
+      for (var a = 0; a < qcodes.length; a++) { if (rw.indexOf(qcodes[a]) >= 0 || (/^\d+$/.test(qcodes[a]) && r._s.indexOf(qcodes[a]) >= 0)) hit++; }
+      if (hit === 0) continue;
+      score = 2 + hit / qcodes.length;
+      for (var b = 0; b < qtext.length; b++) { if (rw.indexOf(qtext[b]) >= 0) tw++; }
+      score += qtext.length ? tw / qtext.length : 0;
+    } else {
+      var shared = 0;
+      for (var d = 0; d < qtext.length; d++) { if (rw.indexOf(qtext[d]) >= 0) shared++; }
+      var rtext = rw.filter(function (w) { return !/\d/.test(w) && w.length >= 3 && !KHO_STOP[w]; });
+      var uni = qtext.length + rtext.length - shared;
+      if (shared < 2 || !uni || shared / uni < 0.5) continue;
+      score = shared / uni;
+    }
+    out.push({ c: r.c, n: r.n, u: r.u, q: r.q, wh: r.wh, score: Math.round(score * 100) / 100 });
+  }
+  out.sort(function (x, y) { return y.score - x.score || y.q - x.q; });
+  return out.slice(0, 3);
+}
+    return {match: stockMatch, words: khoWords};
+  })();
+  var KHOD = {docs:null, rows:null, at:0, loading:false, err:'', cache:{}, q:''};
+  function khoHas(){ return !!(KHOD.rows && KHOD.rows.length); }
+  function khoBuild(){
+    var rows = [];
+    ['cokhi','dien'].forEach(function(k){
+      var d = (KHOD.docs||{})[k]; if (!d || !d.rows) return;
+      var wh = d.name || (k==='dien' ? 'Kho Tổ Điện' : 'Kho Cơ Khí');
+      d.rows.forEach(function(r){ rows.push({c:r.c, n:r.n, u:r.u, q:r.q, wh:wh}); });
+    });
+    KHOD.rows = rows; KHOD.cache = {};
+  }
+  function khoLoad(force){
+    if (KHOD.loading) return;
+    if (!force && KHOD.at && Date.now()-KHOD.at < 120000) return;
+    KHOD.loading = true;
+    fetch('/api/coll/kho', {cache:'no-store'}).then(function(r){ if (!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(j){ KHOD.docs = j.docs||{}; KHOD.err = ''; khoBuild(); })
+      .catch(function(e){ KHOD.docs = KHOD.docs||{}; KHOD.err = (e && e.message) || 'lỗi'; })
+      .then(function(){ KHOD.loading = false; KHOD.at = Date.now(); if ((STATE.view==='xuat' || STATE.view==='kho') && !pqxTyping() && !document.querySelector('.modal-backdrop')) renderAll(); });
+  }
+  function khoFor(it){
+    if (!khoHas() || !(it && String(it.name||'').trim())) return null;
+    var key = (it.name||'')+'|'+(it.spec||'');
+    if (KHOD.cache[key]) return KHOD.cache[key];
+    var c = KHOM.match(it.name, it.spec, KHOD.rows);
+    var have = c.filter(function(x){ return x.q > 0; });
+    return KHOD.cache[key] = {st: have.length ? 'co' : (c.length ? 'het' : 'khong'), c: c.slice(0,2)};
+  }
+  function khoBadge(it){
+    var f = khoFor(it);
+    if (!f) return '<span class="pqd-cap">'+(KHOD.at ? 'chưa có dữ liệu kho' : '…')+'</span>';
+    var tip = f.c.map(function(x){ return x.n+' — '+x.q+' '+(x.u||'')+' ('+String(x.wh||'').replace(/^Kho\s*/i,'')+')'; }).join('\n');
+    if (f.st==='khong') return '<span class="drw-b" title="Không thấy mặt hàng giống trong 2 kho">Không thấy trong kho</span>';
+    var b = f.c.filter(function(x){ return x.q>0; })[0] || f.c[0];
+    var short = esc((b.n||'').slice(0,34))+(String(b.n||'').length>34?'…':'');
+    return f.st==='co'
+      ? '<span class="drw-b ok" title="'+esc(tip)+'">Kho CÓ '+esc(String(b.q))+' '+esc(b.u||'')+'</span><div class="pqd-cap" style="font-size:11px;">'+short+' · '+esc(String(b.wh||'').replace(/^Kho\s*/i,''))+'</div>'
+      : '<span class="drw-b warn" title="'+esc(tip)+'">Kho hết (0)</span><div class="pqd-cap" style="font-size:11px;">'+short+'</div>';
+  }
+  function khoPanel(){
+    khoLoad(false);
+    var docs = KHOD.docs||{}, h = '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Tồn kho thực tế — để so sánh có / không</h2><span class="pqd-cap">Dùng cho yêu cầu mua / xuất từ Zalo: mặt hàng nào kho đã có thì báo ngay</span></div><div class="panel-body" style="padding:12px 16px;">';
+    h += '<div class="pqd-bar" style="padding:0 0 10px;flex-wrap:wrap;gap:18px;">';
+    [['cokhi','Kho Cơ Khí'],['dien','Kho Tổ Điện']].forEach(function(w){
+      var d = docs[w[0]], n = d && d.rows ? d.rows.length : 0, have = d && d.rows ? d.rows.filter(function(r){ return r.q>0; }).length : 0;
+      h += '<div style="min-width:260px;"><b>'+w[1]+'</b><div class="pqd-cap">'+(n ? n+' mặt hàng · còn tồn '+have+' · nạp '+esc(d.at||'')+'<br>'+esc(d.period||'') : 'Chưa nạp dữ liệu')+'</div>'+
+        '<label class="btn btn-sm" style="margin-top:6px;cursor:pointer;">Nạp lại từ Excel…<input type="file" accept=".xlsx,.xls" style="display:none;" data-kho-up="'+w[0]+'"></label></div>';
+    });
+    h += '</div><div class="pqd-cap" id="khoMsg" style="min-height:18px;"></div>';
+    h += '<input class="pqd-inp" id="khoQ" style="width:100%;max-width:420px;" placeholder="Tra nhanh: gõ tên / mã vật tư (VD: bi 22214, MCCB, biến tần…)" value="'+esc(KHOD.q||'')+'"><div id="khoRes" style="margin-top:8px;">'+khoResults(KHOD.q||'')+'</div></div></div>';
+    return h;
+  }
+  function khoResults(q){
+    if (!khoHas()) return '<div class="empty-note">Chưa có dữ liệu kho.</div>';
+    var w = KHOM.words(q); if (!w.length) return '<div class="pqd-cap">Gõ vào ô trên để tra tồn kho.</div>';
+    var out = [];
+    for (var i=0;i<KHOD.rows.length && out.length<60;i++){
+      var r = KHOD.rows[i]; if (!r._w) { r._w = KHOM.words((r.c||'')+' '+(r.n||'')); r._s = r._w.join(''); }
+      var ok = w.every(function(x){ return r._s.indexOf(x) >= 0; });
+      if (ok) out.push(r);
+    }
+    if (!out.length) return '<div class="empty-note">Không thấy mặt hàng nào khớp.</div>';
+    return '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th>Kho</th><th>Mã</th><th>Tên hàng</th><th>ĐVT</th><th class="r">Tồn</th></tr></thead><tbody>'+
+      out.map(function(r){ return '<tr><td class="pqd-cap">'+esc(String(r.wh||'').replace(/^Kho\s*/i,''))+'</td><td class="num">'+esc(r.c||'')+'</td><td>'+esc(r.n||'')+'</td><td>'+esc(r.u||'')+'</td><td class="r"><b style="color:var('+(r.q>0?'--good,#1f8a4c':'--bad,#c0362c')+');">'+esc(String(r.q))+'</b></td></tr>'; }).join('')+'</tbody></table></div>';
+  }
+  function khoUpload(key, file){
+    var msg = function(t, bad){ var m = document.getElementById('khoMsg'); if (m){ m.style.color = bad ? 'var(--bad,#c0362c)' : 'var(--good,#1f8a4c)'; m.textContent = t; } };
+    msg('Đang đọc file…');
+    var fr = new FileReader();
+    fr.onload = function(){
+      loadXlsx().then(function(XLSX){
+        var wb = XLSX.read(new Uint8Array(fr.result), {type:'array'}), ws = wb.Sheets[wb.SheetNames[0]];
+        var aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        var head = ''; for (var i=0;i<4 && i<aoa.length;i++){ var c0 = String(aoa[i][0]||''); if (/^Kho/i.test(c0)) head = c0; }
+        if (key==='dien' && /c[ơo]\s*kh[íi]/i.test(head)) return msg('File này là Kho Cơ Khí, anh bấm nhầm nút Kho Điện.', true);
+        if (key==='cokhi' && /[đd]i[ệe]n/i.test(head)) return msg('File này là Kho Tổ Điện, anh bấm nhầm nút Kho Cơ Khí.', true);
+        var rows = [];
+        for (var r=5;r<aoa.length;r++){
+          var a = aoa[r]; if (!a || !a[2]) continue;
+          var code = String(a[1]||'').trim(), name = String(a[2]).trim();
+          if (/^tổng/i.test(name) || /^tổng/i.test(code)) continue;
+          var q = Number(a[11]); if (!isFinite(q)) q = 0; var v = Number(a[12]); if (!isFinite(v)) v = 0;
+          rows.push({c:code, n:name, u:String(a[3]||'').trim(), q:q, v:v});
+        }
+        if (rows.length < 5) return msg('Không đọc được bảng tồn kho (cần file "Tổng hợp tồn kho" xuất từ phần mềm kế toán).', true);
+        var d = new Date(), p = function(n){ return (n<10?'0':'')+n; };
+        var doc = {name: key==='dien' ? 'Kho Tổ Điện' : 'Kho Cơ Khí', period: head, file: (file&&file.name)||'', at: p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes()), rows: rows};
+        return fetch('/api/doc/kho/'+key+'?mode=set', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(doc)}).then(function(res){
+          if (!res.ok) throw new Error('HTTP '+res.status);
+          msg('Đã nạp '+rows.length+' mặt hàng cho '+doc.name+'.'); KHOD.at = 0; khoLoad(true);
+        });
+      }).catch(function(e){ msg('Không nạp được: '+((e&&e.message)||e), true); });
+    };
+    fr.readAsArrayBuffer(file);
+  }
+  document.addEventListener('change', function(e){
+    var el = e.target; if (el && el.getAttribute && el.getAttribute('data-kho-up')){ var f = el.files && el.files[0]; if (f) khoUpload(el.getAttribute('data-kho-up'), f); el.value = ''; }
+  });
+  document.addEventListener('input', function(e){
+    var el = e.target; if (el && el.id==='khoQ'){ KHOD.q = el.value; var r = document.getElementById('khoRes'); if (r) r.innerHTML = khoResults(el.value); }
+  });
+  function xhKindPill(d){
+    var k = d.intent||'';
+    if (k==='mua') return '<span class="pill pill-info">ĐỀ XUẤT MUA</span>';
+    if (k==='xuat') return '<span class="pill pill-neutral">XUẤT KHO</span>';
+    if (k==='hoi') return '<span class="pill pill-neutral">HỎI KHO</span>';
+    if (k==='chua_ro') return '<span class="pill pill-warn">CHƯA RÕ MUA / XUẤT</span>';
+    if (k==='khac') return '<span class="pill pill-neutral">TIN THƯỜNG</span>';
+    return '';
+  }
+  function xhKindBtns(d){
+    var id = esc(d.id), out = '<span class="pqd-cap">Đây là:</span> ';
+    [['mua','Đề xuất MUA'],['xuat','Yêu cầu XUẤT KHO']].forEach(function(k){ out += '<button class="btn btn-sm'+(d.intent===k[0]?' btn-primary':'')+'" data-xh="setintent" data-k="'+k[0]+'" data-id="'+id+'">'+k[1]+'</button> '; });
+    out += '<button class="btn btn-sm" data-xh="setintent" data-k="khac" data-id="'+id+'">Tin thường</button> ';
+    return out;
+  }
+  function xhParseNote(d){
+    var p = d.parse; if (!p) return '';
+    var by = p.by==='ai' ? 'AI' : 'quy tắc (không AI)';
+    var lv = p.level==='cao' ? '<b style="color:var(--good,#1f8a4c);">tin cậy cao</b>' : '<b style="color:var(--warn,#8a5a00);">cần kiểm tra</b>';
+    return '<div class="pqd-cap" style="margin:6px 0;">Cách đọc: '+by+' · '+lv+((p.notes||[]).length ? ' — '+esc(p.notes.join('; ')) : '')+'</div>';
+  }
   renderBanner();
   loadFromSeedOnly();
   boot();

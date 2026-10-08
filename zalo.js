@@ -122,33 +122,15 @@ module.exports = function (ctx) {
   }
 
   /* ---------------- Tach dong bang quy tac (khong AI) ---------------- */
-  const UNIT_RE = '(cai|cái|bo|bộ|m|met|mét|cay|cây|tam|tấm|kg|o|ổ|con|cuon|cuộn|bao|can|lit|lít|cap|cặp|chiec|chiếc|sợi|soi|thanh|ống|ong|hộp|hop)';
-  function ruleParse(text) {
-    const items = []; let order = '';
-    const mo = /(\d{4}-(?:DL)?\d{2,3})/i.exec(text || ''); if (mo) order = mo[1].toUpperCase();
-    String(text || '').split(/\n|;/).forEach(function (raw) {
-      let line = raw.replace(/^[\s\-\*\u2022\d]{0,4}[.)]\s*/, '').replace(/^[\s\-\*\u2022]+/, '').trim();
-      if (!line || line.length < 3) return;
-      if (/^(@\S+|xin chao|chào|cho anh|cho em|nhờ|nho|yêu cầu|yeu cau|xuất|xuat)\b[^\d]*$/i.test(line) && !/\d/.test(line)) return;
-      let m;
-      if ((m = new RegExp('^(.*?)\\s*[:\\-–]?\\s*[xX×]\\s*(\\d+[.,]?\\d*)\\s*' + UNIT_RE + '?\\s*$', 'i').exec(line))) {
-        items.push({ name: m[1].trim(), spec: '', qty: Number(m[2].replace(',', '.')), unit: (m[3] || '').trim(), order_code: '' });
-      } else if ((m = new RegExp('^(\\d+[.,]?\\d*)\\s*' + UNIT_RE + '\\s+(.+)$', 'i').exec(line))) {
-        items.push({ name: m[3].trim(), spec: '', qty: Number(m[1].replace(',', '.')), unit: m[2].trim(), order_code: '' });
-      } else if ((m = new RegExp('^(.+?)\\s+(\\d+[.,]?\\d*)\\s*' + UNIT_RE + '\\s*$', 'i').exec(line))) {
-        items.push({ name: m[1].trim(), spec: '', qty: Number(m[2].replace(',', '.')), unit: m[3].trim(), order_code: '' });
-      }
-    });
-    const intent = /(mua|đặt mua|dat mua|đặt hàng|dat hang)/i.test(text || '') ? 'mua' : (items.length ? 'xuat' : 'khac');
-    return { is_request: items.length > 0, intent: intent, need_date: '', order_code: order, requester: '', items: items, note: '' };
-  }
+  const RULES = require('./rules.js');
+  function ruleParse(text) { return RULES.parseMessage(text); }
 
   /* ---------------- AI doc tin nhan + anh ---------------- */
   const SCHEMA = {
     type: 'object',
     properties: {
       is_request: { type: 'boolean' },
-      intent: { type: 'string', enum: ['mua', 'xuat', 'khac'] },
+      intent: { type: 'string', enum: ['mua', 'xuat', 'hoi', 'khac'] },
       need_date: { type: 'string' },
       order_code: { type: 'string' },
       requester: { type: 'string' },
@@ -158,9 +140,9 @@ module.exports = function (ctx) {
         items: {
           type: 'object',
           properties: {
-            name: { type: 'string' }, spec: { type: 'string' }, qty: { type: 'number' }, unit: { type: 'string' }, order_code: { type: 'string' }, need_date: { type: 'string' }
+            name: { type: 'string' }, spec: { type: 'string' }, qty: { type: 'number' }, unit: { type: 'string' }, order_code: { type: 'string' }, need_date: { type: 'string' }, spare: { type: 'boolean' }
           },
-          required: ['name', 'spec', 'qty', 'unit', 'order_code', 'need_date'], additionalProperties: false
+          required: ['name', 'spec', 'qty', 'unit', 'order_code', 'need_date', 'spare'], additionalProperties: false
         }
       }
     },
@@ -201,7 +183,7 @@ module.exports = function (ctx) {
     if (imageBuf && mt) content.push({ type: 'image', source: { type: 'base64', media_type: mt, data: imageBuf.toString('base64') } });
     content.push({ type: 'text', text: (text ? 'Tin nhắn:\n' + text : 'Tin nhắn không có chữ, chỉ có ảnh.') + (imageBuf && !mt ? '\n(Ảnh không đọc được định dạng.)' : '') });
     const system = 'Bạn là trợ lý kho và mua hàng của Nhà máy Phương Quân (cơ khí và điện). Hôm nay là ' + vnToday() + '. Nhân viên nhắn tin Zalo (kèm ảnh nếu có) để YÊU CẦU MUA vật tư (đặt mua, nhờ người đi mua) hoặc YÊU CẦU XUẤT vật tư có sẵn từ kho. ' +
-      'intent: "mua" nếu nhờ mua / đặt mua / đặt hàng / mua giúp; "xuat" nếu xin lấy / xuất từ kho; "khac" nếu không phải hai loại đó (khi không rõ mà có chữ mua thì chọn mua). need_date: hạn cần hàng dạng YYYY-MM-DD nếu tin nhắn nói (ví dụ "cần ngày 20/10", "trước thứ 6"), không có thì chuỗi rỗng; mỗi vật tư cũng có need_date riêng (giống hạn chung nếu không khác). ' +
+      'intent: "mua" nếu nhờ mua / đề xuất mua / đặt mua / đặt hàng / mua giúp; "xuat" nếu xin lấy / xuất từ kho; "hoi" nếu chỉ hỏi còn hàng / có trong kho không; "khac" nếu là tin thường (chào hỏi, trao đổi, không đòi mua hay xuất). Tuyệt đối không coi tin thường là yêu cầu. Dòng tiêu đề kiểu "CÔNG TY … - MS : 2026-232 - TĐ : 23/10/2026" nghĩa là MS = mã công trình, TĐ = ngày tiến độ giao của cả công trình (KHÔNG phải ngày cần hàng). Dòng nằm dưới chữ "mua dự phòng"/"DP"/"dự phòng" thì spare = true (vật tư mua dự phòng), còn lại spare = false. need_date: hạn cần hàng dạng YYYY-MM-DD nếu tin nhắn nói (ví dụ "cần ngày 20/10", "trước thứ 6"), không có thì chuỗi rỗng; mỗi vật tư cũng có need_date riêng (giống hạn chung nếu không khác). ' +
       'Hãy trích danh sách vật tư: name (tên vật tư, giữ nguyên chữ nhân viên viết), spec (quy cách/kích thước nếu có, không có thì chuỗi rỗng), qty (số lượng là số; không rõ thì 0), unit (đơn vị: cái, bộ, mét, cây, tấm, kg…; không rõ thì rỗng), order_code (mã công trình của dòng đó nếu rõ). ' +
       'order_code ở cấp trên là mã công trình chung của yêu cầu (dạng 2026-187, 2026-DL09…). Chỉ dùng mã có trong danh sách công trình đang làm bên dưới; nếu tin nhắn nhắc tên khách hoặc tên máy thì chọn mã tương ứng; không chắc thì để rỗng. ' +
       'requester: tên người cần nhận hàng nếu tin nhắn nói rõ, không thì rỗng. note: ghi chú ngắn (hạn cần, nơi giao…) nếu có. ' +
@@ -248,7 +230,7 @@ module.exports = function (ctx) {
   function normItems(res, topCode) {
     return (res.items || []).map(function (it) {
       const code = String(it.order_code || topCode || '').trim();
-      return { name: String(it.name || '').trim(), spec: String(it.spec || '').trim(), qty: (typeof it.qty === 'number' && isFinite(it.qty) && it.qty > 0) ? it.qty : '', unit: String(it.unit || '').trim(), orderCode: code, orderId: orderIdByCode(code), needDate: /^\d{4}-\d{2}-\d{2}$/.test(String(it.need_date || '')) ? String(it.need_date) : '' };
+      return { name: String(it.name || '').trim(), spec: String(it.spec || '').trim(), qty: (typeof it.qty === 'number' && isFinite(it.qty) && it.qty > 0) ? it.qty : '', unit: String(it.unit || '').trim(), orderCode: code, orderId: orderIdByCode(code), needDate: /^\d{4}-\d{2}-\d{2}$/.test(String(it.need_date || '')) ? String(it.need_date) : '', spare: !!it.spare, who: String(it.who || '').slice(0, 80), note: String(it.note || '').slice(0, 120) };
     }).filter(function (it) { return it.name; });
   }
   function saveDoc(id, patch, replace) {
@@ -372,20 +354,31 @@ module.exports = function (ctx) {
       return r.body;
     });
   }
+  function itemLine(it, i) {
+    return (i + 1) + '. ' + it.name + (it.spare ? ' (dự phòng)' : '') + (it.spec ? ' (' + it.spec + ')' : '') + (it.qty ? ' x ' + it.qty : '') + (it.unit ? ' ' + it.unit : '') + stockLine(it);
+  }
   function summaryText(doc) {
     const n = (doc.items || []).length;
+    if (doc.intent === 'khac' || doc.status === 'ignored') return '';
+    if (doc.intent === 'hoi') {
+      if (!n) return '';
+      let t = 'Tra cứu tồn kho:';
+      doc.items.slice(0, 8).forEach(function (it, i) { t += '\n' + (i + 1) + '. ' + it.name + (it.stock ? stockLine(it).replace(/^ → /, ' — ') : ' — chưa có dữ liệu kho'); });
+      return t;
+    }
     if (doc.status === 'applied' && doc.applied) {
-      let t = 'Đã ghi yêu cầu MUA ' + doc.id + ' (' + n + ' mục) vào VT:';
-      (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + (i + 1) + '. ' + it.name + (it.spec ? ' (' + it.spec + ')' : '') + (it.qty ? ' x ' + it.qty : '') + (it.unit ? ' ' + it.unit : ''); });
+      let t = 'Đã ghi ĐỀ XUẤT MUA ' + doc.id + ' (' + n + ' mục) vào VT:';
+      (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); });
       t += '\nCông trình: ' + (doc.orderCode || (doc.items[0] && doc.items[0].orderCode) || '') + '. Đã lập phiếu đề nghị mua ' + doc.applied.purchaseId + ' (chờ duyệt).';
       return t;
     }
-    if (doc.intent === 'mua' && n && !(doc.items || []).every(function (it) { return it.orderId; })) return 'Đã đọc yêu cầu MUA ' + doc.id + ' nhưng chưa rõ công trình nào. Anh/chị nhắn lại kèm mã đơn (ví dụ 2026-191), hoặc thủ kho chọn công trình trên web.';
-    let t = 'Đã nhận yêu cầu ' + doc.id + (n ? ' gồm ' + n + ' mục:' : ': chưa đọc được mục nào, thủ kho sẽ xem tin gốc.');
-    (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + (i + 1) + '. ' + it.name + (it.spec ? ' (' + it.spec + ')' : '') + (it.qty ? ' x ' + it.qty : '') + (it.unit ? ' ' + it.unit : ''); });
+    if (doc.intent === 'mua' && n && !(doc.items || []).every(function (it) { return it.orderId; })) return 'Đã đọc đề xuất MUA ' + doc.id + ' nhưng chưa rõ công trình nào. Anh/chị nhắn lại kèm mã đơn (ví dụ 2026-191), hoặc thủ kho chọn công trình trên web.';
+    const kind = doc.intent === 'mua' ? 'MUA' : (doc.intent === 'xuat' ? 'XUẤT KHO' : 'chưa rõ MUA hay XUẤT');
+    let t = 'Đã nhận yêu cầu ' + kind + ' ' + doc.id + (n ? ' gồm ' + n + ' mục:' : ': chưa đọc được mục nào, thủ kho sẽ xem tin gốc.');
+    (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); });
     if (n > 8) t += '\n… và ' + (n - 8) + ' mục nữa';
     if (doc.orderCode) t += '\nCông trình: ' + doc.orderCode;
-    return t + '\nChờ thủ kho duyệt.';
+    return t + '\nChờ thủ kho xử lý.';
   }
 
 
@@ -406,8 +399,33 @@ module.exports = function (ctx) {
     Object.keys(P).forEach(function (id) { const m = /^DN-(\d{4})-(\d+)$/.exec(id); if (m && +m[1] === y) mx = Math.max(mx, +m[2]); });
     return 'DN-' + y + '-' + ('00' + (mx + 1)).slice(-3);
   }
+  /* ---------------- Ton kho (so sanh co / khong) ---------------- */
+  function khoRows() {
+    const K = ctx.loadColl('kho'); let rows = [];
+    ['cokhi', 'dien'].forEach(function (k) { const d = K[k]; if (d && d.rows) { const wh = d.name || (k === 'dien' ? 'Kho Tổ Điện' : 'Kho Cơ Khí'); d.rows.forEach(function (r) { rows.push({ c: r.c, n: r.n, u: r.u, q: r.q, wh: wh }); }); } });
+    return rows;
+  }
+  function stockFor(it, rows) {
+    if (!rows || !rows.length) return null;
+    const c = RULES.stockMatch(it.name, it.spec, rows);
+    const have = c.filter(function (x) { return x.q > 0; });
+    return { st: have.length ? 'co' : (c.length ? 'het' : 'khong'), c: c.slice(0, 2).map(function (x) { return { c: x.c, n: x.n, u: x.u, q: x.q, wh: x.wh }; }) };
+  }
+  function attachStock(doc) {
+    const rows = khoRows(); doc.khoRows = rows.length;
+    (doc.items || []).forEach(function (it) { it.stock = stockFor(it, rows); });
+  }
+  function stockLine(it) {
+    const s = it.stock; if (!s) return '';
+    if (s.st === 'khong') return ' → kho: không thấy';
+    const b = s.c[0]; const tag = b ? (b.n + ' · ' + b.q + ' ' + (b.u || '') + ' (' + String(b.wh || '').replace(/^Kho\s*/i, '') + ')') : '';
+    return s.st === 'co' ? ' → kho CÓ: ' + tag : ' → kho hết: ' + tag;
+  }
   function applyBuy(doc, itemsOverride) {
-    const items = (itemsOverride || doc.items || []).filter(function (it) { return it && String(it.name || '').trim(); });
+    const items = (itemsOverride || doc.items || []).filter(function (it) { return it && String(it.name || '').trim(); }).map(function (it) {
+      if (it.spare && !/d[ựu] ph[òo]ng/i.test(it.name)) it = Object.assign({}, it, { name: String(it.name).trim() + ' (dự phòng)' });
+      return it;
+    });
     if (!items.length) throw new Error('Chua co dong vat tu nao');
     items.forEach(function (it) { if (!it.orderId) throw new Error('Dong "' + it.name + '" chua co cong trinh'); });
     const O = ctx.loadColl('orders'); const P = ctx.loadColl('purchase');
@@ -421,7 +439,7 @@ module.exports = function (ctx) {
       o.materials = o.materials || [];
       const qty = (it.qty === '' || it.qty == null || !isFinite(Number(it.qty))) ? null : Number(it.qty);
       const need = it.needDate || doc.needDate || '';
-      const noteTxt = 'Zalo ' + who + ' ' + stamp + (doc.note ? ' - ' + doc.note : '');
+      const noteTxt = (it.spare ? 'DỰ PHÒNG · ' : '') + 'Zalo ' + who + ' ' + stamp + (doc.note ? ' - ' + doc.note : '') + (it.note ? ' - ' + it.note : '');
       let rec = touched[o.id]; if (!rec) { rec = touched[o.id] = { orderId: o.id, added: [], updated: [] }; applied.orders.push(rec); }
       let idx = -1;
       for (let i = 0; i < o.materials.length; i++) { const m = o.materials[i]; if (m && !isSec(m) && stripD(String(m.name || '').trim()) === stripD(String(it.name).trim())) { idx = i; break; } }
@@ -622,7 +640,8 @@ module.exports = function (ctx) {
     }
     await analyse(doc, imgBuf, { key: 'z:' + (x.fromId || 'khach'), name: x.fromName || '' }, isOwnerZalo(x.fromId));
     saveDoc(id, doc, true);
-    await sendText(x.chatId, summaryText(doc));
+    const reply = summaryText(doc);
+    if (reply) await sendText(x.chatId, reply);
   }
   // Doc noi dung bang AI (neu co khoa va chua vuot tran thang), khong thi dung quy tac
   async function analyse(doc, imgBuf, ident, owner) {
@@ -643,16 +662,20 @@ module.exports = function (ctx) {
       }
     } else doc.aiError = 'Chua co khoa AI - dung quy tac tach dong.';
     if (!parsed) parsed = ruleParse(doc.text);
-    doc.notRequest = parsed.is_request === false && !(parsed.items && parsed.items.length);
     doc.orderCode = String(parsed.order_code || '').trim();
     doc.orderId = orderIdByCode(doc.orderCode);
     doc.items = normItems(parsed, doc.orderCode);
     doc.note = String(parsed.note || '').trim();
-    doc.intent = (parsed.intent === 'mua' || parsed.intent === 'xuat') ? parsed.intent : (doc.items.length ? 'xuat' : 'khac');
+    doc.intent = (['mua', 'xuat', 'hoi', 'chua_ro', 'khac'].indexOf(parsed.intent) >= 0) ? parsed.intent : (doc.items.length ? 'chua_ro' : 'khac');
+    if (!doc.items.length && !String(doc.text || '').trim() && doc.hasPhoto && doc.intent === 'khac') doc.intent = 'chua_ro';
+    doc.parse = parsed.parse || { by: 'ai', level: 'cao', notes: [] };
+    doc.notRequest = doc.intent === 'khac';
+    if (doc.intent === 'khac') doc.status = 'ignored'; else if (doc.intent === 'hoi') doc.status = 'answered';
+    attachStock(doc);
     doc.needDate = /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.need_date || '')) ? String(parsed.need_date) : '';
     if (parsed.requester && !doc.requester) doc.requester = String(parsed.requester).trim();
     // Yeu cau MUA do AI doc va xac dinh duoc cong trinh -> tu dien vao VT + lap de nghi mua
-    if (doc.intent === 'mua' && doc.ai && doc.status !== 'applied' && doc.items.length && doc.items.every(function (it) { return it.orderId; })) {
+    if (doc.intent === 'mua' && (doc.ai || (doc.parse && doc.parse.by === 'rule' && doc.parse.level === 'cao')) && doc.status !== 'applied' && doc.items.length && doc.items.every(function (it) { return it.orderId && it.qty > 0; })) {
       try { applyBuy(doc); } catch (e) { doc.aiError = (doc.aiError ? doc.aiError + ' | ' : '') + 'Khong tu dien duoc: ' + String((e && e.message) || e); }
     }
     return doc;
