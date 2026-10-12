@@ -1637,7 +1637,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-08j-may';
+  var BUILD_ID = '2026-10-12k-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -8063,7 +8063,7 @@
   function xhUser(){ try{ return localStorage.getItem('nmsx_user_name')||''; }catch(e){ return ''; } }
   function xhTime(ms){ var d = new Date(ms||Date.now()); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+fmtDate(pqxISO(d)); }
   function xhOrders(){
-    return Object.keys(STATE.orders).map(function(k){ return STATE.orders[k]; }).filter(function(o){ return o && !o.legacy && o.code && rollupStatus(o)!=='ĐÃ GIAO'; })
+    return Object.keys(STATE.orders).map(function(k){ return STATE.orders[k]; }).filter(function(o){ return o && !o.legacy && o.code; })
       .sort(function(a,b){ return String(a.code)<String(b.code) ? -1 : 1; });
   }
   function xhBadge(){
@@ -8104,7 +8104,10 @@
   function xhOrderSelect(it, i, id, locked){
     var cur = it.orderId||'', os = xhOrders(), found = !cur;
     var s = '<select class="pqd-inp" data-xh-f="orderId" data-id="'+esc(id)+'" data-i="'+i+'"'+(locked?' disabled':'')+'><option value="">— chọn công trình —</option>';
-    os.forEach(function(o){ if (o.id===cur) found = true; s += '<option value="'+esc(o.id)+'"'+(o.id===cur?' selected':'')+'>'+esc(pqxOrderLabel(o))+(o.dept==='dien'?' (Điện)':'')+'</option>'; });
+    var optOf = function(o){ if (o.id===cur) found = true; return '<option value="'+esc(o.id)+'"'+(o.id===cur?' selected':'')+'>'+esc(pqxOrderLabel(o))+(o.dept==='dien'?' (Điện)':'')+'</option>'; };
+    s += os.filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO'; }).map(optOf).join('');
+    var dlv = os.filter(function(o){ return rollupStatus(o)==='ĐÃ GIAO'; });
+    if (dlv.length) s += '<optgroup label="Đơn ĐÃ GIAO (bảo hành / thay thế sau bàn giao)">'+dlv.map(optOf).join('')+'</optgroup>';
     if (!found && STATE.orders[cur]) s += '<option value="'+esc(cur)+'" selected>'+esc(pqxOrderLabel(STATE.orders[cur]))+'</option>';
     return s+'</select>'+(it.hintResolved ? '<div class="pqd-cap" style="font-size:11px;">theo tên khách "'+esc(it.who||'')+'"</div>' : '')+(!cur && it.hintCands && it.hintCands.length ? '<div class="pqd-cap" style="font-size:11px;color:var(--warn,#8a5a00);">Khách "'+esc(it.who||'')+'" có nhiều đơn: '+esc(it.hintCands.join(', '))+' — chọn đúng đơn</div>' : '');
   }
