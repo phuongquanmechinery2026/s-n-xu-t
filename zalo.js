@@ -770,6 +770,13 @@ module.exports = function (ctx) {
       // AI doc xong -> doi chieu voi bo quy tac: chi "tin cay cao" (tu dien) khi 2 ben doc giong nhau
       const ru = ruleParse(doc.text || '');
       const sig = function (arr) { return (arr || []).map(function (i) { return (Number(i.qty) || 0) + '|' + String(i.order_code || i.orderCode || '').toUpperCase() + '|' + (i.spare ? 1 : 0); }).sort().join(','); };
+      // dong nhac TEN KHACH ("htx thuong nhat") ma bo quy tac thay -> khong de AI lay ma cong trinh chung cua ca tin
+      if (ru.items.length === doc.items.length) {
+        doc.items.forEach(function (it, i) {
+          const r0 = ru.items[i];
+          if (r0 && r0.who && !r0.order_code) { it.who = r0.who; it.fallback = it.orderCode || r0.fallback || ''; it.orderCode = ''; it.orderId = ''; }
+        });
+      }
       const hasText = String(doc.text || '').trim().length > 0;
       const agree = hasText && ru.items.length === doc.items.length && sig(ru.items) === sig(doc.items);
       doc.parse = { by: 'ai', level: agree ? 'cao' : 'thap', notes: [] };
