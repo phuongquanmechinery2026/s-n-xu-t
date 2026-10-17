@@ -800,7 +800,7 @@ module.exports = function (ctx) {
 
   /* ---------------- NHAC VIEC TU DONG (qua nhom Zalo) ---------------- */
   function vnNow() { return new Date(Date.now() + 7 * 3600 * 1000); }
-  function remindCfg() { const M = ctx.loadColl('zalo_meta'); const r = M.remind || {}; return { on: !!r.on, hour: r.hour == null ? 7 : r.hour, minute: r.minute == null ? 30 : r.minute, chatId: String(r.chatId || ''), lastDate: String(r.lastDate || '') }; }
+  function remindCfg() { const M = ctx.loadColl('zalo_meta'); const r = M.remind || {}; return { on: !!r.on, hour: r.hour == null ? 7 : r.hour, minute: r.minute == null ? 30 : r.minute, chatId: String(r.chatId || ''), lastDate: String(r.lastDate || ''), hold: (r.hold && typeof r.hold === 'object') ? r.hold : {} }; }
   function remindSave(r) { const M = ctx.loadColl('zalo_meta'); M.remind = r; ctx.saveColl('zalo_meta', M); }
   function seenChats() {
     const out = {}, L = ctx.loadColl('zalo_log'), X = ctx.loadColl('xuathang');
@@ -811,7 +811,7 @@ module.exports = function (ctx) {
   function dayDiff(iso, today) { const a = Date.parse(String(iso).slice(0, 10) + 'T00:00:00Z'), b = Date.parse(today + 'T00:00:00Z'); return isFinite(a) && isFinite(b) ? Math.round((a - b) / 86400000) : null; }
   function remindParts() {
     const T = ctx.loadColl('tasks'), O = ctx.loadColl('orders'), today = vnToday();
-    const done = {}; Object.keys(O).forEach(function (id) { const o = O[id]; const its = ((o && o.items) || []).filter(function (i) { return i && String(i.name || '').trim(); }); if (o && its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) done[id] = 1; });
+    const done = {}; Object.keys(O).forEach(function (id) { const o = O[id]; const its = ((o && o.items) || []).filter(function (i) { return i && String(i.name || '').trim(); }); if (o && ((its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) || (o.hold && o.hold.since))) done[id] = 1; });
     const G = { late: [], today: [], soon: [] };
     Object.keys(T).forEach(function (id) {
       const x = T[id]; if (!x || x.status === 'Xong' || !x.date || (x.orderId && done[x.orderId])) return;
@@ -849,6 +849,43 @@ module.exports = function (ctx) {
     try { r.lastDate = today; remindSave(r); await remindSend(r.chatId); } catch (e) {} finally { remindBusy = false; }
   }
   setInterval(function () { remindTick().catch(function () {}); }, 60000);
+
+  function holdParts() {
+    const O = ctx.loadColl('orders'), today = vnToday(), L = [];
+    Object.keys(O).forEach(function (id) {
+      const o = O[id]; if (!o || !o.hold || !o.hold.since || o.legacy) return;
+      const its = (o.items || []).filter(function (i) { return i && String(i.name || '').trim(); });
+      if (its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) return;
+      let due = ''; (o.progressSnapshots || []).forEach(function (sn) { const d = sn && sn.deliveryDate ? String(sn.deliveryDate).slice(0, 10) : ''; if (d && (!due || d < due)) due = d; });
+      const title = String((its[0] && its[0].name) || o.customerInfo || '').replace(/\s+/g, ' ').slice(0, 60) + (its.length > 1 ? ' +' + (its.length - 1) + ' hạng mục' : '');
+      const cust = String(o.customerInfo || '').split(/[\r\n]+/)[0].replace(/\s+/g, ' ').trim().slice(0, 45);
+      L.push({ since: String(o.hold.since).slice(0, 10), code: o.code || id, title: title, cust: cust, dept: o.dept === 'dien' ? 'Điện' : 'Cơ khí', due: due, why: String(o.hold.reason || '').replace(/\s+/g, ' ').slice(0, 100) });
+    });
+    L.sort(function (a, b) { return a.since < b.since ? -1 : a.since > b.since ? 1 : 0; });
+    if (!L.length) return [];
+    const fd = function (iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; };
+    const n = vnNow(), dow = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][n.getUTCDay()];
+    const head = '⏸ ĐƠN ĐANG TẠM DỪNG — kiểm tra lại lịch (' + dow + ' ' + fd(today) + ')\nCó ' + L.length + ' đơn tạm dừng. Bộ phận xem đơn nào đã đủ điều kiện làm lại để lên kế hoạch:';
+    const lines = L.map(function (r, i) {
+      const d = r.due ? dayDiff(r.due, today) : null;
+      return (i + 1) + '. [' + r.code + '] ' + r.title + (r.cust ? ' — ' + r.cust : '') + ' (' + r.dept + ')' + (r.due ? ' — hạn giao ' + fd(r.due) + (d != null && d < 0 ? ' (trễ ' + Math.abs(d) + ' ngày)' : '') : '') + ' — tạm dừng từ ' + fd(r.since) + (r.why ? ' — lý do: ' + r.why : '');
+    });
+    const parts = []; let cur = head + '\n';
+    lines.forEach(function (ln) { if ((cur + ln + '\n').length > 1600) { parts.push(cur.trim()); cur = ''; } cur += ln + '\n'; });
+    if (cur.trim()) parts.push(cur.trim());
+    return parts;
+  }
+  function O_count() { const O = ctx.loadColl('orders'); return Object.keys(O).filter(function (k) { return O[k] && O[k].hold && O[k].hold.since && !O[k].legacy; }).length; }
+  async function holdSend(chatId) { const ps = holdParts(); for (let i = 0; i < ps.length; i++) { await sendText(chatId, ps[i]); } return ps.length; }
+  let holdBusy = false;
+  async function holdTick() {
+    if (holdBusy) return; const r = remindCfg(), h = r.hold || {}; if (!h.on || !h.chatId) return;
+    const n = vnNow(), today = vnToday(); if (n.getUTCDay() !== 1 || h.lastDate === today) return;
+    if (n.getUTCHours() * 60 + n.getUTCMinutes() < 7 * 60 + 30) return;
+    holdBusy = true;
+    try { h.lastDate = today; r.hold = h; remindSave(r); await holdSend(h.chatId); } catch (e) {} finally { holdBusy = false; }
+  }
+  setInterval(function () { holdTick().catch(function () {}); }, 60000);
 
   /* ---------------- Cac duong /api/zalo/* ---------------- */
   function safeEq(a, b) {
@@ -963,7 +1000,22 @@ module.exports = function (ctx) {
     if (p.indexOf('/api/zalo/remind') === 0) {
       const c = aiCfg();
       if (!((c.ownerHash || (ctx.authOn && ctx.authOn())) && ownerMode(req))) { ctx.sendJson(res, 403, { ok: false, error: 'Chỉ chủ mới dùng được nhắc việc' }); return true; }
-      if (p === '/api/zalo/remind' && method === 'GET') { const r = remindCfg(); ctx.sendJson(res, 200, { ok: true, on: r.on, hour: r.hour, minute: r.minute, chatId: r.chatId, lastDate: r.lastDate, chats: seenChats() }); return true; }
+      if (p === '/api/zalo/remind' && method === 'GET') { const r = remindCfg(); ctx.sendJson(res, 200, { ok: true, on: r.on, hour: r.hour, minute: r.minute, chatId: r.chatId, lastDate: r.lastDate, hold: { on: !!(r.hold && r.hold.on), chatId: String((r.hold && r.hold.chatId) || ''), lastDate: String((r.hold && r.hold.lastDate) || '') }, chats: seenChats() }); return true; }
+      if (p === '/api/zalo/remind/hold/preview' && method === 'GET') { const ps = holdParts(); ctx.sendJson(res, 200, { ok: true, parts: ps, count: ps.length ? (O_count()) : 0 }); return true; }
+      if (p === '/api/zalo/remind/hold' && method === 'POST') {
+        let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+        const r = remindCfg(), h = r.hold || {}; h.on = !!b.on; h.chatId = String(b.chatId || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80);
+        if (h.on && !h.chatId) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa chọn nhóm nhận nhắc' }); return true; }
+        const n0 = vnNow(); if (h.on && n0.getUTCDay() === 1 && n0.getUTCHours() * 60 + n0.getUTCMinutes() >= 7 * 60 + 30 && !h.lastDate) h.lastDate = vnToday();   // vua bat sau 7:30 thu Hai: de tuan sau, khong gui bu
+        r.hold = h; remindSave(r); ctx.sendJson(res, 200, { ok: true }); return true;
+      }
+      if (p === '/api/zalo/remind/hold/now' && method === 'POST') {
+        let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+        const chatId = String(b.chatId || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80);
+        if (!chatId) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa chọn nhóm' }); return true; }
+        try { const k = await holdSend(chatId); ctx.sendJson(res, 200, { ok: true, parts: k }); } catch (e) { ctx.sendJson(res, 200, { ok: false, error: String((e && e.message) || e) }); }
+        return true;
+      }
       if (p === '/api/zalo/remind/preview' && method === 'GET') { ctx.sendJson(res, 200, { ok: true, parts: remindParts() }); return true; }
       if (p === '/api/zalo/remind' && method === 'POST') {
         let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
@@ -1067,5 +1119,5 @@ module.exports = function (ctx) {
     return true;
   }
 
-  return { handle: handle, _test: { remindParts: remindParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
+  return { handle: handle, _test: { remindParts: remindParts, holdParts: holdParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
 };

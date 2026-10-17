@@ -1531,7 +1531,7 @@
     <div class="dept-bar" id="deptBar"><span class="dept-lbl">Bộ phận:</span><button type="button" class="dept-btn active" data-dept="cokhi">Cơ khí</button><button type="button" class="dept-btn" data-dept="dien">Điện</button></div>
     <div class="tabs" id="tabs">
       <div class="tab active" data-view="dashboard" data-group="tongquan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"/></svg>Tổng quan</div>
-      <div class="pq-navlbl">Công việc</div>
+      <div class="pq-navlbl" id="pqLblWork">Công việc</div>
       <div class="tab" data-view="tasks" data-group="congviec"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM4 9h16M9 13l2 2 4-4"/></svg>Phân công công việc</div>
       <div class="tab" data-view="kanban" data-group="congviec"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h5v16H4zM10 4h5v10h-5zM16 4h4v13h-4z"/></svg>Bảng Kanban</div>
       <div class="tab" data-view="alerts" data-group="congviec"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2zM12 10v5M12 18v.5"/></svg>Cảnh báo việc <span class="count" id="countAlert">0</span></div>
@@ -1546,7 +1546,7 @@
       <div class="tab" data-view="xuat" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10v9H4zM14 10h4l3 3v3h-7zM9 12h-3M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Yêu cầu mua / xuất<span class="xh-badge" id="xhBadge" style="display:none;"></span></div>
       <div class="tab pq-later" data-view="issue" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Cấp phát vật tư</div>
       <div class="tab" data-view="kho" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10l8-6 8 6v10H4zM9 20v-6h6v6"/></svg>Kho &amp; Chất lượng</div>
-      <button type="button" class="pq-more" id="pqMore" aria-expanded="false" title="Hiện thêm mục: Cấp phát vật tư, Kho &amp; Chất lượng">+ Mục khác</button>
+      <button type="button" class="pq-more" id="pqMore" aria-expanded="false" title="Hiện thêm mục: Công việc / Đọc kế hoạch (Cơ khí), Cấp phát vật tư, Kho &amp; Chất lượng">+ Mục khác</button>
       <div class="pq-navlbl">Kế hoạch</div>
       <div class="tab" data-view="plan" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"/></svg>Kế hoạch</div>
       <div class="tab" data-view="lich" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/></svg>Lịch tháng</div>
@@ -1640,7 +1640,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-17o-may';
+  var BUILD_ID = '2026-10-17p-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1860,6 +1860,7 @@
   function remainingPillForOrder(o){
     var st = rollupStatus(o);
     if (st==='ĐÃ GIAO') return '<span class="pill pill-good"><span class="pill-dot"></span>Đã giao</span>';
+    if (isHeld(o)) return '<span class="pill pill-neutral">⏸ Tạm dừng</span>';
     var snap = headlineSnapshot(o);
     var dr = snap ? daysRemaining(snap.deliveryDate) : null;
     if (dr===null) return '<span class="pill pill-neutral">—</span>';
@@ -2016,7 +2017,7 @@
   // CHỈ đến từ đúng 1 chỗ: parseLichTrinh() tự đánh dấu "ĐÃ GIAO" khi TOÀN BỘ
   // hạng mục của 1 đơn đã bị ẨN trên Sheet (ẩn cả cụm — không phải ẩn lẻ vài
   // dòng), lúc đó rollupStatus() ở đây tự nhiên trả về 'ĐÃ GIAO' rồi.
-  function currentWorkOrders(){ return activeOrders().filter(function(o){return rollupStatus(o)!=='ĐÃ GIAO';}); }
+  function currentWorkOrders(){ return activeOrders().filter(function(o){return rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o);}); }
   // Đơn đã SẢN XUẤT XONG toàn bộ hạng mục (chưa giao hoặc đã giao): vẫn nằm ở Kế hoạch / Đơn hàng để nhắc việc giao,
   // nhưng vật tư của đơn đó KHÔNG còn nhắc mua/về nữa.
   function orderProdDone(o){ var its = (o.items||[]).filter(function(it){ return (it.name||'').trim(); }); return its.length>0 && its.every(function(it){ return it.status==='SẢN XUẤT XONG' || it.status==='ĐÃ GIAO'; }); }
@@ -2353,6 +2354,7 @@
     window.scrollTo(0,0);
   }
   function renderAll(){
+    try { document.documentElement.classList.toggle('pq-dept-ck', STATE.dept!=='dien'); if (STATE.dept!=='dien' && !document.documentElement.classList.contains('pq-show-later') && ['tasks','kanban','alerts','tcal'].indexOf(STATE.view)>=0) STATE.view = 'dashboard'; } catch(e){}
     updateNavUI(STATE.view);
     updateDeptUI();
     document.getElementById('countCurrent').textContent = currentWorkOrders().length;
@@ -3450,8 +3452,9 @@
     var c = o && o.customerInfo ? String(o.customerInfo).split(/[\r\n]+/)[0].trim() : '';
     return c ? '<span style="display:block;font-size:12px;font-weight:400;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(c)+'</span>' : '';
   }
-  function renderPlan(){
-    var act = activeOrders().filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO'; });
+  function renderPlan(){ return renderPlan0() + holdSection(); }
+  function renderPlan0(){
+    var act = activeOrders().filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o); });
     // Đơn đã sản xuất xong, chờ giao: đưa xuống cuối trang, việc cần làm nằm trên.
     var waiting = act.filter(orderProdDone).map(function(o){ return {o:o, snap: headlineSnapshot(o)}; });
     waiting.sort(function(a,b){ var da = a.snap && a.snap.deliveryDate ? a.snap.deliveryDate : '9999', db2 = b.snap && b.snap.deliveryDate ? b.snap.deliveryDate : '9999'; return da<db2 ? -1 : (da>db2 ? 1 : 0); });
@@ -3475,14 +3478,14 @@
       var overdue = items.some(function(x){ return daysRemaining(x.snap.deliveryDate)<0; });
       html += '<div class="plan-week"><div class="plan-week-head'+(overdue?' overdue':'')+'">Tuần '+fmtDate(wsDate.toISOString().slice(0,10))+' – '+fmtDate(weDate.toISOString().slice(0,10))+' <span style="font-weight:600;opacity:.85;">('+items.length+' mục)</span></div><div class="plan-week-body">';
       items.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+holdBtn(x.o)+'</div>';
       });
       html += '</div></div>';
     });
     if (noDate.length){
       html += '<div class="plan-week"><div class="plan-week-head">Chưa có ngày giao <span style="font-weight:600;opacity:.85;">('+noDate.length+' mục)</span></div><div class="plan-week-body">';
       noDate.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+holdBtn(x.o)+'</div>';
       });
       html += '</div></div>';
     }
@@ -6841,7 +6844,7 @@
     pqdKpiRecord({run:cur.length, prod:producing, late:overdue.length, week:thisWeek.length, mat:matRows.length});
     var now = new Date(), dn = ['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'][now.getDay()];
     var _who = ''; try{ _who = (typeof pqWhoGet==='function' && pqWhoGet()) || ''; }catch(e){}
-    var h = '<div class="pqd-head"><div><h1>'+(_who ? 'Chào '+esc(_who) : 'Tổng quan sản xuất')+'</h1><div class="pqd-sub">'+dn+', '+esc(fmtDate(pqxToday()))+' · Bộ phận '+(STATE.dept==='dien'?'Điện':'Cơ khí')+' · '+act.length+' đơn trong năm</div><div class="pqd-say">'+(overdue.length ? 'Xưởng có <b class="bad">'+overdue.length+' đơn quá hạn</b> cần xử lý' : 'Không có đơn nào quá hạn')+' và <b>'+ic('ĐANG SẢN XUẤT')+' hạng mục</b> đang sản xuất.</div></div>'+pqdRing(pctDone, doneWait, items.length, ic('ĐANG SẢN XUẤT'), overdue.length)+'<div class="pqd-bar" style="padding:0;"><button class="btn" data-pq="go-tasks">Phân công công việc</button><button class="btn" data-pq="go-pr">Đề nghị mua'+(prOpen?' ('+prOpen+' phiếu đang mở)':'')+'</button></div></div>';
+    var h = '<div class="pqd-head"><div><h1>'+(_who ? 'Chào '+esc(_who) : 'Tổng quan sản xuất')+'</h1><div class="pqd-sub">'+dn+', '+esc(fmtDate(pqxToday()))+' · Bộ phận '+(STATE.dept==='dien'?'Điện':'Cơ khí')+' · '+act.length+' đơn trong năm</div><div class="pqd-say">'+(overdue.length ? 'Xưởng có <b class="bad">'+overdue.length+' đơn quá hạn</b> cần xử lý' : 'Không có đơn nào quá hạn')+' và <b>'+ic('ĐANG SẢN XUẤT')+' hạng mục</b> đang sản xuất.'+(holdList().length ? ' <span class="pqd-cap">('+holdList().length+' đơn tạm dừng — xem cuối trang Kế hoạch)</span>' : '')+'</div></div>'+pqdRing(pctDone, doneWait, items.length, ic('ĐANG SẢN XUẤT'), overdue.length)+'<div class="pqd-bar" style="padding:0;"><button class="btn" data-pq="go-tasks">Phân công công việc</button><button class="btn" data-pq="go-pr">Đề nghị mua'+(prOpen?' ('+prOpen+' phiếu đang mở)':'')+'</button></div></div>';
     h += pqdTiles(cur, producing, overdue, thisWeek, matRows.length, mc, pctDone, doneWait, items.length);
     var _oldKpis = '<div class="pqd-kpis">'+
       pqdKpi('Đơn đang làm', cur.length, 'run', 'none', 'M7 3h10l3 4v14H4V7zM8 12h8M8 16h5', '', ' data-pq="go-current"')+
@@ -9165,7 +9168,7 @@ function stockMatch(name, spec, rows) {
     }, 600);
   })();
   /* ===== 08m: CÔNG VIỆC — Cảnh báo quá hạn / Lịch & Gantt việc / nhắc việc Zalo (theo video "Update điện") ===== */
-  function cvTasks(){ return tkAll().filter(function(t){ return !t.dept || t.dept===STATE.dept; }); }
+  function cvTasks(){ return tkAll().filter(function(t){ return (!t.dept || t.dept===STATE.dept) && !(t.orderId && isHeld(STATE.orders[t.orderId])); }); }
   function cvOpen(){ return cvTasks().filter(function(t){ return t.status!=='Xong'; }); }
   function cvDaysTo(iso){ return iso ? daysRemaining(iso) : null; }
   function cvAlertCount(){ try { return cvOpen().filter(tkLate).length; } catch(e){ return 0; } }
@@ -9623,6 +9626,133 @@ function stockMatch(name, spec, rows) {
     XS.r0 = a; XS.r1 = rEnd; XS.c0 = c0; XS.c1 = cEnd;
     xsApply(XS.kind, ops, 'Đã dán '+ops.length+' ô');
   });
+  /* ===== 08q: TẠM DỪNG đơn (ẩn khỏi Kế hoạch / quá hạn, bot nhắc sáng thứ Hai) · ẩn mục Công việc + Đọc kế hoạch ở Cơ khí · chọn vùng bằng cảm ứng ===== */
+  function isHeld(o){ return !!(o && o.hold && o.hold.since); }
+  function holdList(){ return activeOrders().filter(function(o){ return isHeld(o) && rollupStatus(o)!=='ĐÃ GIAO'; }).sort(function(a,b){ return a.hold.since < b.hold.since ? 1 : -1; }); }
+  function holdBtn(o){ return '<button class="btn btn-sm" type="button" data-hold="'+esc(o.id)+'" title="Tạm dừng đơn này: không hiện ở Kế hoạch / quá hạn nữa, bot nhắc nhóm vào sáng thứ Hai" style="margin-left:8px;white-space:nowrap;">⏸ Tạm dừng</button>'; }
+  function holdAsk(id){
+    var o = STATE.orders[id]; if (!o || readOnlyNote()) return;
+    var bd = auModal('<h3>Tạm dừng đơn '+esc(o.code||'')+'</h3><div class="pqd-cap" style="margin-bottom:8px;">'+esc(orderTitle(o))+'</div>'+
+      '<div class="pqd-cap">Đơn tạm dừng sẽ <b>không hiện</b> ở Kế hoạch, Quá hạn, Vật tư cần mua, Lịch tháng. Bot sẽ nhắc cả nhóm vào <b>sáng thứ Hai</b> hàng tuần để kiểm tra lại. Khi làm lại: bấm <b>▶ Tiếp tục</b> ở mục Tạm dừng (cuối trang Kế hoạch).</div>'+
+      '<label class="pqd-cap" style="display:block;margin-top:10px;">Lý do (không bắt buộc)<input class="pqd-inp" id="holdWhy" style="width:100%;" maxlength="160" autocomplete="off" placeholder="vd: khách chưa chốt, chờ thanh toán, chờ bản vẽ…"></label>'+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="holdNo" type="button">Hủy</button><button class="btn btn-primary" id="holdYes" type="button">⏸ Tạm dừng đơn này</button></div>');
+    var why = bd.querySelector('#holdWhy'); setTimeout(function(){ try { why.focus(); } catch(e){} }, 30);
+    var go = function(){
+      patchOrder(id, {hold:{since:pqxToday(), reason:String(why.value||'').trim().slice(0,160), by:pqWhoGet()||''}});
+      bd.remove(); renderAll(); toast('Đã tạm dừng đơn '+(o.code||'')+'. Đơn nằm ở mục "Tạm dừng" cuối trang Kế hoạch.', 4200);
+    };
+    bd.querySelector('#holdYes').onclick = go; bd.querySelector('#holdNo').onclick = function(){ bd.remove(); };
+    why.addEventListener('keydown', function(e){ if (e.key==='Enter'){ e.preventDefault(); go(); } });
+  }
+  var HM = {d:null, loading:false, msg:''};
+  function holdLoad(){
+    if (HM.loading) return; HM.loading = true;
+    auApi('/api/zalo/remind').then(function(j){ HM.loading = false; if (j && j.ok){ HM.d = j; if (STATE.view==='plan' && !document.querySelector('.modal-backdrop') && !pqxTyping()) renderAll(); } });
+  }
+  function holdPanel(){
+    if (!(window.NMSX_AUTH && window.NMSX_AUTH.on) || !auOwner()) return '';
+    if (!HM.d){ holdLoad(); return '<div class="pqd-cap" style="padding:10px 14px;">Đang tải cài đặt nhắc Zalo…</div>'; }
+    var d = HM.d, h = d.hold || {}, chats = d.chats || [], cur = h.chatId || d.chatId || '';
+    var opts = '<option value="">— chọn nhóm Zalo nhận nhắc —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===cur?' selected':'')+'>'+esc((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5))+'</option>'; }).join('');
+    return '<div style="padding:10px 14px;border-top:1px solid var(--border,#dde1dd);"><div class="pqd-cap" style="margin-bottom:6px;">'+(h.on ? '<b style="color:var(--good,#1f8a4c);">ĐANG BẬT</b> — mỗi sáng thứ Hai 7:30 bot nhắc nhóm danh sách đơn tạm dừng.' : '<b>ĐANG TẮT</b> — bật để bot nhắc nhóm vào 7:30 sáng thứ Hai hàng tuần (chỉ gửi khi có đơn tạm dừng).')+'</div>'+
+      '<div class="pqd-bar" style="padding:0;flex-wrap:wrap;gap:10px;"><select id="hmChat" class="pqd-inp" style="width:auto;max-width:420px;">'+opts+'</select>'+
+      '<label class="pqd-cap" style="display:inline-flex;gap:6px;align-items:center;"><input type="checkbox" id="hmOn"'+(h.on?' checked':'')+'> Bật nhắc sáng thứ Hai</label>'+
+      '<button class="btn btn-primary btn-sm" id="hmSave" type="button">Lưu</button><button class="btn btn-sm" id="hmPrev" type="button">Xem trước nội dung</button><button class="btn btn-sm" id="hmNow" type="button">Gửi thử ngay</button></div><div class="pqd-cap" id="hmMsg" style="min-height:18px;margin-top:6px;">'+esc(HM.msg||'')+'</div></div>';
+  }
+  function holdSection(){
+    var L = holdList();
+    var rows = L.map(function(o){
+      var snap = headlineSnapshot(o), dd = snap && snap.deliveryDate ? snap.deliveryDate : '';
+      return '<div class="plan-row" data-goto-td="'+esc(o.id)+'"><span class="code">'+esc(o.code||'—')+'</span><span class="title">'+esc(orderTitle(o))+planCust(o)+'</span>'+(dd ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(dd))+'</span> ' : '')+'<span class="pill pill-warn" style="white-space:nowrap;">Tạm dừng từ '+esc(fmtDate(o.hold.since))+'</span>'+(o.hold.reason ? ' <span class="pqd-cap" style="margin-left:6px;">'+esc(o.hold.reason)+'</span>' : '')+'<button class="btn btn-sm" type="button" data-unhold="'+esc(o.id)+'" style="margin-left:8px;white-space:nowrap;">▶ Tiếp tục</button></div>';
+    }).join('');
+    return '<details class="plan-week" id="holdDet"'+(STATE.holdOpen?' open':'')+'><summary class="plan-week-head" style="cursor:pointer;">⏸ Tạm dừng — chưa sản xuất <span style="font-weight:600;opacity:.85;">('+L.length+' đơn)</span></summary><div class="plan-week-body">'+(rows || '<div class="empty-note">Chưa có đơn nào tạm dừng. Ở mỗi dòng của Kế hoạch có nút <b>⏸ Tạm dừng</b>.</div>')+holdPanel()+'</div></details>';
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-hold],[data-unhold]'); if (!b) return;
+    e.stopPropagation(); e.preventDefault();
+    if (b.hasAttribute('data-hold')) return holdAsk(b.getAttribute('data-hold'));
+    var id = b.getAttribute('data-unhold'), o = STATE.orders[id]; if (!o || readOnlyNote()) return;
+    patchOrder(id, {hold:null}); renderAll(); toast('Đơn '+(o.code||'')+' làm tiếp — đã quay lại Kế hoạch.', 3600);
+  }, true);
+  document.addEventListener('toggle', function(e){ if (e.target && e.target.id==='holdDet') STATE.holdOpen = !!e.target.open; }, true);
+  document.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('#hmSave,#hmNow,#hmPrev') : null; if (!b) return;
+    var $ = function(id){ return document.getElementById(id); };
+    var msg = function(t, bad){ HM.msg = t; var m = $('hmMsg'); if (m){ m.style.color = bad ? 'var(--bad,#c0362c)' : 'var(--good,#1f8a4c)'; m.textContent = t; } };
+    if (b.id==='hmPrev'){ return auApi('/api/zalo/remind/hold/preview').then(function(j){ if (!j.ok) return msg(j.error||'Không xem được.', true); var bd = auModal('<h3>Tin bot sẽ gửi sáng thứ Hai</h3><div class="pqd-cap">'+(j.count ? j.count+' đơn đang tạm dừng.' : 'Hiện chưa có đơn tạm dừng nên bot sẽ không gửi gì.')+'</div><pre style="white-space:pre-wrap;font:inherit;font-size:13px;max-height:55vh;overflow:auto;background:var(--surface-2,#f1f3f4);padding:10px 12px;border-radius:8px;">'+esc((j.parts||[]).join('\n\n— — —\n\n')||'(trống)')+'</pre><div class="modal-actions"><button class="btn btn-ghost" id="hmPrevX" type="button">Đóng</button></div>', true); $('hmPrevX').onclick = function(){ bd.remove(); }; }); }
+    var body = {on:$('hmOn').checked, chatId:$('hmChat').value};
+    if (b.id==='hmSave'){
+      if (body.on && !body.chatId) return msg('Chọn nhóm Zalo nhận nhắc trước khi bật.', true);
+      auPost('/api/zalo/remind/hold', body).then(function(j){ if (j.ok){ HM.d = null; msg('Đã lưu.'); holdLoad(); } else msg(j.error||'Không lưu được.', true); });
+    } else {
+      if (!body.chatId) return msg('Chọn nhóm Zalo trước.', true);
+      if (!window.confirm('Gửi NGAY danh sách đơn tạm dừng vào nhóm Zalo đã chọn?')) return;
+      msg('Đang gửi…'); auPost('/api/zalo/remind/hold/now', {chatId:body.chatId}).then(function(j){ msg(j.ok ? (j.parts ? 'Đã gửi '+j.parts+' tin vào nhóm.' : 'Chưa có đơn tạm dừng nên không gửi.') : (j.error||'Không gửi được.'), !j.ok); });
+    }
+  });
+  (function holdStyle(){
+    var st = document.createElement('style');
+    st.textContent =
+      'html.pq-dept-ck:not(.pq-show-later) #tabs .tab[data-group="congviec"],html.pq-dept-ck:not(.pq-show-later) #pqLblWork,html.pq-dept-ck:not(.pq-show-later) .tab-group[data-group="congviec"],html.pq-dept-ck:not(.pq-show-later) [data-pq="go-tasks"],html.pq-dept-ck:not(.pq-show-later) #spkBtn{display:none !important;}'+
+      '#holdDet>summary{list-style:none;}#holdDet>summary::-webkit-details-marker{display:none;}'+
+      '#xlModeBtn{position:fixed;left:12px;bottom:70px;z-index:950;border:0;border-radius:20px;padding:9px 14px;font:600 13px system-ui,sans-serif;background:#16202b;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none;}'+
+      '#xlModeBtn.on{background:#1f5fa8;}'+
+      'html.xl-mode tr[data-line] input,html.xl-mode tr[data-line] select,html.xl-mode tr[data-line] textarea,html.xl-mode tr[data-pc] input,html.xl-mode tr[data-pc] select,html.xl-mode tr[data-pc] textarea{pointer-events:none !important;}'+
+      'html.xl-mode #xlHandle{width:22px;height:22px;margin:-6px 0 0 -6px;touch-action:none;}';
+    document.head.appendChild(st);
+  })();
+
+  /* Cảm ứng (điện thoại / máy tính bảng): nút "▦ Chọn vùng" bật chế độ chọn — chạm & kéo để chọn vùng, kéo ô vuông xanh để điền */
+  var XT = null;
+  function xtAt(x, y){ var el = document.elementFromPoint(x, y); return el ? xsCellOf(el) : null; }
+  function xtHasTable(){ return !!document.querySelector('tr[data-line]:not(.mat-section),tr[data-pc]'); }
+  function xtSyncBtn(){
+    var b = document.getElementById('xlModeBtn'), touchy = false;
+    try { touchy = window.matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window && navigator.maxTouchPoints > 0); } catch(e){}
+    var show = touchy && xtHasTable() && (STATE.view==='order' || STATE.view==='tasks');
+    if (!show){ if (b) b.style.display = 'none'; if (document.documentElement.classList.contains('xl-mode')){ document.documentElement.classList.remove('xl-mode'); if (b) b.classList.remove('on'); } return; }
+    if (!b){ b = document.createElement('button'); b.id = 'xlModeBtn'; b.type = 'button'; document.body.appendChild(b); b.addEventListener('click', function(){ var on = !document.documentElement.classList.contains('xl-mode'); document.documentElement.classList.toggle('xl-mode', on); b.classList.toggle('on', on); b.textContent = on ? '▦ Chọn vùng: BẬT (bấm để tắt)' : '▦ Chọn vùng'; if (!on) xsClear(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }); }
+    b.style.display = 'block'; b.textContent = document.documentElement.classList.contains('xl-mode') ? '▦ Chọn vùng: BẬT (bấm để tắt)' : '▦ Chọn vùng';
+  }
+  try { new MutationObserver(function(){ clearTimeout(xtSyncBtn._t); xtSyncBtn._t = setTimeout(xtSyncBtn, 80); }).observe(document.getElementById('main'), {childList:true}); } catch(e){}
+  setTimeout(xtSyncBtn, 500);
+  document.addEventListener('touchstart', function(e){
+    if (!document.documentElement.classList.contains('xl-mode') || !e.touches || e.touches.length!==1) return;
+    var t = e.touches[0];
+    if (e.target && e.target.id==='xlHandle' && XS){ e.preventDefault(); XSF = {to:null}; XT = {handle:true}; return; }
+    var cell = xtAt(t.clientX, t.clientY); if (!cell){ XT = null; return; }
+    e.preventDefault();
+    if (e.shiftKey || (XS && XS.kind===cell.kind && XS.key===cell.key && XT && XT.shiftNext)){ XS.r1 = cell.r; XS.c1 = cell.c; xsPaint(); return; }
+    XS = {kind:cell.kind, tb:cell.tb, key:cell.key, r0:cell.r, c0:cell.c, r1:cell.r, c1:cell.c}; XT = {sel:true, r:cell.r, c:cell.c, tb:cell.tb};
+    xsPaint();
+  }, {passive:false});
+  document.addEventListener('touchmove', function(e){
+    if (!XT || !e.touches || !e.touches.length) return;
+    var t = e.touches[0]; e.preventDefault();
+    if (XT.handle){
+      var el = document.elementFromPoint(t.clientX, t.clientY), tr = el && el.closest ? el.closest('tr') : null, tb = xsTb();
+      if (tr && tb && tr.parentNode===tb && xsKind(tr)===XS.kind){ XSF.to = xsRows(tb, XS.kind).indexOf(tr); xsPaint(); }
+      return;
+    }
+    var cell = xtAt(t.clientX, t.clientY); if (!cell || cell.tb!==XT.tb) return;
+    XS.r0 = XT.r; XS.c0 = XT.c; XS.r1 = cell.r; XS.c1 = cell.c; xsPaint();
+  }, {passive:false});
+  function xtEnd(e){
+    if (!XT) return;
+    var was = XT; XT = null;
+    if (was.handle){ var to = XSF && XSF.to; XSF = null; if (to!=null) xsFillDrag(to); else xsPaint(); }
+    if (e && e.cancelable) e.preventDefault();
+  }
+  document.addEventListener('touchend', xtEnd, {passive:false});
+  document.addEventListener('touchcancel', function(){ XT = null; XSF = null; xsPaint(); });
+  (function xtActs(){
+    var st = document.createElement('style');
+    st.textContent = '.xl-act{position:fixed;left:12px;z-index:950;border:0;border-radius:20px;padding:8px 13px;font:600 13px system-ui,sans-serif;background:#fff;color:#16202b;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none;}html.xl-mode .xl-act{display:block;}';
+    document.head.appendChild(st);
+    function mk(id, label, bottom, fn){ var b = document.createElement('button'); b.id = id; b.type = 'button'; b.className = 'xl-act'; b.style.bottom = bottom+'px'; b.textContent = label; b.addEventListener('click', fn); document.body.appendChild(b); }
+    mk('xlActDel', '🗑 Xóa ô đã chọn', 116, function(){ if (XS && xsTb()) xsApply(XS.kind, xsRangeOps(function(){ return ''; }), 'Đã xóa vùng chọn'); else toast('Chạm hoặc kéo để chọn ô trước.'); });
+    mk('xlActUndo', '↶ Hoàn tác', 160, function(){ if (XL.undo && Date.now()-(XL.t||0) < 90000) xlUndo(); else toast('Không có gì để hoàn tác.'); });
+  })();
   renderBanner();
   loadFromSeedOnly();
   boot();
