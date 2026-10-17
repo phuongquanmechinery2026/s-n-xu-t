@@ -190,9 +190,12 @@ const server = http.createServer(function (req, res) {
         const b = JSON.parse((await readBody(req)) || '{}'); const o = b.order;
         if (!o || typeof o !== 'object' || !/^(D-)?\d{4}-\d{2,4}[A-Za-z0-9-]*$/.test(String(o.id || '')) || !o.code) return sendJson(res, 400, { error: 'thieu id/code hop le' });
         const O = loadColl('orders');
-        if (Object.prototype.hasOwnProperty.call(O, o.id)) return sendJson(res, 409, { exists: true, id: o.id });
-        cleanOrderDoc(o); O[o.id] = o; saveColl('orders', O);
-        auth.record(req, 'orders', o.id, null, o);
+        const old = Object.prototype.hasOwnProperty.call(O, o.id) ? O[o.id] : null;
+        // replace chi cho don do chinh Javis tao (extBy hoac ghi chu 'Javis them'), khong dong toi don cua nguoi
+        const mine = !!old && (old.extBy === 'javis' || /Javis thêm/.test(String(old.note || '')));
+        if (old && !(b.replace && mine)) return sendJson(res, 409, { exists: true, id: o.id, replaceable: mine });
+        o.extBy = 'javis'; cleanOrderDoc(o); O[o.id] = o; saveColl('orders', O);
+        auth.record(req, 'orders', o.id, old, o);
         return sendJson(res, 200, { ok: true, id: o.id });
       }
       if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
