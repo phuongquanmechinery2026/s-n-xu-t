@@ -174,6 +174,57 @@ const server = http.createServer(function (req, res) {
 
     if (p === '/login' || p === '/login/') return sendBytes(res, 200, 'text/html; charset=utf-8', auth.loginHtml());
     if (p.indexOf('/api/auth/') === 0) { if (await auth.handle(req, res, u, p, method)) return; }
+    // Cong rieng cho Javis (tro li doc don moi tu Zalo roi them len web, danh dau VT da nhan).
+    // KHONG XOA khoi nay khi sua server.js (da bi chep de mat 2 lan).
+    // Khoa EXT_API_KEY tren Render (>= 16 ky tu); chua dat khoa thi cong nay tat.
+    if (p.indexOf('/api/ext/') === 0) {
+      const key = String(process.env.EXT_API_KEY || '').trim();
+      const got = String(req.headers['x-ext-key'] || '');
+      if (key.length < 16 || got.length !== key.length || !require('crypto').timingSafeEqual(Buffer.from(got), Buffer.from(key))) return sendJson(res, 403, { error: 'forbidden' });
+      req.nmsxUser = { username: 'javis', name: 'Javis (trợ lí)' };
+      let mx;
+      if ((mx = p.match(/^\/api\/ext\/order\/([^/]+)$/)) && method === 'GET') {
+        const O = loadColl('orders'); const id = decodeURIComponent(mx[1]);
+        return sendJson(res, 200, { exists: Object.prototype.hasOwnProperty.call(O, id), data: O[id] || null });
+      }
+      if (p === '/api/ext/order' && method === 'POST') {
+        const b = JSON.parse((await readBody(req)) || '{}'); const o = b.order;
+        if (!o || typeof o !== 'object' || !/^(D-)?\d{4}-\d{2,4}[A-Za-z0-9-]*$/.test(String(o.id || '')) || !o.code) return sendJson(res, 400, { error: 'thieu id/code hop le' });
+        const O = loadColl('orders');
+        const old = Object.prototype.hasOwnProperty.call(O, o.id) ? O[o.id] : null;
+        // replace chi cho don do chinh Javis tao (extBy hoac ghi chu 'Javis them'), khong dong toi don cua nguoi
+        const mine = !!old && (old.extBy === 'javis' || /Javis thêm/.test(String(old.note || '')));
+        if (old && !(b.replace && mine)) return sendJson(res, 409, { exists: true, id: o.id, replaceable: mine });
+        o.extBy = 'javis'; cleanOrderDoc(o); O[o.id] = o; saveColl('orders', O);
+        auth.record(req, 'orders', o.id, old, o);
+        return sendJson(res, 200, { ok: true, id: o.id });
+      }
+      if (p === '/api/ext/material' && method === 'POST') {
+        // Danh dau 1 dong VT: { orderId, index, name, status, noteAdd }. name phai khop dong do (chong lech dong).
+        const b = JSON.parse((await readBody(req)) || '{}');
+        const ok = ['Đã nhận', 'Đã có', 'Đã đặt', 'Đã đặt mua', 'Đang gia công'];
+        if (ok.indexOf(b.status) < 0) return sendJson(res, 400, { error: 'status khong hop le' });
+        const O = loadColl('orders'); const o = O[String(b.orderId || '')];
+        if (!o) return sendJson(res, 404, { error: 'khong co don' });
+        const m = (o.materials || [])[b.index];
+        const nk = function (x) { return String(x || '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim(); };
+        if (!m || m.section || nk(m.name) !== nk(b.name)) return sendJson(res, 409, { error: 'dong VT khong khop', name: m ? m.name : null });
+        const before = auth.clone(o);
+        m.status = b.status;
+        if (b.noteAdd) m.note = (m.note ? m.note + '; ' : '') + String(b.noteAdd).slice(0, 200);
+        cleanOrderDoc(o); saveColl('orders', O);
+        auth.record(req, 'orders', o.id, before, o);
+        return sendJson(res, 200, { ok: true, id: o.id, material: m });
+      }
+      if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
+      if (p === '/api/ext/notify' && method === 'POST') {
+        const b = JSON.parse((await readBody(req)) || '{}');
+        if (!b.chatId || !b.text) return sendJson(res, 400, { error: 'thieu chatId/text' });
+        const r = await zalo.ext.send(b.chatId, b.text);
+        return sendJson(res, 200, { ok: !!(r && !r.error && r.status === 200), zalo: r });
+      }
+      return sendJson(res, 404, { error: 'not found' });
+    }
     if (p.indexOf('/api/') === 0) {
       const g = auth.allow(req, p, method);
       if (!g.ok) return sendJson(res, g.status, { error: g.error, needLogin: g.status === 401, perm: !!g.perm });
