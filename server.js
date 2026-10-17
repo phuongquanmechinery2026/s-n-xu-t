@@ -174,6 +174,36 @@ const server = http.createServer(function (req, res) {
 
     if (p === '/login' || p === '/login/') return sendBytes(res, 200, 'text/html; charset=utf-8', auth.loginHtml());
     if (p.indexOf('/api/auth/') === 0) { if (await auth.handle(req, res, u, p, method)) return; }
+    // Cong rieng cho Javis (tro li doc don moi tu Zalo roi them len web).
+    // Khoa EXT_API_KEY tren Render (>= 16 ky tu); chua dat khoa thi cong nay tat.
+    if (p.indexOf('/api/ext/') === 0) {
+      const key = String(process.env.EXT_API_KEY || '').trim();
+      const got = String(req.headers['x-ext-key'] || '');
+      if (key.length < 16 || got.length !== key.length || !require('crypto').timingSafeEqual(Buffer.from(got), Buffer.from(key))) return sendJson(res, 403, { error: 'forbidden' });
+      req.nmsxUser = { username: 'javis', name: 'Javis (trợ lí)' };
+      let mx;
+      if ((mx = p.match(/^\/api\/ext\/order\/([^/]+)$/)) && method === 'GET') {
+        const O = loadColl('orders'); const id = decodeURIComponent(mx[1]);
+        return sendJson(res, 200, { exists: Object.prototype.hasOwnProperty.call(O, id), data: O[id] || null });
+      }
+      if (p === '/api/ext/order' && method === 'POST') {
+        const b = JSON.parse((await readBody(req)) || '{}'); const o = b.order;
+        if (!o || typeof o !== 'object' || !/^(D-)?\d{4}-\d{2,4}[A-Za-z0-9-]*$/.test(String(o.id || '')) || !o.code) return sendJson(res, 400, { error: 'thieu id/code hop le' });
+        const O = loadColl('orders');
+        if (Object.prototype.hasOwnProperty.call(O, o.id)) return sendJson(res, 409, { exists: true, id: o.id });
+        cleanOrderDoc(o); O[o.id] = o; saveColl('orders', O);
+        auth.record(req, 'orders', o.id, null, o);
+        return sendJson(res, 200, { ok: true, id: o.id });
+      }
+      if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
+      if (p === '/api/ext/notify' && method === 'POST') {
+        const b = JSON.parse((await readBody(req)) || '{}');
+        if (!b.chatId || !b.text) return sendJson(res, 400, { error: 'thieu chatId/text' });
+        const r = await zalo.ext.send(b.chatId, b.text);
+        return sendJson(res, 200, { ok: !!(r && !r.error && r.status === 200), zalo: r });
+      }
+      return sendJson(res, 404, { error: 'not found' });
+    }
     if (p.indexOf('/api/') === 0) {
       const g = auth.allow(req, p, method);
       if (!g.ok) return sendJson(res, g.status, { error: g.error, needLogin: g.status === 401 });
