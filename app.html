@@ -1640,7 +1640,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-17q-may';
+  var BUILD_ID = '2026-10-17r-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -9860,6 +9860,19 @@ function stockMatch(name, spec, rows) {
     patchOrder(id, {materials:mats}); renderAll();
     toast('Đã dán '+data.length+' dòng vật tư'+(head ? ' (tin MS '+head.code+(head.td ? ', TĐ '+head.td : '')+')' : '')+(added ? ', thêm '+added+' dòng mới' : '')+' (Ctrl+Z để hoàn tác).', 4600);
   }
+  /* ===== 08s: chép (bôi đen + Ctrl+C) phần TIÊU ĐỀ đơn ở đầu trang đơn / dòng Kế hoạch => ra "KHÁCH - THIẾT BỊ - MS : mã - TĐ : ngày" như copy từ Google Sheet ===== */
+  document.addEventListener('copy', function(e){
+    try {
+      var sel = window.getSelection ? window.getSelection() : null; if (!sel || sel.isCollapsed || !sel.anchorNode) return;
+      var a = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentNode; if (!a || !a.closest) return;
+      var o = null, box = a.closest('.order-page-head');
+      if (box && STATE.view==='order') o = STATE.orders[STATE.currentOrderId];
+      else { var row = a.closest('.plan-row[data-goto-td]'); if (row) o = STATE.orders[row.getAttribute('data-goto-td')]; }
+      if (!o) return;
+      e.clipboardData.setData('text/plain', xlHeaderLine(o)); e.preventDefault(); e.stopImmediatePropagation();
+      toast('Đã chép tiêu đề đơn dạng "… - MS : '+(o.code||o.id)+' - TĐ : …" (giống copy từ Sheet).', 3600);
+    } catch(er){}
+  }, true);
   renderBanner();
   loadFromSeedOnly();
   boot();
