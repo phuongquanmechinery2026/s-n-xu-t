@@ -359,43 +359,28 @@ module.exports = function (ctx) {
   function itemLine(it, i) {
     return (i + 1) + '. ' + it.name + (it.spare ? ' (dự phòng)' : '') + (it.spec ? ' (' + it.spec + ')' : '') + (it.qty ? ' x ' + it.qty : '') + (it.unit ? ' ' + it.unit : '') + stockLine(it);
   }
-  const BOT_TAG = process.env.ZALO_BOT_TAG != null ? process.env.ZALO_BOT_TAG : '(Thử nghiệm) ';
-  const BUYER = process.env.ZALO_BUYER_NAME || 'Chú 9';
-  function missingItems(doc) { return (doc.items || []).filter(function (it) { return it.stock && it.stock.st !== 'co'; }); }
-  function buyLine(doc) {
-    const miss = missingItems(doc); if (!miss.length) return '';
-    const all = miss.length === (doc.items || []).length;
-    return '\n' + (all ? 'Kho không có hàng' : 'Kho không có ' + miss.length + ' mục') + ' → @' + BUYER + ' đặt hàng giúp nhé.';
-  }
   function summaryText(doc) {
-    const t0 = summaryCore(doc);
-    if (!t0) return '';
-    const who = doc.fromName ? '@' + doc.fromName + ' ' : '';
-    return BOT_TAG + who + t0;
-  }
-  function summaryCore(doc) {
     const n = (doc.items || []).length;
     if (doc.intent === 'khac' || doc.status === 'ignored') return '';
     if (doc.intent === 'hoi') {
       if (!n) return '';
       let t = 'Tra cứu tồn kho:';
       doc.items.slice(0, 8).forEach(function (it, i) { t += '\n' + (i + 1) + '. ' + it.name + (it.stock ? stockLine(it).replace(/^ → /, ' — ') : ' — chưa có dữ liệu kho'); });
-      if (missingItems(doc).length) t += '\nCần đặt thì nhắn: @Bot mua <tên hàng> <số lượng> <mã công trình>.';
       return t;
     }
     if (doc.status === 'applied' && doc.applied) {
       let t = 'Đã ghi ĐỀ XUẤT MUA ' + doc.id + ' (' + n + ' mục) vào VT:';
       (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); });
       t += '\nCông trình: ' + (doc.orderCode || (doc.items[0] && doc.items[0].orderCode) || '') + '. Đã lập phiếu đề nghị mua ' + doc.applied.purchaseId + ' (chờ duyệt).';
-      return t + buyLine(doc);
+      return t;
     }
-    if (doc.intent === 'mua' && n && !(doc.items || []).every(function (it) { return it.orderId; })) return 'Đã đọc đề xuất MUA ' + doc.id + ' nhưng chưa rõ công trình nào. Anh/chị nhắn lại kèm mã đơn (ví dụ 2026-191), hoặc thủ kho chọn công trình trên web.' + (function () { let t = ''; (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); }); return t; })() + buyLine(doc);
+    if (doc.intent === 'mua' && n && !(doc.items || []).every(function (it) { return it.orderId; })) return 'Đã đọc đề xuất MUA ' + doc.id + ' nhưng chưa rõ công trình nào. Anh/chị nhắn lại kèm mã đơn (ví dụ 2026-191), hoặc thủ kho chọn công trình trên web.';
     const kind = doc.intent === 'mua' ? 'MUA' : (doc.intent === 'xuat' ? 'XUẤT KHO' : 'chưa rõ MUA hay XUẤT');
     let t = 'Đã nhận yêu cầu ' + kind + ' ' + doc.id + (n ? ' gồm ' + n + ' mục:' : ': chưa đọc được mục nào, thủ kho sẽ xem tin gốc.');
     (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); });
     if (n > 8) t += '\n… và ' + (n - 8) + ' mục nữa';
     if (doc.orderCode) t += '\nCông trình: ' + doc.orderCode;
-    return t + buyLine(doc) + '\nChờ thủ kho xử lý.';
+    return t + '\nChờ thủ kho xử lý.';
   }
 
 
@@ -813,6 +798,58 @@ module.exports = function (ctx) {
     return doc;
   }
 
+  /* ---------------- NHAC VIEC TU DONG (qua nhom Zalo) ---------------- */
+  function vnNow() { return new Date(Date.now() + 7 * 3600 * 1000); }
+  function remindCfg() { const M = ctx.loadColl('zalo_meta'); const r = M.remind || {}; return { on: !!r.on, hour: r.hour == null ? 7 : r.hour, minute: r.minute == null ? 30 : r.minute, chatId: String(r.chatId || ''), lastDate: String(r.lastDate || '') }; }
+  function remindSave(r) { const M = ctx.loadColl('zalo_meta'); M.remind = r; ctx.saveColl('zalo_meta', M); }
+  function seenChats() {
+    const out = {}, L = ctx.loadColl('zalo_log'), X = ctx.loadColl('xuathang');
+    Object.keys(L).sort().forEach(function (k) { try { const e = extract(L[k].body || {}); if (e.chatId) out[e.chatId] = { id: e.chatId, type: e.chatType, last: e.fromName || (out[e.chatId] && out[e.chatId].last) || '' }; } catch (er) {} });
+    Object.keys(X).sort().forEach(function (k) { const d = X[k]; if (d && d.chatId) out[d.chatId] = { id: d.chatId, type: d.chatType || (out[d.chatId] && out[d.chatId].type) || '', last: d.fromName || (out[d.chatId] && out[d.chatId].last) || '' }; });
+    return Object.keys(out).map(function (k) { return out[k]; });
+  }
+  function dayDiff(iso, today) { const a = Date.parse(String(iso).slice(0, 10) + 'T00:00:00Z'), b = Date.parse(today + 'T00:00:00Z'); return isFinite(a) && isFinite(b) ? Math.round((a - b) / 86400000) : null; }
+  function remindParts() {
+    const T = ctx.loadColl('tasks'), O = ctx.loadColl('orders'), today = vnToday();
+    const done = {}; Object.keys(O).forEach(function (id) { const o = O[id]; const its = ((o && o.items) || []).filter(function (i) { return i && String(i.name || '').trim(); }); if (o && its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) done[id] = 1; });
+    const G = { late: [], today: [], soon: [] };
+    Object.keys(T).forEach(function (id) {
+      const x = T[id]; if (!x || x.status === 'Xong' || !x.date || (x.orderId && done[x.orderId])) return;
+      const d = dayDiff(x.date, today); if (d == null) return;
+      const rec = { who: x.who || 'Chưa có người', title: String(x.title || '').replace(/\s+/g, ' ').slice(0, 70), code: x.code || '', dept: x.dept === 'dien' ? 'Điện' : 'Cơ khí', d: d };
+      if (d < 0) G.late.push(rec); else if (d === 0) G.today.push(rec); else if (d <= 7) G.soon.push(rec);
+    });
+    const lines = [];
+    const sec = function (head, arr, tag) {
+      if (!arr.length) return;
+      arr.sort(function (a, b) { return (a.who < b.who ? -1 : a.who > b.who ? 1 : a.d - b.d); });
+      lines.push(head + ' (' + arr.length + '):');
+      arr.slice(0, 45).forEach(function (r) { lines.push('• ' + r.who + ' — ' + r.title + (r.code ? ' [' + r.code + ']' : '') + ' (' + r.dept + ') — ' + tag(r)); });
+      if (arr.length > 45) lines.push('… và ' + (arr.length - 45) + ' việc nữa');
+      lines.push('');
+    };
+    sec('⚠️ QUÁ HẠN', G.late, function (r) { return 'trễ ' + Math.abs(r.d) + ' ngày'; });
+    sec('⏰ ĐẾN HẠN HÔM NAY', G.today, function () { return 'hôm nay'; });
+    sec('📅 TRONG 7 NGÀY TỚI', G.soon, function (r) { return 'còn ' + r.d + ' ngày'; });
+    const n = vnNow(), dow = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][n.getUTCDay()];
+    const head = '📋 NHẮC VIỆC — ' + dow + ' ' + today.slice(8, 10) + '/' + today.slice(5, 7) + '/' + today.slice(0, 4);
+    if (!lines.length) return [head + '\nHôm nay không có việc quá hạn hoặc đến hạn trong 7 ngày tới. Chúc cả nhà làm việc tốt!'];
+    const parts = []; let cur = head + '\n';
+    lines.forEach(function (ln) { if ((cur + ln + '\n').length > 1600) { parts.push(cur.trim()); cur = ''; } cur += ln + '\n'; });
+    if (cur.trim()) parts.push(cur.trim());
+    return parts;
+  }
+  async function remindSend(chatId) { const ps = remindParts(); for (let i = 0; i < ps.length; i++) { await sendText(chatId, ps[i]); } return ps.length; }
+  let remindBusy = false;
+  async function remindTick() {
+    if (remindBusy) return; const r = remindCfg(); if (!r.on || !r.chatId) return;
+    const n = vnNow(), today = vnToday(); if (r.lastDate === today) return;
+    if (n.getUTCHours() * 60 + n.getUTCMinutes() < r.hour * 60 + r.minute) return;
+    remindBusy = true;
+    try { r.lastDate = today; remindSave(r); await remindSend(r.chatId); } catch (e) {} finally { remindBusy = false; }
+  }
+  setInterval(function () { remindTick().catch(function () {}); }, 60000);
+
   /* ---------------- Cac duong /api/zalo/* ---------------- */
   function safeEq(a, b) {
     const A = Buffer.from(String(a || '')), B = Buffer.from(String(b || ''));
@@ -922,6 +959,27 @@ module.exports = function (ctx) {
       aiCfgSave(c); ctx.sendJson(res, 200, { ok: true }); return true;
     }
 
+    // ---- Nhac viec tu dong (chi chu): /api/zalo/remind (GET xem, POST luu), /api/zalo/remind/now (POST gui thu ngay) ----
+    if (p.indexOf('/api/zalo/remind') === 0) {
+      const c = aiCfg();
+      if (!((c.ownerHash || (ctx.authOn && ctx.authOn())) && ownerMode(req))) { ctx.sendJson(res, 403, { ok: false, error: 'Chỉ chủ mới dùng được nhắc việc' }); return true; }
+      if (p === '/api/zalo/remind' && method === 'GET') { const r = remindCfg(); ctx.sendJson(res, 200, { ok: true, on: r.on, hour: r.hour, minute: r.minute, chatId: r.chatId, lastDate: r.lastDate, chats: seenChats() }); return true; }
+      if (p === '/api/zalo/remind/preview' && method === 'GET') { ctx.sendJson(res, 200, { ok: true, parts: remindParts() }); return true; }
+      if (p === '/api/zalo/remind' && method === 'POST') {
+        let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+        const r = remindCfg(); r.on = !!b.on; r.hour = numIn(b.hour, 0, 23, r.hour); r.minute = numIn(b.minute, 0, 59, r.minute); r.chatId = String(b.chatId || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80);
+        if (r.on && !r.chatId) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa chọn nhóm nhận nhắc' }); return true; }
+        const n0 = vnNow(); if (r.on && n0.getUTCHours() * 60 + n0.getUTCMinutes() >= r.hour * 60 + r.minute && !r.lastDate) r.lastDate = vnToday();   // vua bat sau gio gui: de mai gui, khong gui bu ngay
+        remindSave(r); ctx.sendJson(res, 200, { ok: true }); return true;
+      }
+      if (p === '/api/zalo/remind/now' && method === 'POST') {
+        let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+        const chatId = String(b.chatId || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80);
+        if (!chatId) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa chọn nhóm' }); return true; }
+        try { const k = await remindSend(chatId); ctx.sendJson(res, 200, { ok: true, parts: k }); } catch (e) { ctx.sendJson(res, 200, { ok: false, error: String((e && e.message) || e) }); }
+        return true;
+      }
+    }
     // ---- Chi phi AI (chi chu): /api/zalo/ai/usage ----
     if (p === '/api/zalo/ai/usage' && method === 'GET') {
       const c = aiCfg();
@@ -1009,5 +1067,5 @@ module.exports = function (ctx) {
     return true;
   }
 
-  return { handle: handle, _test: { ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
+  return { handle: handle, _test: { remindParts: remindParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
 };

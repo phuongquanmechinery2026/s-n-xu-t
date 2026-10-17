@@ -1533,6 +1533,9 @@
       <div class="tab active" data-view="dashboard" data-group="tongquan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"/></svg>Tổng quan</div>
       <div class="pq-navlbl">Công việc</div>
       <div class="tab" data-view="tasks" data-group="congviec"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM4 9h16M9 13l2 2 4-4"/></svg>Phân công công việc</div>
+      <div class="tab" data-view="kanban" data-group="congviec"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h5v16H4zM10 4h5v10h-5zM16 4h4v13h-4z"/></svg>Bảng Kanban</div>
+      <div class="tab" data-view="alerts" data-group="congviec"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2zM12 10v5M12 18v.5"/></svg>Cảnh báo việc <span class="count" id="countAlert">0</span></div>
+      <div class="tab" data-view="tcal" data-group="congviec"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 14h4M10 17h6"/></svg>Lịch &amp; Gantt việc</div>
       <div class="pq-navlbl">Đơn hàng</div>
       <div class="tab" data-view="current" data-group="donhang"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h16M4 18h7M18 4v4M15 16v4"/></svg>Công việc hiện tại <span class="count" id="countCurrent">0</span></div>
       <div class="tab" data-view="yearly" data-group="donhang"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l3 4v14H4V7zM8 12h8M8 16h5"/></svg>Tổng đơn hàng trong năm <span class="count" id="countYearly">0</span></div>
@@ -1637,7 +1640,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-12k-may';
+  var BUILD_ID = '2026-10-17n-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2303,7 +2306,7 @@
   /* ============ NHÓM TAB CẤP 1 ============ */
   var NAV_GROUPS = [
     {key:'tongquan', label:'Tổng quan', views:['dashboard']},
-    {key:'congviec', label:'Công việc', views:['tasks']},
+    {key:'congviec', label:'Công việc', views:['tasks','kanban','alerts','tcal']},
     {key:'donhang',  label:'Đơn hàng',  views:['current','yearly']},
     {key:'vattukho', label:'Vật tư & Kho', views:['mrp','reqdate','pr','xuat','issue','kho']},
     {key:'kehoach',  label:'Kế hoạch', views:['plan','lich','tiendo']},
@@ -2354,9 +2357,10 @@
     updateDeptUI();
     document.getElementById('countCurrent').textContent = currentWorkOrders().length;
     document.getElementById('countYearly').textContent = ordersList().length;
+    try { var ca = document.getElementById('countAlert'); if (ca){ var nA = cvAlertCount(); ca.textContent = nA; ca.style.display = nA ? '' : 'none'; } } catch(e){}
     var main = document.getElementById('main');
     // Màn hình bảng/chi tiết -> rộng gần hết màn hình; Tổng quan/Kế hoạch -> vừa phải.
-    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo','pr','issue','tasks','kanban','xuat'].indexOf(STATE.view)>=0);
+    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo','pr','issue','tasks','kanban','xuat','alerts','tcal'].indexOf(STATE.view)>=0);
     if (STATE.view==='dashboard') main.innerHTML = renderDashboardPQ();
     else if (STATE.view==='current'){
       // Khi lọc "Đã giao": phải hiện được các đơn ĐÃ giao (không thì bấm chip
@@ -2376,6 +2380,8 @@
     else if (STATE.view==='kho') main.innerHTML = renderKho();
     else if (STATE.view==='tasks') main.innerHTML = renderTasks();
     else if (STATE.view==='kanban') main.innerHTML = renderKanban();
+    else if (STATE.view==='alerts') main.innerHTML = renderAlerts();
+    else if (STATE.view==='tcal') main.innerHTML = renderTaskCal();
     else if (STATE.view==='pr') main.innerHTML = renderPR();
     else if (STATE.view==='issue') main.innerHTML = renderIssue();
     else if (STATE.view==='xuat') main.innerHTML = renderXuat();
@@ -2949,6 +2955,7 @@
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
     if (auOwner()) html += '<button class="btn btn-sm" data-order-hist="'+esc(o.id)+'" data-order-code="'+esc(o.code||'')+'" title="Ai đã sửa gì trong đơn này (chỉ chủ xem)">🕘 Lịch sử đơn</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
+    html += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột (thiếu dòng tự thêm) · <b>Ctrl+D</b> điền xuống · <b>Ctrl+Z</b> hoàn tác lần dán.</div>';
     html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:164px"><col style="width:13%"><col style="width:14%"><col style="width:44px"></colgroup><thead><tr>';
     ['STT','Tên gọi','Quy cách','ĐVT','SL','Tình trạng','Ngày yêu cầu','Nhà cung cấp','Ghi chú',''].forEach(function(h){html+='<th>'+h+'</th>';});
     html += '</tr></thead><tbody>';
@@ -7289,6 +7296,7 @@
     h += '<div class="pc-modes" role="tablist">'+M.map(function(m){ return '<button role="tab" aria-selected="'+(PQX.tkMode===m[0])+'" data-pq="pc-mode" data-m="'+m[0]+'">'+m[1]+'</button>'; }).join('')+'</div>';
     var body = pcBodyHtml();
     h += '<div class="pc-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="pcQ" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Tìm việc, người làm, tên máy, mã đơn…" aria-label="Tìm trong phân công công việc" value="'+esc(PQX.pcQ||'')+'"><span class="pc-count" id="pcCount">'+esc(PQX._pcCount||'')+'</span><button type="button" class="pc-clear" data-pq="pc-clear" aria-label="Xoá tìm kiếm"'+(PQX.pcQ?'':' hidden')+'>✕</button></div>';
+    h += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột · <b>Ctrl+D</b> điền xuống · <b>Ctrl+Z</b> hoàn tác lần dán.</div>';
     h += '<div id="pcBody">'+body+'</div>';
     return h;
   }
@@ -9156,6 +9164,269 @@ function stockMatch(name, spec, rows) {
       chip0.parentNode.insertBefore(b, chip0); b.addEventListener('click', spkOpen);
     }, 600);
   })();
+  /* ===== 08m: CÔNG VIỆC — Cảnh báo quá hạn / Lịch & Gantt việc / nhắc việc Zalo (theo video "Update điện") ===== */
+  function cvTasks(){ return tkAll().filter(function(t){ return !t.dept || t.dept===STATE.dept; }); }
+  function cvOpen(){ return cvTasks().filter(function(t){ return t.status!=='Xong'; }); }
+  function cvDaysTo(iso){ return iso ? daysRemaining(iso) : null; }
+  function cvAlertCount(){ try { return cvOpen().filter(tkLate).length; } catch(e){ return 0; } }
+  function cvRow(t, kind){
+    var o = t.orderId && STATE.orders[t.orderId], dr = cvDaysTo(t.date);
+    var when = !t.date ? '<span class="pqd-cap">chưa có hạn</span>' : (dr<0 ? '<span class="pill pill-bad">Trễ '+Math.abs(dr)+' ngày</span>' : (dr===0 ? '<span class="pill pill-warn">Hôm nay</span>' : '<span class="pill pill-info">Còn '+dr+' ngày</span>'));
+    return '<tr'+(o ? ' data-goto-td="'+esc(o.id)+'" style="cursor:pointer;"' : '')+'><td class="num pqd-cap">'+esc((o&&o.code)||t.code||'—')+'</td><td><b>'+esc(t.title||'')+'</b>'+(o ? '<div class="pqd-cap" style="font-size:11.5px;">'+esc(orderTitle(o))+'</div>' : '')+'</td><td>'+(t.who ? esc(t.who) : '<span class="drw-b warn">chưa có người</span>')+'</td><td>'+(t.date ? esc(fmtDate(t.date)) : '—')+'</td><td>'+when+'</td><td>'+tkPill(t)+'</td></tr>';
+  }
+  function cvTable(rows, empty){
+    if (!rows.length) return '<div class="empty-note">'+empty+'</div>';
+    return '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:90px;">Đơn</th><th>Việc</th><th style="width:140px;">Người làm</th><th style="width:100px;">Hạn</th><th style="width:110px;">Còn / trễ</th><th style="width:120px;">Trạng thái</th></tr></thead><tbody>'+rows.map(cvRow).join('')+'</tbody></table></div>';
+  }
+  var CVR = {d:null, chats:[], loading:false, msg:''};
+  function cvRemindLoad(){
+    if (CVR.loading || !auOwner()) return; CVR.loading = true;
+    auApi('/api/zalo/remind').then(function(j){ CVR.loading = false; if (j && j.ok){ CVR.d = j; if (STATE.view==='alerts' && !pqxTyping() && !document.querySelector('.modal-backdrop')) renderAll(); } });
+  }
+  function cvRemindPanel(){
+    if (!(window.NMSX_AUTH && window.NMSX_AUTH.on)) return '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Nhắc việc tự động qua Zalo</h2></div><div class="panel-body"><div class="empty-note">Chỉ có trên bản web (chetao.onrender.com).</div></div></div>';
+    if (!auOwner()) return '';
+    if (!CVR.d){ cvRemindLoad(); return '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Nhắc việc tự động qua Zalo</h2><span class="pqd-cap">đang tải…</span></div></div>'; }
+    var d = CVR.d, chats = d.chats || [];
+    var opts = '<option value="">— chọn nhóm / cuộc trò chuyện nhận nhắc —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===d.chatId?' selected':'')+'>'+esc((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5))+'</option>'; }).join('');
+    var hrs = ''; for (var h=5; h<=18; h++) hrs += '<option value="'+h+'"'+(h===d.hour?' selected':'')+'>'+(h<10?'0':'')+h+'</option>';
+    return '<div class="panel" style="margin-bottom:14px;"><div class="panel-head" style="flex-wrap:wrap;gap:10px;"><h2>Nhắc việc tự động qua Zalo</h2><span class="pqd-cap">'+(d.on ? '<b style="color:var(--good,#1f8a4c);">ĐANG BẬT</b> — gửi mỗi ngày lúc '+(d.hour<10?'0':'')+d.hour+':'+(d.minute<10?'0':'')+d.minute+(d.lastDate ? ' · lần gần nhất '+esc(d.lastDate) : '') : '<b>ĐANG TẮT</b>')+'</span></div><div class="panel-body" style="padding:12px 16px;">'+
+      '<div class="pqd-cap" style="margin-bottom:8px;">Mỗi sáng bot gửi vào nhóm Zalo danh sách việc <b>quá hạn</b>, <b>đến hạn hôm nay</b> và <b>trong 7 ngày tới</b>, xếp theo từng người. (Bot chỉ thấy các nhóm đã có người nhắn tên bot ít nhất 1 lần.)</div>'+
+      '<div class="pqd-bar" style="padding:0;flex-wrap:wrap;gap:10px;"><select id="cvChat" class="pqd-inp" style="width:auto;max-width:420px;">'+opts+'</select>'+
+      '<label class="pqd-cap">Giờ gửi <select id="cvHour" class="pqd-inp" style="width:auto;">'+hrs+'</select> : <select id="cvMin" class="pqd-inp" style="width:auto;">'+[0,15,30,45].map(function(m){ return '<option value="'+m+'"'+(m===d.minute?' selected':'')+'>'+(m<10?'0':'')+m+'</option>'; }).join('')+'</select></label>'+
+      '<label class="pqd-cap" style="display:inline-flex;gap:6px;align-items:center;"><input type="checkbox" id="cvOn"'+(d.on?' checked':'')+'> Bật nhắc tự động</label>'+
+      '<button class="btn btn-primary btn-sm" id="cvSave">Lưu</button><button class="btn btn-sm" id="cvPrev">Xem trước nội dung</button><button class="btn btn-sm" id="cvNow">Gửi thử ngay</button></div><div class="pqd-cap" id="cvMsg" style="min-height:18px;margin-top:6px;">'+esc(CVR.msg||'')+'</div></div></div>';
+  }
+  function renderAlerts(){
+    pqxInit();
+    var all = cvTasks(), open = cvOpen(), today = pqxToday();
+    var late = open.filter(tkLate).sort(function(a,b){ return (a.date||'')<(b.date||'')?-1:1; });
+    var t0 = open.filter(function(t){ return t.date===today; });
+    var soon = open.filter(function(t){ var d = cvDaysTo(t.date); return d!=null && d>=1 && d<=7; }).sort(function(a,b){ return (a.date||'')<(b.date||'')?-1:1; });
+    var noWho = open.filter(function(t){ return !t.who; });
+    var wait = open.filter(function(t){ return t.status==='Đang chờ' || t.status==='Tạm dừng'; });
+    var h = '<div class="pqd-head"><div><h1>Cảnh báo công việc — bộ phận '+(STATE.dept==='dien'?'Điện':'Cơ khí')+'</h1><div class="pqd-sub">Việc quá hạn, đến hạn hôm nay và trong 7 ngày tới. Bấm vào một dòng để mở đơn tương ứng.</div></div></div>';
+    h += '<div class="stat-grid">'+statCard('Việc đang mở', open.length, '')+statCard('Quá hạn', late.length, 'accent-bad')+statCard('Đến hạn hôm nay', t0.length, 'accent-warn')+statCard('Trong 7 ngày tới', soon.length, 'accent-info')+statCard('Chưa có người làm', noWho.length, 'accent-warn')+statCard('Đang chờ / tạm dừng', wait.length, '')+'</div>';
+    h += cvRemindPanel();
+    h += '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2 style="color:var(--bad,#c0362c);">Việc QUÁ HẠN ('+late.length+')</h2></div><div class="panel-body" style="padding:6px 12px;">'+cvTable(late.slice(0,60), 'Không có việc nào quá hạn 👍')+(late.length>60 ? '<div class="pqd-cap">… và '+(late.length-60)+' việc nữa (xem trong "Phân công công việc").</div>' : '')+'</div></div>';
+    h += '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Đến hạn hôm nay &amp; 7 ngày tới ('+(t0.length+soon.length)+')</h2></div><div class="panel-body" style="padding:6px 12px;">'+cvTable(t0.concat(soon).slice(0,60), 'Chưa có việc nào đến hạn trong 7 ngày tới.')+'</div></div>';
+    // khoi luong theo nguoi
+    var by = {};
+    open.forEach(function(t){ var k = t.who || '(chưa có người)'; var x = by[k] = by[k] || {n:0, late:0, soon:0}; x.n++; if (tkLate(t)) x.late++; else { var d = cvDaysTo(t.date); if (d!=null && d<=7) x.soon++; } });
+    var done = all.filter(function(t){ return t.status==='Xong'; }).length;
+    var keys = Object.keys(by).sort(function(a,b){ return by[b].late-by[a].late || by[b].n-by[a].n; });
+    h += '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Khối lượng theo người</h2><span class="pqd-cap">đã xong '+done+' / '+all.length+' việc</span></div><div class="panel-body" style="padding:6px 12px;">'+(keys.length ? '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th>Người</th><th class="r">Đang mở</th><th class="r">Quá hạn</th><th class="r">Trong 7 ngày</th></tr></thead><tbody>'+keys.map(function(k){ var x = by[k]; return '<tr><td><b>'+esc(k)+'</b></td><td class="r">'+x.n+'</td><td class="r">'+(x.late ? '<span class="pill pill-bad">'+x.late+'</span>' : '0')+'</td><td class="r">'+x.soon+'</td></tr>'; }).join('')+'</tbody></table></div>' : '<div class="empty-note">Chưa có việc nào.</div>')+'</div></div>';
+    // don co nguy co tre
+    var risk = currentWorkOrders().map(function(o){ var sn = headlineSnapshot(o), dr = sn && sn.deliveryDate ? daysRemaining(sn.deliveryDate) : null; var ot = open.filter(function(t){ return t.orderId===o.id; }); return {o:o, dr:dr, n:ot.length, late:ot.filter(tkLate).length}; }).filter(function(x){ return x.dr!=null && x.dr<=7 && x.n>0; }).sort(function(a,b){ return a.dr-b.dr; });
+    h += '<div class="panel"><div class="panel-head"><h2>Đơn sắp giao / trễ giao mà còn việc chưa xong ('+risk.length+')</h2></div><div class="panel-body" style="padding:6px 12px;">'+(risk.length ? '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:90px;">Đơn</th><th>Tên</th><th style="width:130px;">Hạn giao</th><th class="r">Việc còn mở</th><th class="r">Trong đó quá hạn</th></tr></thead><tbody>'+risk.map(function(x){ return '<tr data-goto-td="'+esc(x.o.id)+'" style="cursor:pointer;"><td class="num pqd-cap">'+esc(x.o.code||'')+'</td><td><b>'+esc(orderTitle(x.o))+'</b></td><td>'+(x.dr<0 ? '<span class="pill pill-bad">Trễ '+Math.abs(x.dr)+' ngày</span>' : '<span class="pill pill-warn">Còn '+x.dr+' ngày</span>')+'</td><td class="r">'+x.n+'</td><td class="r">'+x.late+'</td></tr>'; }).join('')+'</tbody></table></div>' : '<div class="empty-note">Không có.</div>')+'</div></div>';
+    return h;
+  }
+
+  /* ---- Lịch & Gantt việc ---- */
+  function tcYM(){ if (!STATE.tcYM){ var n = new Date(); STATE.tcYM = {y:n.getFullYear(), m:n.getMonth()+1}; } return STATE.tcYM; }
+  function tcCls(t){ if (t.status==='Xong') return 'tc-done'; if (tkLate(t)) return 'tc-late'; if (t.status==='Đang làm') return 'tc-run'; return 'tc-wait'; }
+  function renderTaskCal(){
+    pqxInit();
+    var ym = tcYM(), y = ym.y, m = ym.m, mode = STATE.tcMode || 'cal', who = STATE.tcWho || '';
+    var n = new Date(y, m, 0).getDate(), firstDow = (new Date(y, m-1, 1).getDay()+6)%7, today = pqxToday();
+    var pad = function(x){ return (x<10?'0':'')+x; };
+    var tasks = cvTasks().filter(function(t){ return t.date && (!who || t.who===who); });
+    var people = {}; cvTasks().forEach(function(t){ if (t.who) people[t.who] = 1; });
+    var h = '<div class="pqd-head"><div><h1>Lịch &amp; Gantt công việc — '+(STATE.dept==='dien'?'Điện':'Cơ khí')+'</h1><div class="pqd-sub">Hạn hoàn thành của từng việc theo ngày (Lịch) hoặc thanh tiến độ (Gantt). Màu: đỏ = trễ hạn, xanh dương = đang làm, xám = chưa làm, xanh lá = xong.</div></div></div>';
+    h += '<div class="lich-bar"><button class="btn btn-sm" data-tc-nav="-1">‹ Tháng trước</button><div class="lich-title">Tháng '+m+' / '+y+'</div><button class="btn btn-sm" data-tc-nav="1">Tháng sau ›</button><button class="btn btn-sm" data-tc-nav="0">Về tháng này</button>'+
+      '<span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;"><select id="tcWho" class="pqd-inp" style="width:auto;"><option value="">Tất cả người</option>'+Object.keys(people).sort().map(function(p){ return '<option'+(p===who?' selected':'')+'>'+esc(p)+'</option>'; }).join('')+'</select>'+
+      [['cal','📅 Lịch'],['gantt','📊 Gantt']].map(function(x){ return '<button class="btn btn-sm'+(mode===x[0]?' btn-primary':'')+'" data-tc-mode="'+x[0]+'">'+x[1]+'</button>'; }).join('')+'</span></div>';
+    if (mode==='cal'){
+      var by = {}; tasks.forEach(function(t){ if (t.date.slice(0,7)===y+'-'+pad(m)) (by[t.date] = by[t.date] || []).push(t); });
+      var lateN = tasks.filter(function(t){ return tkLate(t) && t.date.slice(0,7)<y+'-'+pad(m); }).length;
+      if (lateN) h += '<div class="pqd-cap" style="margin:0 0 8px;">Còn <b style="color:var(--bad,#c0362c);">'+lateN+' việc quá hạn từ các tháng trước</b> chưa xong — xem ở tab "Cảnh báo việc" hoặc bấm Gantt (thanh đỏ kéo dài đến hôm nay).</div>';
+      h += '<div class="panel" style="padding:12px;overflow:visible;"><div class="cal-grid">';
+      ['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ nhật'].forEach(function(d){ h += '<div class="cal-dow">'+d+'</div>'; });
+      for (var i=0;i<firstDow;i++) h += '<div class="cal-cell empty"></div>';
+      for (var d=1; d<=n; d++){
+        var dk = y+'-'+pad(m)+'-'+pad(d), ev = by[dk] || [];
+        h += '<div class="cal-cell'+(dk===today?' today':'')+(ev.length?' has':'')+'" style="min-height:96px;"><div class="cal-daynum">'+d+'</div>';
+        ev.slice(0,4).forEach(function(t){ h += '<div class="cal-chip tc-chip '+tcCls(t)+'" title="'+esc((t.title||'')+' — '+(t.who||'chưa có người'))+'">'+esc((t.who ? t.who.split(' ').slice(-1)[0]+': ' : '')+(t.title||''))+'</div>'; });
+        if (ev.length>4) h += '<div class="cal-more">+'+(ev.length-4)+' việc nữa</div>';
+        h += '</div>';
+      }
+      h += '</div></div>';
+    } else {
+      var lo = y+'-'+pad(m)+'-01', hi = y+'-'+pad(m)+'-'+pad(n);
+      var endOf = function(t){ return tkLate(t) ? today : t.date; };
+      var rows = tasks.filter(function(t){ var st = t.start && t.start<=t.date ? t.start : t.date; return endOf(t)>=lo && st<=hi; }).sort(function(a,b){ return (a.who||'zzz')<(b.who||'zzz') ? -1 : ((a.who||'zzz')>(b.who||'zzz') ? 1 : ((a.date<b.date)?-1:1)); }).slice(0,150);
+      h += '<div class="panel" style="padding:8px;overflow:auto;"><div class="tc-gantt" style="grid-template-columns:260px repeat('+n+',26px);">';
+      h += '<div class="tc-h tc-lab">Việc / người</div>'; for (var dd=1; dd<=n; dd++){ var dw = new Date(y, m-1, dd).getDay(); h += '<div class="tc-h'+((y+'-'+pad(m)+'-'+pad(dd)===today)?' tc-today':'')+(dw===0||dw===6?' tc-we':'')+'">'+dd+'</div>'; }
+      if (!rows.length) h += '<div class="tc-lab" style="grid-column:1 / -1;padding:14px;">Không có việc nào có hạn trong tháng này.</div>';
+      rows.forEach(function(t){
+        var st = t.start && t.start<=t.date ? t.start : t.date; var en = endOf(t); var a = st<lo ? 1 : +st.slice(8,10), b = en>hi ? n : +en.slice(8,10);
+        h += '<div class="tc-lab" title="'+esc(t.title||'')+'"><b>'+esc(t.who||'(chưa có người)')+'</b> · '+esc(t.title||'')+'</div>';
+        for (var c=1; c<=n; c++){ var cw = new Date(y, m-1, c).getDay(); h += '<div class="tc-c'+(cw===0||cw===6?' tc-we':'')+((y+'-'+pad(m)+'-'+pad(c)===today)?' tc-today':'')+(c>=a && c<=b ? ' tc-bar '+tcCls(t)+(c===b?' tc-end':'') : '')+'"></div>'; }
+      });
+      h += '</div></div>';
+    }
+    return h;
+  }
+  (function cvStyle(){
+    var st = document.createElement('style');
+    st.textContent =
+      'html .tc-chip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#fff;border:0;}'+
+      'html .tc-done{background:#2e9e5b !important;}html .tc-late{background:#c0362c !important;}html .tc-run{background:#2f6fd0 !important;}html .tc-wait{background:#8a97a6 !important;}'+
+      'html .tc-gantt{display:grid;min-width:max-content;font-size:12px;}'+
+      'html .tc-gantt .tc-h{height:26px;line-height:26px;text-align:center;font-weight:700;color:var(--text-muted,#6f7a84);border-bottom:1px solid var(--border,#d5dae0);}'+
+      'html .tc-gantt .tc-lab{position:sticky;left:0;z-index:2;background:var(--surface,#fff);padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid var(--border,#e1e5e9);font-size:12.5px;}'+
+      'html .tc-gantt .tc-c{height:30px;border-bottom:1px solid var(--border,#e9ecef);border-left:1px solid var(--border,#f0f2f4);}'+
+      'html .tc-gantt .tc-we{background:rgba(120,130,140,.07);}html .tc-gantt .tc-today{box-shadow:inset 0 0 0 1px var(--accent,#1f5fa8);}'+
+      'html .tc-gantt .tc-bar{margin:6px 0;height:18px;border-radius:0;border-left-color:transparent;}html .tc-gantt .tc-bar.tc-end{border-radius:0 9px 9px 0;}';
+    document.head.appendChild(st);
+  })();
+  document.addEventListener('click', function(e){
+    var el = e.target.closest ? e.target.closest('[data-tc-nav],[data-tc-mode]') : null; if (!el) return;
+    if (el.hasAttribute('data-tc-nav')){ var ym = tcYM(), dlt = +el.getAttribute('data-tc-nav'); var nx = dlt===0 ? new Date() : new Date(ym.y, ym.m-1+dlt, 1); STATE.tcYM = {y:nx.getFullYear(), m:nx.getMonth()+1}; }
+    else STATE.tcMode = el.getAttribute('data-tc-mode');
+    renderAll();
+  });
+  document.addEventListener('change', function(e){
+    if (e.target && e.target.id==='tcWho'){ STATE.tcWho = e.target.value; renderAll(); }
+  });
+  document.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('#cvSave,#cvNow,#cvPrev') : null; if (!b) return;
+    if (b.id==='cvPrev'){ return auApi('/api/zalo/remind/preview').then(function(j){ if (!j.ok) return; var bd = auModal('<h3>Nội dung nhắc việc hôm nay</h3><div class="pqd-cap">Đây là tin bot sẽ gửi vào nhóm Zalo (chia thành '+j.parts.length+' tin nếu dài).</div><pre style="white-space:pre-wrap;font:inherit;font-size:13px;max-height:55vh;overflow:auto;background:var(--surface-2,#f1f3f4);padding:10px 12px;border-radius:8px;">'+esc(j.parts.join('\n\n— — —\n\n'))+'</pre><div class="modal-actions"><button class="btn btn-ghost" id="cvPrevX">Đóng</button></div>', true); document.getElementById('cvPrevX').onclick = function(){ bd.remove(); }; }); }
+    var $ = function(id){ return document.getElementById(id); };
+    var msg = function(t, bad){ CVR.msg = t; var m = $('cvMsg'); if (m){ m.style.color = bad ? 'var(--bad,#c0362c)' : 'var(--good,#1f8a4c)'; m.textContent = t; } };
+    var body = {on:$('cvOn').checked, hour:+$('cvHour').value, minute:+$('cvMin').value, chatId:$('cvChat').value};
+    if (b.id==='cvSave'){
+      if (body.on && !body.chatId) return msg('Chọn nhóm Zalo nhận nhắc trước khi bật.', true);
+      auPost('/api/zalo/remind', body).then(function(j){ if (j.ok){ CVR.d = null; msg('Đã lưu.'); cvRemindLoad(); } else msg(j.error||'Không lưu được.', true); });
+    } else {
+      if (!body.chatId) return msg('Chọn nhóm Zalo trước.', true);
+      if (!window.confirm('Gửi NGAY bản nhắc việc hôm nay vào nhóm Zalo đã chọn?')) return;
+      msg('Đang gửi…'); auPost('/api/zalo/remind/now', {chatId:body.chatId}).then(function(j){ msg(j.ok ? 'Đã gửi '+j.parts+' tin vào nhóm.' : (j.error||'Không gửi được.'), !j.ok); });
+    }
+  });
+  /* ===== 08n: NHẬP LIỆU KIỂU EXCEL cho bảng Vật tư (VT) và bảng Phân công (TD) =====
+     ↑ ↓ Enter di chuyển ô · ← → ở đầu/cuối ô · Dán nhiều ô từ Excel/Google Sheet (Ctrl+V) tự trải ra nhiều dòng/cột
+     (thiếu dòng thì tự thêm dòng VT) · Ctrl+D điền xuống từ ô trên · Ctrl+Z hoàn tác lần dán / điền gần nhất. */
+  var XL = {undo:null};
+  var XL_VT_FIELDS = ['name','spec','unit','qty','status','reqDate','supplier','note'];
+  function xlPick(list, v){ var k = stripDiacritics(String(v||'')).toLowerCase().trim(); if (!k) return ''; for (var i=0;i<list.length;i++){ if (stripDiacritics(list[i][0]).toLowerCase()===k) return list[i][0]; } return ''; }
+  function xlDate(v){
+    v = String(v||'').trim(); if (!v) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+    var m = /^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/.exec(v); if (!m) return '';
+    var d = +m[1], mo = +m[2], y = m[3] ? (+m[3] < 100 ? 2000+(+m[3]) : +m[3]) : new Date().getFullYear();
+    if (d<1 || d>31 || mo<1 || mo>12) return '';
+    return y+'-'+(mo<10?'0':'')+mo+'-'+(d<10?'0':'')+d;
+  }
+  function xlSetVT(line, f, v){
+    v = String(v==null?'':v).trim();
+    if (f==='qty'){ var n = parseFloat(v.replace(',','.')); line.qty = v==='' ? '' : (isNaN(n) ? v : n); }
+    else if (f==='reqDate'){ var d = xlDate(v); line.reqDate = d || null; line.reqSrc = d ? 'app' : null; }
+    else if (f==='status'){ line.status = xlPick(MAT_ST_SHEET, v) || v || null; }
+    else if (f==='supplier'){ line.supplier = xlPick(MAT_SUP_SHEET, v) || v || null; }
+    else line[f] = v || null;
+  }
+  function xlNewLine(){ return {no:'', name:null, spec:null, unit:null, qty:null, status:null, supplier:null, issuedTo:null, note:null, reqDate:null}; }
+  function xlFocus(tr, f){ var el = tr && tr.querySelector('[data-f="'+f+'"]'); if (el){ el.focus(); try { if (el.select) el.select(); } catch(e){} } return !!el; }
+  function xlRows(tr){ var tb = tr.parentNode; return Array.prototype.filter.call(tb.children, function(r){ return r.hasAttribute('data-line') || r.hasAttribute('data-pc'); }); }
+
+  document.addEventListener('keydown', function(e){
+    var el = e.target; if (!el || !el.closest || !el.getAttribute) return;
+    var tr = el.closest('tr[data-line],tr[data-pc]'); if (!tr) return;
+    var f = el.getAttribute('data-f'); if (!f) return;
+    var isSel = el.tagName==='SELECT', isTxt = el.tagName==='INPUT' && /^(text|number|search|)$/.test(el.type||'');
+    // Ctrl+D: điền xuống
+    if ((e.ctrlKey || e.metaKey) && (e.key==='d' || e.key==='D')){
+      e.preventDefault(); return xlFillDown(tr, f, el);
+    }
+    // Ctrl+Z: hoàn tác lần dán / điền xuống gần nhất (nếu có), ngược lại để trình duyệt xử lý
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key==='z' || e.key==='Z') && XL.undo && Date.now()-(XL.t||0) < 90000){ e.preventDefault(); return xlUndo(); }
+    if (isSel || !isTxt && el.type!=='date') return;
+    var rows = xlRows(tr), i = rows.indexOf(tr), tgt = null, dir = 0;
+    if (e.key==='ArrowDown' || (e.key==='Enter' && !e.shiftKey && !e.altKey)) dir = 1;
+    else if (e.key==='ArrowUp' || (e.key==='Enter' && e.shiftKey)) dir = -1;
+    if (dir){
+      if (el.type==='date' && (e.key==='ArrowDown' || e.key==='ArrowUp')) return;
+      for (var j=i+dir; j>=0 && j<rows.length; j+=dir){ if (rows[j].querySelector('[data-f="'+f+'"]')){ tgt = rows[j]; break; } }
+      if (tgt){ e.preventDefault(); xlFocus(tgt, f); }
+      return;
+    }
+    if ((e.key==='ArrowRight' || e.key==='ArrowLeft') && isTxt){
+      var atEnd = el.selectionStart===el.value.length && el.selectionEnd===el.value.length, atStart = el.selectionStart===0 && el.selectionEnd===0;
+      var cells = Array.prototype.slice.call(tr.querySelectorAll('[data-f]')), k = cells.indexOf(el);
+      if (e.key==='ArrowRight' && atEnd && k<cells.length-1){ e.preventDefault(); cells[k+1].focus(); try { if (cells[k+1].select) cells[k+1].select(); } catch(er){} }
+      else if (e.key==='ArrowLeft' && atStart && k>0){ e.preventDefault(); cells[k-1].focus(); try { if (cells[k-1].select) cells[k-1].select(); } catch(er){} }
+    }
+  });
+
+  function xlFillDown(tr, f, el){
+    if (readOnlyNote()) return;
+    var rows = xlRows(tr), i = rows.indexOf(tr), prev = null;
+    for (var j=i-1; j>=0; j--){ if (rows[j].querySelector('[data-f="'+f+'"]')){ prev = rows[j]; break; } }
+    if (!prev) return toast('Không có ô phía trên để điền xuống.');
+    if (tr.hasAttribute('data-line')){
+      var id = tr.getAttribute('data-order'), o = STATE.orders[id]; if (!o) return;
+      var a = o.materials[+prev.getAttribute('data-line')], b = o.materials[+tr.getAttribute('data-line')]; if (!a || !b) return;
+      XL.t = Date.now(); XL.undo = {kind:'vt', id:id, snap:JSON.stringify(o.materials)};
+      if (f==='reqDate') { b.reqDate = a.reqDate || null; b.reqSrc = a.reqDate ? 'app' : null; } else b[f] = a[f]==null ? null : a[f];
+      patchOrder(id, {materials:o.materials}); renderAll(); toast('Đã điền xuống (Ctrl+Z để hoàn tác).');
+    } else {
+      var da = pcGet(prev.getAttribute('data-pc')), db = pcGet(tr.getAttribute('data-pc')); if (!da || !db) return;
+      XL.t = Date.now(); XL.undo = {kind:'td', docs:[{id:db.id, snap:JSON.stringify(db)}]};
+      db[f] = da[f]==null ? '' : da[f]; db._edited = 1; delete db.virtual; tkSave(db); renderAll(); toast('Đã điền xuống (Ctrl+Z để hoàn tác).');
+    }
+  }
+  function xlUndo(){
+    var u = XL.undo; XL.undo = null; if (!u) return;
+    if (u.kind==='vt'){ var o = STATE.orders[u.id]; if (!o) return; o.materials = JSON.parse(u.snap); patchOrder(u.id, {materials:o.materials}); renderAll(); }
+    else { u.docs.forEach(function(x){ var d = pcGet(x.id); if (d){ var old = JSON.parse(x.snap); Object.keys(d).forEach(function(k){ if (!(k in old)) delete d[k]; }); Object.keys(old).forEach(function(k){ d[k] = old[k]; }); tkSave(d); } }); renderAll(); }
+    toast('Đã hoàn tác.');
+  }
+
+  document.addEventListener('paste', function(e){
+    var el = e.target; if (!el || !el.closest || !el.getAttribute) return;
+    var trV = el.closest('tr[data-line]'), trT = el.closest('tr[data-pc]'); if (!trV && !trT) return;
+    var f0 = el.getAttribute('data-f'); if (!f0) return;
+    var txt = (e.clipboardData || window.clipboardData).getData('text') || '';
+    txt = txt.replace(/\r/g,'').replace(/\n+$/,'');
+    if (!/[\t\n]/.test(txt)) return;                // dán 1 giá trị: để trình duyệt tự dán như thường
+    e.preventDefault(); if (readOnlyNote()) return;
+    var data = txt.split('\n').map(function(r){ return r.split('\t'); });
+    if (trV){
+      var id = trV.getAttribute('data-order'), o = STATE.orders[id]; if (!o) return;
+      var mats = o.materials = o.materials || [], c0 = XL_VT_FIELDS.indexOf(f0); if (c0 < 0) c0 = 0;
+      XL.t = Date.now(); XL.undo = {kind:'vt', id:id, snap:JSON.stringify(mats)};
+      var j = +trV.getAttribute('data-line'), cells = 0, added = 0;
+      data.forEach(function(row){
+        while (j < mats.length && isMatSection(mats[j])) j++;
+        if (j >= mats.length){ mats.push(xlNewLine()); added++; }
+        row.forEach(function(v, c){ var f = XL_VT_FIELDS[c0+c]; if (f){ xlSetVT(mats[j], f, v); cells++; } });
+        j++;
+      });
+      patchOrder(id, {materials:mats}); renderAll();
+      toast('Đã dán '+cells+' ô'+(added ? ', thêm '+added+' dòng mới' : '')+' (Ctrl+Z để hoàn tác).', 4200);
+    } else {
+      var rows = xlRows(trT), i0 = rows.indexOf(trT), fl = Array.prototype.map.call(trT.querySelectorAll('[data-f]'), function(x){ return x.getAttribute('data-f'); });
+      var c1 = fl.indexOf(f0); if (c1 < 0) return;
+      var undo = [], cnt = 0, skipped = 0;
+      data.forEach(function(row, ri){
+        var tr = rows[i0+ri]; if (!tr){ skipped++; return; }
+        var d = pcGet(tr.getAttribute('data-pc')); if (!d) return;
+        undo.push({id:d.id, snap:JSON.stringify(d)});
+        var names = Array.prototype.map.call(tr.querySelectorAll('[data-f]'), function(x){ return x.getAttribute('data-f'); });
+        row.forEach(function(v, c){
+          var f = names[c1+c]; if (!f) return; v = String(v||'').trim();
+          if (f==='title' && !v) return;
+          if (f==='date' || f==='start'){ var dd = xlDate(v); v = dd || (v==='' ? '' : d[f]||''); }
+          if (f==='status'){ v = xlPick(TK_ST.map(function(s){ return [s]; }), v) || v; }
+          d[f] = v; cnt++;
+        });
+        d._edited = 1; delete d.virtual; tkSave(d);
+      });
+      XL.t = Date.now(); XL.undo = {kind:'td', docs:undo};
+      renderAll(); toast('Đã dán '+cnt+' ô'+(skipped ? ' ('+skipped+' dòng cuối không có chỗ nên bỏ qua)' : '')+' (Ctrl+Z để hoàn tác).', 4200);
+    }
+  });
   renderBanner();
   loadFromSeedOnly();
   boot();
