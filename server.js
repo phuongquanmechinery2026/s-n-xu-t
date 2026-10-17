@@ -174,42 +174,9 @@ const server = http.createServer(function (req, res) {
 
     if (p === '/login' || p === '/login/') return sendBytes(res, 200, 'text/html; charset=utf-8', auth.loginHtml());
     if (p.indexOf('/api/auth/') === 0) { if (await auth.handle(req, res, u, p, method)) return; }
-    // Cong rieng cho Javis (tro li doc don moi tu Zalo roi them len web).
-    // Khoa EXT_API_KEY tren Render (>= 16 ky tu); chua dat khoa thi cong nay tat.
-    if (p.indexOf('/api/ext/') === 0) {
-      const key = String(process.env.EXT_API_KEY || '').trim();
-      const got = String(req.headers['x-ext-key'] || '');
-      if (key.length < 16 || got.length !== key.length || !require('crypto').timingSafeEqual(Buffer.from(got), Buffer.from(key))) return sendJson(res, 403, { error: 'forbidden' });
-      req.nmsxUser = { username: 'javis', name: 'Javis (trợ lí)' };
-      let mx;
-      if ((mx = p.match(/^\/api\/ext\/order\/([^/]+)$/)) && method === 'GET') {
-        const O = loadColl('orders'); const id = decodeURIComponent(mx[1]);
-        return sendJson(res, 200, { exists: Object.prototype.hasOwnProperty.call(O, id), data: O[id] || null });
-      }
-      if (p === '/api/ext/order' && method === 'POST') {
-        const b = JSON.parse((await readBody(req)) || '{}'); const o = b.order;
-        if (!o || typeof o !== 'object' || !/^(D-)?\d{4}-\d{2,4}[A-Za-z0-9-]*$/.test(String(o.id || '')) || !o.code) return sendJson(res, 400, { error: 'thieu id/code hop le' });
-        const O = loadColl('orders');
-        const old = Object.prototype.hasOwnProperty.call(O, o.id) ? O[o.id] : null;
-        // replace chi cho don do chinh Javis tao (extBy hoac ghi chu 'Javis them'), khong dong toi don cua nguoi
-        const mine = !!old && (old.extBy === 'javis' || /Javis thêm/.test(String(old.note || '')));
-        if (old && !(b.replace && mine)) return sendJson(res, 409, { exists: true, id: o.id, replaceable: mine });
-        o.extBy = 'javis'; cleanOrderDoc(o); O[o.id] = o; saveColl('orders', O);
-        auth.record(req, 'orders', o.id, old, o);
-        return sendJson(res, 200, { ok: true, id: o.id });
-      }
-      if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
-      if (p === '/api/ext/notify' && method === 'POST') {
-        const b = JSON.parse((await readBody(req)) || '{}');
-        if (!b.chatId || !b.text) return sendJson(res, 400, { error: 'thieu chatId/text' });
-        const r = await zalo.ext.send(b.chatId, b.text);
-        return sendJson(res, 200, { ok: !!(r && !r.error && r.status === 200), zalo: r });
-      }
-      return sendJson(res, 404, { error: 'not found' });
-    }
     if (p.indexOf('/api/') === 0) {
       const g = auth.allow(req, p, method);
-      if (!g.ok) return sendJson(res, g.status, { error: g.error, needLogin: g.status === 401 });
+      if (!g.ok) return sendJson(res, g.status, { error: g.error, needLogin: g.status === 401, perm: !!g.perm });
     }
 
     if (p === '/api/ping') return sendJson(res, 200, { ok: true, app: 'nmsx-pq', port: PORT, env: 'render' });
@@ -241,6 +208,7 @@ const server = http.createServer(function (req, res) {
         const body = await readBody(req);
         const data = body.trim() ? JSON.parse(body) : {};
         if (c === 'orders') Object.keys(data).forEach(function (k) { cleanOrderDoc(data[k]); });
+        { const dn = auth.canBulk(req, c); if (dn) return sendJson(res, 403, { error: dn, perm: true }); }
         const mode = u.searchParams.get('mode') || 'replace';
         const prev = auth.authOn() ? loadColl(c) : null;
         if (mode === 'merge') { const cur = loadColl(c); Object.assign(cur, data); saveColl(c, cur); if (prev) auth.recordBulk(req, c, prev, cur); }
@@ -257,7 +225,7 @@ const server = http.createServer(function (req, res) {
         return sendJson(res, 200, { exists: has, data: has ? data[id] : null });
       }
       if (method === 'DELETE') {
-        if (Object.prototype.hasOwnProperty.call(data, id)) { const old = data[id]; delete data[id]; saveColl(c, data); auth.record(req, c, id, old, null); }
+        if (Object.prototype.hasOwnProperty.call(data, id)) { const old = data[id]; { const dn = auth.canWrite(req, c, id, old, null, 'DELETE'); if (dn) return sendJson(res, 403, { error: dn, perm: true }); } delete data[id]; saveColl(c, data); auth.record(req, c, id, old, null); }
         return sendBytes(res, 204, 'text/plain', Buffer.alloc(0));
       }
       if (method === 'PUT') {
@@ -266,6 +234,7 @@ const server = http.createServer(function (req, res) {
         if (c === 'orders') cleanOrderDoc(patch);
         const mode = u.searchParams.get('mode') || 'set';
         const before = auth.authOn() && data[id] != null ? auth.clone(data[id]) : null;
+        if (auth.authOn()) { const ex = data[id] != null ? data[id] : null; const af = (mode === 'update' && ex && typeof ex === 'object') ? Object.assign({}, ex, patch) : patch; const dn = auth.canWrite(req, c, id, ex, af, 'PUT'); if (dn) return sendJson(res, 403, { error: dn, perm: true }); }
         if (mode === 'update' && data[id] && typeof data[id] === 'object') Object.assign(data[id], patch);
         else data[id] = patch;
         saveColl(c, data);

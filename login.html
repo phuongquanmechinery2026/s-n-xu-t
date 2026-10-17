@@ -59,6 +59,9 @@ input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
     <label for="ru">Tên đăng nhập</label>
     <input type="text" id="ru" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="vd: nguyenvana">
     <div class="hint">3–20 ký tự: chữ thường không dấu, số, dấu chấm hoặc gạch dưới.</div>
+    <label for="rd">Bạn làm ở bộ phận nào?</label>
+    <select id="rd" style="width:100%;padding:10px;border:1px solid #cdd5df;border-radius:8px;font:inherit;background:#fff;"><option value="cokhi">Cơ khí</option><option value="dien">Điện</option><option value="kho">Kho / Vật tư</option><option value="khac">Khác</option></select>
+    <div class="hint">Chủ nhà máy sẽ chỉnh quyền sử dụng cho từng người sau.</div>
     <label for="rp">Mật khẩu</label>
     <div class="inp"><input type="password" id="rp" autocomplete="new-password" maxlength="100"><button type="button" class="eye" data-eye="rp">Hiện</button></div>
     <div class="meter" id="meter"><i></i><i></i><i></i><i></i></div>
@@ -143,10 +146,11 @@ input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
     if (p.length < 8 || !/[A-Za-z]/.test(p) || !/[0-9]/.test(p)){ say('mReg', 'Mật khẩu tối thiểu 8 ký tự, có cả chữ và số.', 'bad'); return; }
     if (p !== p2){ say('mReg', 'Hai lần nhập mật khẩu chưa giống nhau.', 'bad'); return; }
     $('bReg').disabled = true; say('mReg', 'Đang đăng ký…');
-    api('/api/auth/register', {name:n, username:u, password:p, password2:p2}).then(function(j){
+    api('/api/auth/register', {name:n, username:u, password:p, password2:p2, dept:$('rd').value}).then(function(j){
       $('bReg').disabled = false;
       if (!j.ok){ say('mReg', j.error || 'Không đăng ký được.', 'bad'); return; }
       if (j.owner){ store(j.token, true); say('mReg', 'Đã tạo tài khoản chủ. Đang vào hệ thống…', 'good'); location.replace('/'); return; }
+      if (j.auto && j.token){ store(j.token, true); say('mReg', 'Đăng ký thành công! Đang vào hệ thống…', 'good'); location.replace('/'); return; }
       $('fReg').reset(); pwCheck();
       say('mReg', 'Đăng ký thành công! Vui lòng chờ chủ nhà máy duyệt, sau đó đăng nhập bằng tên "' + u + '".', 'good');
     });
@@ -167,6 +171,7 @@ input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
   var tok = ''; try{ tok = sessionStorage.getItem('nmsx_auth_token') || localStorage.getItem('nmsx_auth_token') || ''; }catch(e){}
   fetch('/api/auth/status').then(function(r){ return r.json(); }).then(function(s){
     hasOwner = !!s.hasOwner;
+    if (s.autoApprove){ var rn = $('regNote'); if (rn) rn.innerHTML = 'Đăng ký xong là <b>dùng được ngay</b>. Quyền sử dụng sẽ do chủ nhà máy chỉnh theo vai trò của bạn.'; }
     if (!hasOwner){ $('tabs').className = 'tabs hide'; $('firstNote').className = 'note'; $('regNote').className = 'hide'; $('bReg').textContent = 'Tạo tài khoản chủ'; showTab(true); }
     else if (tok && !/[?&]e=1/.test(q)){
       fetch('/api/auth/me', {headers:{Authorization:'Bearer '+tok}}).then(function(r){ if (r.ok) location.replace('/'); }).catch(function(){});

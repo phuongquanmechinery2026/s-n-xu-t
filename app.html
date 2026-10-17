@@ -1623,7 +1623,11 @@
       }
       var p = f0.call(window, u, o);
       if (!isApi) return p;
-      return p.then(function(r){ if (r.status === 401 && path.indexOf('/api/auth/') !== 0) toLogin(true); return r; });
+      return p.then(function(r){
+        if (r.status === 401 && path.indexOf('/api/auth/') !== 0) toLogin(true);
+        if (r.status === 403 && path.indexOf('/api/auth/') !== 0){ try{ r.clone().json().then(function(j){ if (j && j.perm) document.dispatchEvent(new CustomEvent('nmsx-perm-denied', {detail: j.error})); }).catch(function(){}); }catch(e){} }
+        return r;
+      });
     };
   }
 })();
@@ -1640,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-17r-may';
+  var BUILD_ID = '2026-10-17t-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2355,6 +2359,7 @@
   }
   function renderAll(){
     try { document.documentElement.classList.toggle('pq-dept-ck', STATE.dept!=='dien'); if (STATE.dept!=='dien' && !document.documentElement.classList.contains('pq-show-later') && ['tasks','kanban','alerts','tcal'].indexOf(STATE.view)>=0) STATE.view = 'dashboard'; } catch(e){}
+    try { applyPerms(); } catch(e){}
     updateNavUI(STATE.view);
     updateDeptUI();
     document.getElementById('countCurrent').textContent = currentWorkOrders().length;
@@ -8756,9 +8761,9 @@
 
   function auMenu(){
     var u = window.NMSX_AUTH.user, old = document.getElementById('auMenu'); if (old) old.remove();
-    var inner = '<h3 style="margin:0 0 2px;">'+esc(u.name)+'</h3><div class="pqd-cap">@'+esc(u.username)+' · '+(u.role==='owner' ? 'Chủ nhà máy' : 'Nhân viên')+'</div>'+
+    var inner = '<h3 style="margin:0 0 2px;">'+esc(u.name)+'</h3><div class="pqd-cap">@'+esc(u.username)+' · '+(u.role==='owner' ? 'Chủ nhà máy' : ((u.perm && u.perm.roleName) || 'Nhân viên'))+'</div>'+
       '<div style="display:flex;flex-direction:column;gap:8px;margin:16px 0 4px;">'+
-      (u.role==='owner' ? '<button class="btn" id="auBtnUsers">👥 Quản lý người dùng <span id="auPend" class="drw-b warn" style="display:none;margin-left:6px;"></span></button><button class="btn" id="auBtnAudit">🕘 Lịch sử chỉnh sửa</button>' : '')+
+      (u.role==='owner' ? '<button class="btn" id="auBtnUsers">👥 Quản lý người dùng <span id="auPend" class="drw-b warn" style="display:none;margin-left:6px;"></span></button><button class="btn" id="auBtnRoles">🔐 Phân quyền (chọn quyền cho từng vai trò)</button><button class="btn" id="auBtnAudit">🕘 Lịch sử chỉnh sửa</button>' : '')+
       '<button class="btn" id="auBtnPw">🔑 Đổi mật khẩu</button><button class="btn" id="auBtnOut">Đăng xuất</button></div>'+
       '<div id="auPwBox" style="display:none;margin-top:10px;"><input type="password" class="pqd-inp" id="auPw0" placeholder="Mật khẩu hiện tại" autocomplete="current-password" style="width:100%;margin-bottom:6px;">'+
       '<input type="password" class="pqd-inp" id="auPw1" placeholder="Mật khẩu mới (≥8 ký tự, có chữ và số)" autocomplete="new-password" style="width:100%;margin-bottom:6px;">'+
@@ -8780,13 +8785,14 @@
     if (u.role==='owner'){
       $('auBtnUsers').onclick = function(){ bd.remove(); auUsers(); };
       $('auBtnAudit').onclick = function(){ bd.remove(); auAudit(); };
+      $('auBtnRoles').onclick = function(){ bd.remove(); auRoles(); };
       auApi('/api/auth/users').then(function(j){ if (!j.ok) return; var n = j.users.filter(function(x){ return x.status==='pending'; }).length; var e = $('auPend'); if (e && n){ e.style.display = ''; e.textContent = n+' chờ duyệt'; } });
     }
   }
 
   var AU_ST = {active:['Đang dùng','ok'], pending:['Chờ duyệt','warn'], blocked:['Đã khóa','bad']};
   function auUsers(){
-    var bd = auModal('<h3>Quản lý người dùng</h3><div class="pqd-cap">Chỉ chủ nhà máy thấy mục này. Người mới đăng ký sẽ ở trạng thái "Chờ duyệt" cho đến khi anh bấm Duyệt.</div>'+
+    var bd = auModal('<h3>Quản lý người dùng</h3><div class="pqd-cap">Chỉ chủ nhà máy thấy mục này. Chọn <b>vai trò</b> cho từng người (bảng quyền chỉnh ở nút "🔐 Phân quyền"). Nếu đang bật "dùng ngay" thì người mới đăng ký không cần duyệt.</div>'+
       '<div id="auUList" style="margin:10px 0;">Đang tải…</div>'+
       '<div class="drw-h">Thêm người dùng (tạo sẵn tài khoản, dùng được ngay)</div>'+
       '<div class="pqd-bar" style="padding:4px 0;flex-wrap:wrap;gap:8px;"><input class="pqd-inp" id="auNn" placeholder="Họ và tên" style="width:170px;"><input class="pqd-inp" id="auNu" placeholder="tên đăng nhập" style="width:150px;" autocapitalize="none"><input class="pqd-inp" id="auNp" placeholder="mật khẩu ban đầu" style="width:160px;"><button class="btn btn-primary" id="auNadd">Thêm</button></div>'+
@@ -8795,20 +8801,26 @@
     $('auUClose').onclick = function(){ bd.remove(); };
     function msg(t, bad){ var m = $('auUMsg'); m.style.color = bad ? 'var(--bad,#c0362c)' : 'var(--good,#1f8a4c)'; m.textContent = t; }
     function load(){
-      auApi('/api/auth/users').then(function(j){
+      Promise.all([auApi('/api/auth/users'), auApi('/api/auth/roles')]).then(function(rr){
+        var j = rr[0], ROLES = rr[1].ok ? rr[1].roles : {};
         if (!j.ok){ $('auUList').textContent = j.error||'Không tải được.'; return; }
-        var h = '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th>Họ tên</th><th>Tên đăng nhập</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th><th></th></tr></thead><tbody>';
+        var roleCell = function(x){ if (x.role==='owner') return '<span class="pqd-cap">Chủ</span>'; return '<select class="pqd-inp" data-aurole="'+esc(x.username)+'" style="width:auto;max-width:190px;">'+Object.keys(ROLES).map(function(id){ return '<option value="'+esc(id)+'"'+(id===x.roleId?' selected':'')+'>'+esc(ROLES[id].name)+'</option>'; }).join('')+'</select>'; };
+        var h = '<div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th>Họ tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th><th></th></tr></thead><tbody>';
         j.users.forEach(function(x){
           var st = AU_ST[x.status] || [x.status,''];
           var acts = x.role==='owner' ? '<span class="pqd-cap">Chủ</span>' :
             (x.status==='pending' ? '<button class="btn btn-sm btn-primary" data-au="approve" data-u="'+esc(x.username)+'">Duyệt</button> ' : '')+
             (x.status==='blocked' ? '<button class="btn btn-sm" data-au="unblock" data-u="'+esc(x.username)+'">Mở khóa</button> ' : (x.status==='active' ? '<button class="btn btn-sm" data-au="block" data-u="'+esc(x.username)+'">Khóa</button> ' : ''))+
             '<button class="btn btn-sm" data-au="reset" data-u="'+esc(x.username)+'">Đặt lại MK</button> <button class="btn btn-sm" style="color:var(--bad,#c0362c);" data-au="delete" data-u="'+esc(x.username)+'" data-n="'+esc(x.name)+'">Xóa</button>';
-          h += '<tr><td><b>'+esc(x.name)+'</b>'+(x.online ? ' <span class="drw-b ok">đang đăng nhập</span>' : '')+'</td><td>@'+esc(x.username)+'</td><td><span class="drw-b '+st[1]+'">'+st[0]+'</span></td><td class="pqd-cap">'+auDT(x.lastLogin)+'</td><td>'+acts+'</td></tr>';
+          h += '<tr><td><b>'+esc(x.name)+'</b>'+(x.online ? ' <span class="drw-b ok">đang đăng nhập</span>' : '')+'</td><td>@'+esc(x.username)+'</td><td>'+roleCell(x)+'</td><td><span class="drw-b '+st[1]+'">'+st[0]+'</span></td><td class="pqd-cap">'+auDT(x.lastLogin)+'</td><td>'+acts+'</td></tr>';
         });
         $('auUList').innerHTML = h+'</tbody></table></div>';
       });
     }
+    bd.addEventListener('change', function(e){
+      var t = e.target; if (!t.getAttribute || !t.getAttribute('data-aurole')) return;
+      auPost('/api/auth/users/'+encodeURIComponent(t.getAttribute('data-aurole'))+'/role', {roleId:t.value}).then(function(j){ if (j.ok) msg('Đã đổi vai trò.'); else { msg(j.error||'Không đổi được.', true); load(); } });
+    });
     bd.addEventListener('click', function(e){
       var b = e.target.closest && e.target.closest('[data-au]'); if (!b) return;
       var a = b.getAttribute('data-au'), un = b.getAttribute('data-u');
@@ -9873,6 +9885,106 @@ function stockMatch(name, spec, rows) {
       toast('Đã chép tiêu đề đơn dạng "… - MS : '+(o.code||o.id)+' - TĐ : …" (giống copy từ Sheet).', 3600);
     } catch(er){}
   }, true);
+  /* ===== 08t: PHÂN QUYỀN theo vai trò (chủ chỉnh ở menu tên → "🔐 Phân quyền"). Bản web có đăng nhập mới áp dụng; chủ luôn đủ quyền. ===== */
+  function uPerm(){ var u = window.NMSX_AUTH && window.NMSX_AUTH.on && window.NMSX_AUTH.user; return (u && u.role!=='owner' && u.perm) ? u.perm : null; }
+  function can(k){ var p = uPerm(); return p ? !!p.perms[k] : true; }
+  function deptCan(d, mode){ var p = uPerm(); if (!p) return true; return (mode==='edit' ? p.edit : p.view).indexOf(d) >= 0; }
+  var PERM_CLS = ['pq-ro-orders','pq-ro-tasks','pq-no-create','pq-no-delete','pq-no-finish','pq-no-hold','pq-no-ai','pq-no-sync','pq-ro-pr','pq-ro-wh'];
+  function applyPerms(){
+    var h = document.documentElement, p = uPerm();
+    if (!p){ PERM_CLS.forEach(function(c){ h.classList.remove(c); }); return; }
+    document.querySelectorAll('#deptBar .dept-btn').forEach(function(b){ b.style.display = deptCan(b.getAttribute('data-dept'), 'view') ? '' : 'none'; });
+    if (!deptCan(STATE.dept, 'view')){
+      var first = ['cokhi','dien'].filter(function(d){ return deptCan(d, 'view'); })[0];
+      if (first && first!==STATE.dept){ setDept(first); return; }
+    }
+    var ed = deptCan(STATE.dept, 'edit'), set = function(c, on){ h.classList.toggle(c, !!on); };
+    set('pq-ro-orders', !ed || !can('edit_orders')); set('pq-ro-tasks', !ed || !can('edit_tasks'));
+    set('pq-no-create', !ed || !can('create_order')); set('pq-no-delete', !ed || !can('delete_order')); set('pq-no-finish', !ed || !can('finish_order')); set('pq-no-hold', !ed || !can('hold_order'));
+    set('pq-no-ai', !can('use_ai')); set('pq-no-sync', !can('sync_sheet')); set('pq-ro-pr', !can('purchase')); set('pq-ro-wh', !can('warehouse'));
+    var main = document.getElementById('main'); if (main) main.setAttribute('data-view', STATE.view);
+  }
+  (function permStyle(){
+    var lock = function(txt){ return 'content:"🔒 '+txt+'";display:block;padding:8px 12px;margin:0 0 10px;background:#fff4d6;color:#7a4b00;border-radius:8px;font-size:13px;font-weight:600;'; };
+    var st = document.createElement('style');
+    st.textContent =
+      'html.pq-no-create #btnNewOrder,html.pq-no-delete .cust-del,html.pq-no-delete [data-delete-row],html.pq-no-finish [data-mark-order-done],html.pq-no-finish .btn-done-order,html.pq-no-hold [data-hold],html.pq-no-hold [data-unhold],'+
+      'html.pq-no-ai [data-draw-ai],html.pq-no-ai [data-pdf-import],html.pq-no-ai [data-steel-takeoff],html.pq-no-sync #btnSync{display:none !important;}'+
+      'html.pq-ro-orders #main[data-view="order"] :is(input,select,textarea),html.pq-ro-orders #main[data-view="current"] :is(input,select,textarea),html.pq-ro-orders #main[data-view="yearly"] :is(input,select,textarea){pointer-events:none;}'+
+      'html.pq-ro-orders :is([data-add-line],[data-add-line-after],[data-del-line],[data-del-item],[data-del-cluster],[data-add-item],[data-add-cluster],[data-edit-customer],.row-del){display:none !important;}'+
+      'html.pq-ro-orders #main[data-view="order"]::before,html.pq-ro-orders #main[data-view="current"]::before,html.pq-ro-orders #main[data-view="yearly"]::before{'+lock('Bạn chỉ có quyền XEM phần này (vai trò hiện tại không được sửa đơn).')+'}'+
+      'html.pq-ro-tasks #main[data-view="tasks"] :is(input,select,textarea),html.pq-ro-tasks #main[data-view="kanban"] .pqk-card{pointer-events:none;}'+
+      'html.pq-ro-tasks :is([data-pq="tk-new"],[data-pq="tk-edit"],[data-pq="pc-clear"],[data-pq="pc-import"],[data-pq="pc-done"],[data-pq="pc-del"],[data-pq="pc-add"],[data-pq="kb-move"]){display:none !important;}'+
+      'html.pq-ro-tasks #main[data-view="tasks"]::before,html.pq-ro-tasks #main[data-view="kanban"]::before{'+lock('Bạn chỉ có quyền XEM công việc (vai trò hiện tại không được sửa).')+'}'+
+      'html.pq-ro-pr :is([data-pq="pr-new"],[data-pq="pr-del"],[data-pq="rd-new"],[data-pq="pr-none"],[data-pq="pr-all"]){display:none !important;}'+
+      'html.pq-ro-pr #main[data-view="pr"] input,html.pq-ro-pr #main[data-view="reqdate"] input,html.pq-ro-pr #main[data-view="mrp"] input{pointer-events:none;}'+
+      'html.pq-ro-wh :is([data-pq="iss-save"],[data-pq="iss-fill"],[data-pq="iss-del"],[data-pq="iss-clear"],[data-xh="add"],[data-xh="ai"],[data-xh="apply"],[data-xh="approve"],[data-xh="del"],[data-xh="delreq"],[data-xh="issue"],[data-xh="manual"],[data-xh="register"],[data-xh="reject"],[data-xh="reopen"],[data-xh="setintent"],[data-kho-up]){display:none !important;}';
+    document.head.appendChild(st);
+  })();
+  var _permDenied = 0;
+  document.addEventListener('nmsx-perm-denied', function(e){
+    var now = Date.now(); if (now - _permDenied < 8000) return; _permDenied = now;
+    toast((e.detail || 'Bạn không có quyền thực hiện thao tác này.')+' Trang sẽ tải lại để khớp với máy chủ.', 6500);
+    try { DIRTY = {}; lsPersist(); } catch(er){}
+    setTimeout(function(){ location.reload(); }, 3800);
+  });
+
+  /* --- Bảng chọn quyền cho chủ --- */
+  function auRoles(){
+    auApi('/api/auth/roles').then(function(j){
+      if (!j.ok) return toast(j.error || 'Không tải được bảng quyền.');
+      var ST = {roles: JSON.parse(JSON.stringify(j.roles)), auto: !!j.autoApprove, dbd: Object.assign({}, j.defaultByDept)}, PL = j.perms;
+      var DN = {cokhi:'Cơ khí', dien:'Điện'}, DEPT_ROW = [['view','cokhi'],['view','dien'],['edit','cokhi'],['edit','dien']];
+      var bd = auModal('<h3>🔐 Phân quyền sử dụng</h3><div class="pqd-cap">Mỗi người được gán 1 <b>vai trò</b> (chọn ở "Quản lý người dùng"). Tích ô nào = vai trò đó được làm việc đó. Chủ luôn đủ quyền. Thay đổi có hiệu lực ngay khi người dùng tải lại trang.</div><div id="rlBody" style="margin:10px 0;"></div><div class="pqd-cap" id="rlMsg" style="min-height:18px;"></div>'+
+        '<div class="modal-actions"><button class="btn btn-sm" id="rlAdd" type="button">+ Thêm vai trò</button><span style="flex:1"></span><button class="btn btn-ghost" id="rlClose" type="button">Đóng</button><button class="btn btn-primary" id="rlSave" type="button">Lưu phân quyền</button></div>', true);
+      var $ = function(id){ return bd.querySelector('#'+id); }, msg = function(t, bad){ var m = $('rlMsg'); m.style.color = bad ? 'var(--bad,#c0362c)' : 'var(--good,#1f8a4c)'; m.textContent = t; };
+      function roleOpts(sel){ return Object.keys(ST.roles).map(function(id){ return '<option value="'+esc(id)+'"'+(id===sel?' selected':'')+'>'+esc(ST.roles[id].name)+'</option>'; }).join(''); }
+      function render(){
+        var ids = Object.keys(ST.roles), h = '';
+        h += '<div class="panel" style="padding:12px 14px;margin-bottom:12px;"><label style="display:flex;gap:8px;align-items:center;font-weight:600;"><input type="checkbox" id="rlAuto"'+(ST.auto?' checked':'')+'> Người mới đăng ký thì <u>dùng được ngay</u>, không cần chủ duyệt</label>'+
+          '<div class="pqd-cap" style="margin:8px 0 6px;">Người mới chọn bộ phận khi đăng ký → tự nhận vai trò:</div><div class="pqd-bar" style="padding:0;flex-wrap:wrap;gap:10px;">'+
+          [['cokhi','Cơ khí'],['dien','Điện'],['kho','Kho / Vật tư'],['khac','Khác']].map(function(x){ return '<label class="pqd-cap">'+x[1]+' → <select class="pqd-inp" data-dbd="'+x[0]+'" style="width:auto;">'+roleOpts(ST.dbd[x[0]])+'</select></label>'; }).join('')+'</div></div>';
+        h += '<div class="table-wrap" style="border:none;overflow:auto;max-height:52vh;"><table class="mrp-table pqd-table" style="min-width:'+(300+ids.length*128)+'px;"><thead><tr><th style="min-width:300px;position:sticky;left:0;background:var(--surface,#fff);z-index:2;">Quyền / tính năng</th>'+
+          ids.map(function(id){ return '<th style="text-align:center;min-width:120px;"><input class="pqd-inp" data-rlname="'+esc(id)+'" value="'+esc(ST.roles[id].name)+'" style="width:112px;font-weight:700;text-align:center;" maxlength="30"><br><button class="btn btn-sm" type="button" data-rldel="'+esc(id)+'" style="margin-top:4px;color:var(--bad,#c0362c);">Xóa</button></th>'; }).join('')+'</tr></thead><tbody>';
+        h += '<tr class="pqd-og"><td colspan="'+(ids.length+1)+'">Bộ phận được làm việc</td></tr>';
+        DEPT_ROW.forEach(function(r){
+          h += '<tr><td style="position:sticky;left:0;background:var(--surface,#fff);">'+(r[0]==='view' ? 'Được XEM' : 'Được SỬA')+' bộ phận <b>'+DN[r[1]]+'</b></td>'+ids.map(function(id){ var on = (ST.roles[id][r[0]]||[]).indexOf(r[1]) >= 0; return '<td style="text-align:center;"><input type="checkbox" data-t="'+r[0]+'" data-r="'+esc(id)+'" data-k="'+r[1]+'"'+(on?' checked':'')+'></td>'; }).join('')+'</tr>';
+        });
+        var g = '';
+        PL.forEach(function(x){
+          if (x.g !== g){ g = x.g; h += '<tr class="pqd-og"><td colspan="'+(ids.length+1)+'">'+esc(g)+'</td></tr>'; }
+          h += '<tr><td style="position:sticky;left:0;background:var(--surface,#fff);">'+esc(x.n)+'</td>'+ids.map(function(id){ return '<td style="text-align:center;"><input type="checkbox" data-t="perm" data-r="'+esc(id)+'" data-k="'+esc(x.k)+'"'+(ST.roles[id].perms[x.k]?' checked':'')+'></td>'; }).join('')+'</tr>';
+        });
+        $('rlBody').innerHTML = h+'</tbody></table></div>';
+      }
+      render();
+      bd.addEventListener('change', function(e){
+        var t = e.target;
+        if (t.id === 'rlAuto'){ ST.auto = t.checked; return; }
+        if (t.getAttribute && t.getAttribute('data-dbd')){ ST.dbd[t.getAttribute('data-dbd')] = t.value; return; }
+        var ty = t.getAttribute && t.getAttribute('data-t'); if (!ty) return;
+        var r = ST.roles[t.getAttribute('data-r')], k = t.getAttribute('data-k'); if (!r) return;
+        if (ty === 'perm') r.perms[k] = t.checked;
+        else { var a = r[ty] = r[ty] || []; var i = a.indexOf(k); if (t.checked && i < 0) a.push(k); if (!t.checked && i >= 0) a.splice(i, 1); }
+      });
+      bd.addEventListener('input', function(e){ var t = e.target; if (t.getAttribute && t.getAttribute('data-rlname')){ ST.roles[t.getAttribute('data-rlname')].name = t.value; } });
+      bd.addEventListener('click', function(e){
+        var d = e.target.closest && e.target.closest('[data-rldel]'); if (!d) return;
+        var id = d.getAttribute('data-rldel'); if (Object.keys(ST.roles).length <= 1) return msg('Phải còn ít nhất 1 vai trò.', true);
+        if (!window.confirm('Xóa vai trò "'+ST.roles[id].name+'"? (Chỉ xóa được khi không còn ai đang dùng vai trò này.)')) return;
+        delete ST.roles[id]; Object.keys(ST.dbd).forEach(function(k){ if (ST.dbd[k]===id) ST.dbd[k] = Object.keys(ST.roles)[0]; }); render();
+      });
+      $('rlAdd').onclick = function(){
+        var nm = window.prompt('Tên vai trò mới (vd: Tổ trưởng Điện):'); if (!nm || !nm.trim()) return;
+        var id = 'r'+Date.now().toString(36).slice(-7), base = ST.roles.xem || ST.roles[Object.keys(ST.roles)[0]];
+        ST.roles[id] = JSON.parse(JSON.stringify(base)); ST.roles[id].name = nm.trim().slice(0, 30); render(); msg('Đã thêm cột "'+nm.trim()+'" (bắt đầu giống "Chỉ xem") — tích quyền rồi bấm Lưu.');
+      };
+      $('rlClose').onclick = function(){ bd.remove(); };
+      $('rlSave').onclick = function(){
+        auPost('/api/auth/roles', {roles:ST.roles, autoApprove:ST.auto, defaultByDept:ST.dbd}).then(function(r){ if (r.ok){ msg('Đã lưu phân quyền.'); } else msg(r.error || 'Không lưu được.', true); });
+      };
+    });
+  }
   renderBanner();
   loadFromSeedOnly();
   boot();

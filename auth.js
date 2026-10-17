@@ -81,7 +81,86 @@ module.exports = function (ctx) {
     const u = users()[rec.u]; if (!u || u.status !== 'active') return null;
     return { username: u.username, name: u.name, role: u.role, _h: sha(t) };
   }
-  function pub(u) { return { username: u.username, name: u.name, role: u.role, status: u.status, createdAt: u.createdAt, lastLogin: u.lastLogin || 0, createdBy: u.createdBy || '' }; }
+  /* ---------- VAI TRO & QUYEN (do chu cai dat) ---------- */
+  const DEPTS = ['cokhi', 'dien'];
+  const PERM_LIST = [
+    { k: 'edit_orders', g: 'Đơn hàng', n: 'Sửa đơn: vật tư (VT), việc cần làm (TD), ghi chú, tình trạng' },
+    { k: 'create_order', g: 'Đơn hàng', n: 'Thêm đơn hàng mới' },
+    { k: 'delete_order', g: 'Đơn hàng', n: 'Xóa đơn hàng' },
+    { k: 'finish_order', g: 'Đơn hàng', n: 'Bấm "Hoàn tất đơn" (đánh dấu Đã giao)' },
+    { k: 'hold_order', g: 'Đơn hàng', n: 'Tạm dừng / Tiếp tục đơn' },
+    { k: 'edit_tasks', g: 'Công việc', n: 'Phân công công việc, Kanban (sửa việc)' },
+    { k: 'purchase', g: 'Vật tư & kho', n: 'Đề nghị mua: lập phiếu, đổi trạng thái' },
+    { k: 'warehouse', g: 'Vật tư & kho', n: 'Kho & cấp phát; xử lý yêu cầu mua/xuất (Zalo)' },
+    { k: 'use_ai', g: 'Công cụ', n: 'Đọc PDF / bản vẽ bằng AI, bóc tách (tốn tiền AI)' },
+    { k: 'ask_ai', g: 'Công cụ', n: 'Hỏi nhanh bằng AI (tốn tiền AI)' },
+    { k: 'sync_sheet', g: 'Công cụ', n: 'Đồng bộ Sheet / nạp file Excel "Sheets tham khảo"' }
+  ];
+  const PKEYS = PERM_LIST.map(function (x) { return x.k; });
+  function permsOf(list) { const o = {}; PKEYS.forEach(function (k) { o[k] = list === true || (list || []).indexOf(k) >= 0; }); return o; }
+  const DEFAULT_ROLES = {
+    quanly: { name: 'Quản lý', view: ['cokhi', 'dien'], edit: ['cokhi', 'dien'], perms: permsOf(true) },
+    pt_cokhi: { name: 'Phụ trách Cơ khí', view: ['cokhi', 'dien'], edit: ['cokhi'], perms: permsOf(true) },
+    pt_dien: { name: 'Phụ trách Điện', view: ['cokhi', 'dien'], edit: ['dien'], perms: permsOf(true) },
+    nv_cokhi: { name: 'Nhân viên Cơ khí', view: ['cokhi', 'dien'], edit: ['cokhi'], perms: permsOf(['edit_orders', 'edit_tasks', 'purchase', 'ask_ai']) },
+    nv_dien: { name: 'Nhân viên Điện', view: ['cokhi', 'dien'], edit: ['dien'], perms: permsOf(['edit_orders', 'edit_tasks', 'purchase', 'ask_ai']) },
+    thukho: { name: 'Thủ kho', view: ['cokhi', 'dien'], edit: [], perms: permsOf(['warehouse', 'purchase', 'ask_ai']) },
+    xem: { name: 'Chỉ xem', view: ['cokhi', 'dien'], edit: [], perms: permsOf([]) },
+    nv_tatca: { name: 'Nhân viên (đủ quyền như trước đây)', view: ['cokhi', 'dien'], edit: ['cokhi', 'dien'], perms: permsOf(true) }
+  };
+  function authCfg() { const d = ctx.loadColl('auth_settings'); return (d && d.cfg) || {}; }
+  function saveAuthCfg(c) { const d = ctx.loadColl('auth_settings') || {}; d.cfg = c; ctx.saveColl('auth_settings', d); }
+  function settings() {
+    const c = authCfg(), R = (c.roles && Object.keys(c.roles).length) ? c.roles : DEFAULT_ROLES;
+    return { autoApprove: c.autoApprove !== false, roles: R, defaultByDept: Object.assign({ cokhi: 'nv_cokhi', dien: 'nv_dien', kho: 'thukho', khac: 'xem' }, c.defaultByDept || {}) };
+  }
+  function effective(u) {
+    const ALL = { roleId: 'owner', roleName: 'Chủ nhà máy', view: DEPTS.slice(), edit: DEPTS.slice(), perms: permsOf(true) };
+    if (!u || u.role === 'owner') return ALL;
+    const S = settings(), id = u.roleId || 'nv_tatca', r = S.roles[id] || S.roles.xem || DEFAULT_ROLES.xem;
+    const pm = {}; PKEYS.forEach(function (k) { pm[k] = !!(r.perms && r.perms[k]); });
+    return { roleId: S.roles[id] ? id : 'xem', roleName: String(r.name || id), view: (r.view || []).filter(function (d) { return DEPTS.indexOf(d) >= 0; }), edit: (r.edit || []).filter(function (d) { return DEPTS.indexOf(d) >= 0; }), perms: pm };
+  }
+  function cleanRoles(inp) {
+    const out = {}; let n = 0;
+    Object.keys(inp || {}).forEach(function (id) {
+      if (!/^[a-z0-9_]{2,24}$/.test(id) || n >= 30) return; const r = inp[id] || {}; n++;
+      const pm = {}; PKEYS.forEach(function (k) { pm[k] = !!(r.perms && r.perms[k]); });
+      out[id] = { name: cleanName(r.name) || id, view: DEPTS.filter(function (d) { return (r.view || []).indexOf(d) >= 0; }), edit: DEPTS.filter(function (d) { return (r.edit || []).indexOf(d) >= 0; }), perms: pm };
+    });
+    return out;
+  }
+  function pub(u) { return { username: u.username, name: u.name, role: u.role, roleId: u.role === 'owner' ? 'owner' : effective(u).roleId, roleName: effective(u).roleName, regDept: u.regDept || '', status: u.status, createdAt: u.createdAt, lastLogin: u.lastLogin || 0, createdBy: u.createdBy || '' }; }
+  function denyMsg(e, what) { return 'Bạn không có quyền ' + what + ' (vai trò "' + e.roleName + '"). Nhờ anh Quốc cấp thêm quyền.'; }
+  function permFor(req) { const s = req.nmsxUser || sessionOf(req); if (!s || s.role === 'owner') return null; return effective(users()[s.username]); }
+  const DEPT_VN = { cokhi: 'Cơ khí', dien: 'Điện' };
+  function deptOf(d) { return (d && d.dept === 'dien') ? 'dien' : 'cokhi'; }
+  // Kiem tra 1 lan ghi 1 tai lieu. Tra ve '' neu duoc, nguoc lai la cau bao loi tieng Viet.
+  function canWrite(req, c, id, before, after, method) {
+    if (!authOn()) return '';
+    const e = permFor(req); if (!e) return '';
+    const dept = function (d, what) { return e.edit.indexOf(deptOf(d)) >= 0 ? '' : denyMsg(e, what + ' của bộ phận ' + DEPT_VN[deptOf(d)]); };
+    if (c === 'orders') {
+      if (method === 'DELETE') return !e.perms.delete_order ? denyMsg(e, 'xóa đơn hàng') : dept(before, 'xóa đơn');
+      if (before == null) return !e.perms.create_order ? denyMsg(e, 'thêm đơn hàng mới') : dept(after, 'thêm đơn');
+      if (!e.perms.edit_orders) return denyMsg(e, 'sửa đơn hàng');
+      const dd = dept(before, 'sửa đơn'); if (dd) return dd;
+      if (JSON.stringify(before.hold || null) !== JSON.stringify((after && after.hold) || null) && !e.perms.hold_order) return denyMsg(e, 'tạm dừng / tiếp tục đơn');
+      return '';
+    }
+    if (c === 'tasks') { if (!e.perms.edit_tasks) return denyMsg(e, 'sửa công việc'); return dept(before || after, 'sửa việc'); }
+    if (c === 'purchase') return e.perms.purchase ? '' : denyMsg(e, 'lập / sửa phiếu đề nghị mua');
+    if (c === 'issues' || c === 'xuathang' || c === 'kho') return e.perms.warehouse ? '' : denyMsg(e, 'thao tác kho / yêu cầu mua-xuất');
+    if (/^(cokhi|electric)_/.test(c)) return e.perms.sync_sheet ? '' : denyMsg(e, 'đồng bộ / nạp Sheet');
+    return '';
+  }
+  function canBulk(req, c) {
+    if (!authOn()) return '';
+    const e = permFor(req); if (!e) return '';
+    if (c === 'orders') return (e.perms.edit_orders && e.perms.create_order) ? '' : denyMsg(e, 'ghi đè danh sách đơn hàng');
+    if (c === 'tasks') return e.perms.edit_tasks ? '' : denyMsg(e, 'sửa công việc');
+    return canWrite(req, c, '*', {}, {}, 'PUT');
+  }
 
   /* ---------- lich su chinh sua (nhat ky) ---------- */
   const SKIP = /^(sessions|users|ai_usage|ai_settings|zalo_log|zalo_meta|draw_cache|meta|electric|cokhi|vtimg)/;
@@ -215,13 +294,13 @@ module.exports = function (ctx) {
   async function handle(req, res, u, p, method) {
     const send = function (o) { ctx.sendJson(res, 200, o); return true; };
     if (p === '/api/auth/status' && method === 'GET') {
-      return send({ ok: true, hasOwner: authOn() });
+      return send({ ok: true, hasOwner: authOn(), autoApprove: settings().autoApprove });
     }
     if (p === '/api/auth/me' && method === 'GET') {
       if (!authOn()) return send({ ok: true, auth: false });
       const s = sessionOf(req);
       if (!s) return err(res, 401, 'Cần đăng nhập', 'login');
-      return send({ ok: true, auth: true, user: { username: s.username, name: s.name, role: s.role } });
+      return send({ ok: true, auth: true, user: { username: s.username, name: s.name, role: s.role, perm: effective(users()[s.username]) } });
     }
     if (p === '/api/auth/register' && method === 'POST') {
       const b = await bodyJson(req);
@@ -236,10 +315,13 @@ module.exports = function (ctx) {
       const nk = nameKey(name);
       if (Object.keys(U).some(function (k) { return nameKey(U[k].name) === nk; })) return err(res, 409, 'Họ tên này đã có tài khoản. Nếu là bạn, hãy đăng nhập; nếu trùng tên người khác, thêm tên đệm/biệt danh.');
       const first = !authOn();
-      const salt = newSalt();
-      U[username] = { username: username, name: name, salt: salt, hash: hashPw(pw, salt), role: first ? 'owner' : 'user', status: first ? 'active' : 'pending', createdAt: Date.now(), lastLogin: first ? Date.now() : 0 };
+      const salt = newSalt(), CF = settings(), dept = ['cokhi', 'dien', 'kho', 'khac'].indexOf(b.dept) >= 0 ? b.dept : 'khac';
+      const auto = first || CF.autoApprove;
+      const rid = CF.defaultByDept[dept]; const roleId = CF.roles[rid] ? rid : (CF.roles.xem ? 'xem' : 'nv_tatca');
+      U[username] = { username: username, name: name, salt: salt, hash: hashPw(pw, salt), role: first ? 'owner' : 'user', roleId: first ? undefined : roleId, regDept: first ? '' : dept, status: auto ? 'active' : 'pending', createdAt: Date.now(), lastLogin: auto ? Date.now() : 0 };
       saveUsers(); addFail('reg:' + ipOf(req));
       if (first) { const token = createSession(username, true, req); return send({ ok: true, owner: true, token: token, user: { username: username, name: name, role: 'owner' } }); }
+      if (auto) { const token = createSession(username, true, req); writeAudit({ t: Date.now(), u: username, n: name, op: 'đăng ký', c: 'auth', id: username, lb: 'Tự đăng ký (bộ phận ' + dept + ', vai trò ' + roleId + ')', ch: [] }); return send({ ok: true, auto: true, token: token, user: { username: username, name: name, role: 'user' } }); }
       return send({ ok: true, pending: true });
     }
     if (p === '/api/auth/login' && method === 'POST') {
@@ -312,6 +394,29 @@ module.exports = function (ctx) {
       saveUsers(); adminLog(req, 'tạo tài khoản', username, 'Chủ tạo tài khoản cho "' + name + '"');
       return send({ ok: true });
     }
+    if (p === '/api/auth/roles' && method === 'GET') {
+      const CF = settings(); return send({ ok: true, roles: CF.roles, perms: PERM_LIST, autoApprove: CF.autoApprove, defaultByDept: CF.defaultByDept, depts: DEPTS, builtin: Object.keys(DEFAULT_ROLES) });
+    }
+    if (p === '/api/auth/roles' && method === 'POST') {
+      const b = await bodyJson(req); const roles = cleanRoles(b.roles);
+      if (!Object.keys(roles).length) return err(res, 400, 'Cần có ít nhất 1 vai trò.');
+      const U = users(); const lost = Object.keys(U).filter(function (k) { return U[k].role !== 'owner' && U[k].roleId && !roles[U[k].roleId]; });
+      if (lost.length) return err(res, 400, 'Không xóa được vai trò đang có người dùng (' + lost.map(function (k) { return U[k].name; }).slice(0, 4).join(', ') + '). Hãy đổi vai trò của họ trước.');
+      const dbd = {}; ['cokhi', 'dien', 'kho', 'khac'].forEach(function (k) { const v = b.defaultByDept && b.defaultByDept[k]; dbd[k] = roles[v] ? v : (roles.xem ? 'xem' : Object.keys(roles)[0]); });
+      saveAuthCfg({ autoApprove: b.autoApprove !== false, roles: roles, defaultByDept: dbd });
+      adminLog(req, 'phân quyền', '-', 'Chủ cập nhật bảng phân quyền (' + Object.keys(roles).length + ' vai trò; ' + (b.autoApprove !== false ? 'đăng ký dùng ngay' : 'đăng ký chờ duyệt') + ')');
+      return send({ ok: true });
+    }
+    const mr = p.match(/^\/api\/auth\/users\/([a-z0-9._]+)\/role$/);
+    if (mr && method === 'POST') {
+      const b = await bodyJson(req), U = users(), target = U[mr[1]], CF = settings();
+      if (!target) return err(res, 404, 'Không tìm thấy tài khoản.');
+      if (target.role === 'owner') return err(res, 400, 'Không đổi vai trò của chủ.');
+      if (!CF.roles[b.roleId]) return err(res, 400, 'Vai trò không tồn tại.');
+      target.roleId = b.roleId; saveUsers();
+      adminLog(req, 'đổi vai trò', target.username, 'Đổi vai trò của "' + target.name + '" thành "' + CF.roles[b.roleId].name + '"');
+      return send({ ok: true });
+    }
     const m = p.match(/^\/api\/auth\/users\/([a-z0-9._]+)\/(approve|block|unblock|reset|delete)$/);
     if (m && method === 'POST') {
       const U = users(), target = U[m[1]], act = m[2];
@@ -349,7 +454,13 @@ module.exports = function (ctx) {
     const m = p.match(/^\/api\/(?:coll|doc|rev)\/([^/]+)/);
     if (m) {
       if (/^(users|sessions)$/.test(m[1])) return { ok: false, status: 403, error: 'Không được phép' };
-      if (m[1] === 'ai_settings' && s.role !== 'owner') return { ok: false, status: 403, error: 'Chỉ chủ nhà máy' };
+      if (/^(ai_settings|auth_settings)$/.test(m[1]) && s.role !== 'owner') return { ok: false, status: 403, error: 'Chỉ chủ nhà máy' };
+    }
+    if (s.role !== 'owner') {
+      const e = effective(users()[s.username]);
+      if (p === '/api/zalo/ask' && !e.perms.ask_ai) return { ok: false, status: 403, error: denyMsg(e, 'hỏi nhanh bằng AI'), perm: true };
+      if (p.indexOf('/api/zalo/draw/') === 0 && !e.perms.use_ai) return { ok: false, status: 403, error: denyMsg(e, 'đọc bản vẽ / PDF bằng AI'), perm: true };
+      if (p === '/api/zalo/manual' && !e.perms.warehouse) return { ok: false, status: 403, error: denyMsg(e, 'xử lý yêu cầu mua / xuất'), perm: true };
     }
     return { ok: true };
   }
@@ -358,7 +469,7 @@ module.exports = function (ctx) {
   const LOGIN_HTML = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 
   return {
-    handle: handle, allow: allow, record: record, recordBulk: recordBulk, sessionOf: sessionOf, authOn: authOn,
+    handle: handle, allow: allow, record: record, recordBulk: recordBulk, sessionOf: sessionOf, authOn: authOn, canWrite: canWrite, canBulk: canBulk,
     invalidate: invalidate, clone: clone, loginHtml: function () { return Buffer.from(LOGIN_HTML, 'utf8'); }
   };
 };
