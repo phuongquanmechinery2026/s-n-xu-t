@@ -1640,7 +1640,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-17p-may';
+  var BUILD_ID = '2026-10-17q-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2956,8 +2956,9 @@
     html += '<button class="btn btn-sm btn-primary" data-draw-ai="'+esc(o.id)+'" title="AI đọc bản vẽ PDF/ảnh, bóc tách vật tư và đề xuất việc cần làm">Đọc bản vẽ (AI)</button>';
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
     if (auOwner()) html += '<button class="btn btn-sm" data-order-hist="'+esc(o.id)+'" data-order-code="'+esc(o.code||'')+'" title="Ai đã sửa gì trong đơn này (chỉ chủ xem)">🕘 Lịch sử đơn</button>';
+    html += '<button class="btn btn-sm" data-copy-zalo="'+esc(o.id)+'" title="Chép dòng tiêu đề (khách - thiết bị - MS - TĐ) + vật tư giống Google Sheet, để dán vào Zalo / Excel">📋 Chép gửi Zalo</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
-    html += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột (thiếu dòng tự thêm) · <b>Ctrl+D</b> điền xuống · <b>Kéo chuột</b> chọn vùng ô, kéo <b>ô vuông xanh ở góc</b> để điền (như Excel) · <b>Ctrl+C / Delete</b> trên vùng chọn · <b>Ctrl+Z</b> hoàn tác.</div>';
+    html += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột (thiếu dòng tự thêm) · <b>Ctrl+D</b> điền xuống · <b>Kéo chuột</b> chọn vùng ô, kéo <b>ô vuông xanh ở góc</b> để điền (như Excel) · <b>Ctrl+C</b> vùng chọn = có kèm dòng tiêu đề <b>MS – TĐ</b> như copy từ Sheet · <b>Dán tin Zalo / Sheet</b> có dòng "… MS : mã - TĐ : ngày": tự bỏ dòng tiêu đề, tách Tên · ĐVT · SL · <b>Delete</b> xóa ô · <b>Ctrl+Z</b> hoàn tác.</div>';
     html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:164px"><col style="width:13%"><col style="width:14%"><col style="width:44px"></colgroup><thead><tr>';
     ['STT','Tên gọi','Quy cách','ĐVT','SL','Tình trạng','Ngày yêu cầu','Nhà cung cấp','Ghi chú',''].forEach(function(h){html+='<th>'+h+'</th>';});
     html += '</tr></thead><tbody>';
@@ -9398,6 +9399,7 @@ function stockMatch(name, spec, rows) {
     if (trV){
       var id = trV.getAttribute('data-order'), o = STATE.orders[id]; if (!o) return;
       var mats = o.materials = o.materials || [], c0 = XL_VT_FIELDS.indexOf(f0); if (c0 < 0) c0 = 0;
+      if (c0 === 0){ var nz = xlNormalizePaste(data, o); if (nz.abort) return; return xlPasteVT(id, +trV.getAttribute('data-line'), 0, nz.rows, nz.head); }
       XL.t = Date.now(); XL.undo = {kind:'vt', id:id, snap:JSON.stringify(mats)};
       var j = +trV.getAttribute('data-line'), cells = 0, added = 0;
       data.forEach(function(row){
@@ -9487,6 +9489,7 @@ function stockMatch(name, spec, rows) {
     var tb = xsTb(); if (!tb) return '';
     var rows = xsRows(tb, XS.kind), fields = xsFields(XS.kind, tb), a = Math.min(XS.r0,XS.r1), b = Math.max(XS.r0,XS.r1), c0 = Math.min(XS.c0,XS.c1), c1 = Math.max(XS.c0,XS.c1), out = [];
     for (var r=a; r<=b; r++){ var row = []; for (var c=c0; c<=c1; c++) row.push(xsValue(rows[r], fields[c]).replace(/[\t\r\n]+/g,' ')); out.push(row.join('\t')); }
+    if (XS.kind==='vt'){ var oH = STATE.orders[XS.key]; if (oH) out.unshift(xlHeaderLine(oH)); }
     return out.join('\n');
   }
   // ops: [{tr, f, v}] — ghi vào dữ liệu (không dựng lại giao diện từng ô), có chụp lại để Ctrl+Z
@@ -9621,6 +9624,7 @@ function stockMatch(name, spec, rows) {
     e.preventDefault();
     var tb = XS.tb, rows = xsRows(tb, XS.kind), fields = xsFields(XS.kind, tb), a = Math.min(XS.r0,XS.r1), c0 = Math.min(XS.c0,XS.c1), data = txt.split('\n').map(function(r){ return r.split('\t'); }), ops = [];
     if (data.length===1 && data[0].length===1 && xsMulti()){ var v1 = data[0][0]; ops = xsRangeOps(function(){ return v1; }); xsApply(XS.kind, ops, 'Đã điền '+ops.length+' ô'); return; }
+    if (XS.kind==='vt' && c0===0 && rows[a]){ var nz2 = xlNormalizePaste(data, STATE.orders[XS.key]); if (nz2.abort) return; return xlPasteVT(XS.key, +rows[a].getAttribute('data-line'), 0, nz2.rows, nz2.head); }
     data.forEach(function(row, ri){ var tr = rows[a+ri]; if (!tr) return; row.forEach(function(v, ci){ var f = fields[c0+ci]; if (f) ops.push({tr:tr, f:f, v:v}); }); });
     var rEnd = Math.min(rows.length-1, a+data.length-1), cEnd = Math.min(fields.length-1, c0+Math.max.apply(null, data.map(function(r){ return r.length; }))-1);
     XS.r0 = a; XS.r1 = rEnd; XS.c0 = c0; XS.c1 = cEnd;
@@ -9753,6 +9757,109 @@ function stockMatch(name, spec, rows) {
     mk('xlActDel', '🗑 Xóa ô đã chọn', 116, function(){ if (XS && xsTb()) xsApply(XS.kind, xsRangeOps(function(){ return ''; }), 'Đã xóa vùng chọn'); else toast('Chạm hoặc kéo để chọn ô trước.'); });
     mk('xlActUndo', '↶ Hoàn tác', 160, function(){ if (XL.undo && Date.now()-(XL.t||0) < 90000) xlUndo(); else toast('Không có gì để hoàn tác.'); });
   })();
+  /* ===== 08r: SAO CHÉP / DÁN vật tư GIỐNG Google Sheet — dòng tiêu đề "KHÁCH - THIẾT BỊ - MS : mã - TĐ : ngày" + các dòng vật tư ===== */
+  function xlHeaderLine(o){
+    var ci = String(o.customerInfo||'').split(/[\r\n]+/).map(function(x){ return x.replace(/[\s\-–]+$/, '').trim(); }).filter(Boolean).join(' - ');
+    if (!ci) ci = orderTitle(o);
+    var snap = headlineSnapshot(o), dd = snap && snap.deliveryDate ? fmtDate(snap.deliveryDate) : '';
+    return ci+' - MS : '+(o.code||o.id)+(dd ? ' - TĐ : '+dd : '');
+  }
+  function xlCopyText(txt, okMsg){
+    var done = function(){ toast(okMsg, 3600); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, function(){ xlCopyFallback(txt, done); }); return; }
+    } catch(e){}
+    xlCopyFallback(txt, done);
+  }
+  function xlCopyFallback(txt, done){
+    var ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;left:-9999px;top:0;'; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch(e){ toast('Trình duyệt không cho sao chép — anh thử Ctrl+C.'); }
+    ta.remove();
+  }
+  // Nút "📋 Chép gửi Zalo": dòng tiêu đề + (Tên gọi, Quy cách, ĐVT, SL) của các dòng đang chọn, hoặc tất cả vật tư nếu chưa chọn
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-copy-zalo]'); if (!b) return;
+    var o = STATE.orders[b.getAttribute('data-copy-zalo')]; if (!o) return;
+    var rows = [], mats = o.materials || [], tb = null;
+    var picked = null;
+    try {
+      if (XS && XS.kind==='vt' && XS.key===o.id && xsTb()){
+        var trs = xsRows(XS.tb, 'vt'), a = Math.min(XS.r0, XS.r1), z = Math.max(XS.r0, XS.r1); picked = [];
+        for (var r = a; r <= z; r++){ var ln = trs[r] && mats[+trs[r].getAttribute('data-line')]; if (ln) picked.push(ln); }
+      }
+    } catch(er){ picked = null; }
+    (picked && picked.length ? picked : mats).forEach(function(m){
+      if (!m || m.section===true) return;
+      var nm = String(m.name==null?'':m.name).trim(); if (!nm) return;
+      rows.push([nm, String(m.spec==null?'':m.spec).trim(), String(m.unit==null?'':m.unit).trim(), m.qty==null||m.qty===''?'':String(m.qty).replace('.', ',')].join('\t'));
+    });
+    if (!rows.length) return toast('Chưa có dòng vật tư nào để chép.');
+    xlCopyText([xlHeaderLine(o)].concat(rows).join('\n'), 'Đã chép '+rows.length+' dòng (có tiêu đề MS–TĐ) — dán vào Zalo / Excel được ngay.');
+  });
+  // Chuẩn hóa nội dung DÁN vào bảng VT: bỏ dòng tiêu đề "… MS : mã - TĐ : ngày", dòng tiêu đề cột Sheet, cột "Số hiệu", @tên, "dự phòng"; dòng Zalo "tên … ĐVT SL" tách cột đúng
+  function xlNormalizePaste(data, o){
+    var plain = function(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase(); };
+    var unitRx = /^(cai|bo|o|cay|con|tam|cuon|chiec|bao|lit|can|cap|soi|thanh|ong|hop|bich|tui|vien|doi|kien|tap|thung|chai|lon|binh|bang|cum|dau|tay|goi|m|met|kg|ram)$/;
+    var isNum = function(s){ return /^\d+([.,]\d+)?$/.test(String(s).trim()); };
+    var out = [], head = null, spare = false;
+    data.forEach(function(cells){
+      var line = cells.join(' ').replace(/["“”]/g, ' ').replace(/\s+/g, ' ').trim(); if (!line) return;
+      var pl = plain(line);
+      var mh = /\bms\b\s*[:\-–]?\s*(20\d{2}-(?:dl)?\d{2,3})/.exec(pl) || /\b(20\d{2}-(?:dl)?\d{2,3})\b.*\btd\b/.exec(pl);
+      if (mh && (/\bms\b/.test(pl) || /\btd\b/.test(pl))){
+        var md = /\btd\s*[:\-–]?\s*(\d{1,2}\s*[\/.\-]\s*\d{1,2}(?:\s*[\/.\-]\s*\d{2,4})?)/.exec(pl);
+        head = {code:mh[1].toUpperCase(), td:md ? md[1].replace(/\s+/g, '') : ''}; spare = false; return;
+      }
+      if (cells.length<=1 && (/^(cong ty|ct |tnhh|cp |co phan|doanh nghiep|ho kinh doanh|htx|hop tac xa|nha may|vien )/.test(pl) || /\s-\s*$/.test(line))) return;            // dòng tên khách của tiêu đề
+      if (/\bten goi\b/.test(pl) && (/\bso hieu\b/.test(pl) || /\bquy cach\b/.test(pl) || /\bdvt\b/.test(pl))) return;     // dòng tiêu đề cột của Sheet
+      if (/^tat ca cac vat tu/.test(pl)) return;
+      if (/^@/.test(line)) return;                                                                         // dòng gọi tên người (@...) không phải vật tư
+      var cl = cells.map(function(c){ return String(c==null?'':c).replace(/\(\s*@[^)]*\)?/g, ' ').replace(/@[^\s@]+/g, ' ').replace(/ {2,}/g, ' ').trim(); });
+      while (cl.length && !cl[cl.length-1]) cl.pop();
+      if (!cl.length || !cl.join('').trim()) return;
+      var pj = plain(cl.join(' ')).trim();
+      if (/^(mua\s+)?du phong\s*[:：]?\s*$/.test(pj)){ spare = true; return; }
+      var lineSpare = false;
+      if (/^(mua\s+)?du phong\s*[:：]\s*\S/.test(pj)){ cl[0] = cl[0].replace(/^[^:：]*[:：]\s*/, ''); lineSpare = true; }
+      if (cl.length===1){
+        var sp = cl[0].split(/\t| {2,}/).map(function(x){ return x.trim(); }).filter(Boolean);
+        if (sp.length > 1) cl = sp;
+        else {
+          var m2 = /^(.*?)\s+([^\d\s]{1,6})\s+(\d+(?:[.,]\d+)?)$/.exec(cl[0]), m1 = /^(.*?)\s+(\d+(?:[.,]\d+)?)\s*([^\d\s]{1,6})$/.exec(cl[0]);
+          if (m2 && m2[1] && unitRx.test(plain(m2[2]))) cl = [m2[1], '', m2[2], m2[3]];
+          else if (m1 && m1[1] && unitRx.test(plain(m1[3]))) cl = [m1[1], '', m1[3], m1[2]];
+        }
+      }
+      if (cl.length >= 2 && /^\d+(\.\d+)*$/.test(cl[0]) && !isNum(cl[1])) cl = cl.slice(1);                    // bỏ cột "Số hiệu" (STT tự đánh)
+      if (cl.length===3 && unitRx.test(plain(cl[1])) && isNum(cl[2])) cl = [cl[0], '', cl[1], cl[2]];
+      else if (cl.length===2 && isNum(cl[1])) cl = [cl[0], '', '', cl[1]];
+      if ((spare || lineSpare) && cl[0] && !/d[ựu] ph[òo]ng/i.test(cl[0])) cl[0] = cl[0] + ' (dự phòng)';
+      out.push(cl);
+    });
+    var res = {rows:out, head:head, abort:false};
+    if (head && o && head.code !== String(o.code||o.id).toUpperCase()){
+      res.abort = !window.confirm('Tin này ghi MS '+head.code+' nhưng anh đang mở đơn '+(o.code||o.id)+'.\nVẫn dán vào đơn '+(o.code||o.id)+'?');
+    }
+    if (!out.length && !res.abort){ res.abort = true; toast('Không thấy dòng vật tư nào trong nội dung vừa dán.'); }
+    return res;
+  }
+  // Dán vào bảng VT: KHÔNG ghi đè dòng đang có chữ — dòng đang đứng trống thì điền vào đó, còn lại chèn thêm dòng mới ngay bên dưới
+  function xlPasteVT(id, startIdx, c0, data, head){
+    var o = STATE.orders[id]; if (!o || readOnlyNote()) return;
+    var mats = o.materials = o.materials || [];
+    XL.t = Date.now(); XL.undo = {kind:'vt', id:id, snap:JSON.stringify(mats)};
+    var cur = mats[startIdx], curEmpty = !cur || (!String(cur.name==null?'':cur.name).trim() && !String(cur.spec==null?'':cur.spec).trim() && (cur.qty==null || cur.qty===''));
+    var at = curEmpty ? startIdx : startIdx + 1, first = true, added = 0;
+    data.forEach(function(row){
+      var line;
+      if (first && curEmpty && cur){ line = cur; }
+      else { line = xlNewLine(); mats.splice(Math.min(at, mats.length), 0, line); added++; }
+      first = false; at = mats.indexOf(line) + 1;
+      row.forEach(function(v, c){ var f = XL_VT_FIELDS[c0+c]; if (f && v!==null) xlSetVT(line, f, v); });
+    });
+    patchOrder(id, {materials:mats}); renderAll();
+    toast('Đã dán '+data.length+' dòng vật tư'+(head ? ' (tin MS '+head.code+(head.td ? ', TĐ '+head.td : '')+')' : '')+(added ? ', thêm '+added+' dòng mới' : '')+' (Ctrl+Z để hoàn tác).', 4600);
+  }
   renderBanner();
   loadFromSeedOnly();
   boot();
