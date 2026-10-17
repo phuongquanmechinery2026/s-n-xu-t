@@ -1640,7 +1640,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-17n-may';
+  var BUILD_ID = '2026-10-17o-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2955,7 +2955,7 @@
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
     if (auOwner()) html += '<button class="btn btn-sm" data-order-hist="'+esc(o.id)+'" data-order-code="'+esc(o.code||'')+'" title="Ai đã sửa gì trong đơn này (chỉ chủ xem)">🕘 Lịch sử đơn</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
-    html += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột (thiếu dòng tự thêm) · <b>Ctrl+D</b> điền xuống · <b>Ctrl+Z</b> hoàn tác lần dán.</div>';
+    html += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột (thiếu dòng tự thêm) · <b>Ctrl+D</b> điền xuống · <b>Kéo chuột</b> chọn vùng ô, kéo <b>ô vuông xanh ở góc</b> để điền (như Excel) · <b>Ctrl+C / Delete</b> trên vùng chọn · <b>Ctrl+Z</b> hoàn tác.</div>';
     html += '<div class="table-wrap"><table class="mat-table"><colgroup><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:64px"><col style="width:72px"><col style="width:140px"><col style="width:164px"><col style="width:13%"><col style="width:14%"><col style="width:44px"></colgroup><thead><tr>';
     ['STT','Tên gọi','Quy cách','ĐVT','SL','Tình trạng','Ngày yêu cầu','Nhà cung cấp','Ghi chú',''].forEach(function(h){html+='<th>'+h+'</th>';});
     html += '</tr></thead><tbody>';
@@ -7296,7 +7296,7 @@
     h += '<div class="pc-modes" role="tablist">'+M.map(function(m){ return '<button role="tab" aria-selected="'+(PQX.tkMode===m[0])+'" data-pq="pc-mode" data-m="'+m[0]+'">'+m[1]+'</button>'; }).join('')+'</div>';
     var body = pcBodyHtml();
     h += '<div class="pc-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="pcQ" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Tìm việc, người làm, tên máy, mã đơn…" aria-label="Tìm trong phân công công việc" value="'+esc(PQX.pcQ||'')+'"><span class="pc-count" id="pcCount">'+esc(PQX._pcCount||'')+'</span><button type="button" class="pc-clear" data-pq="pc-clear" aria-label="Xoá tìm kiếm"'+(PQX.pcQ?'':' hidden')+'>✕</button></div>';
-    h += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột · <b>Ctrl+D</b> điền xuống · <b>Ctrl+Z</b> hoàn tác lần dán.</div>';
+    h += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột · <b>Ctrl+D</b> điền xuống · <b>Kéo chuột</b> chọn vùng ô, kéo <b>ô vuông xanh ở góc</b> để điền (như Excel) · <b>Ctrl+C / Delete</b> trên vùng chọn · <b>Ctrl+Z</b> hoàn tác.</div>';
     h += '<div id="pcBody">'+body+'</div>';
     return h;
   }
@@ -9426,6 +9426,202 @@ function stockMatch(name, spec, rows) {
       XL.t = Date.now(); XL.undo = {kind:'td', docs:undo};
       renderAll(); toast('Đã dán '+cnt+' ô'+(skipped ? ' ('+skipped+' dòng cuối không có chỗ nên bỏ qua)' : '')+' (Ctrl+Z để hoàn tác).', 4200);
     }
+  });
+  /* ===== 08p: CHỌN VÙNG Ô + KÉO GÓC ĐIỀN (fill handle) như Excel — bảng VT và bảng TD =====
+     Kéo chuột qua nhiều ô (hoặc Shift+click) để chọn vùng · Ctrl+C / Ctrl+X sao chép / cắt · Delete xóa ô · Ctrl+D điền xuống
+     · dán 1 giá trị vào vùng chọn = điền cả vùng · kéo ô vuông nhỏ ở góc dưới phải vùng chọn để điền xuống/lên
+     (1 ô = nhân bản, ≥2 số cách đều = nối tiếp dãy) · Ctrl+Z hoàn tác. */
+  var XS = null, XSD = null, XSF = null;
+  function xsKind(tr){ if (!tr) return ''; if (tr.hasAttribute('data-pc')) return 'td'; if (tr.hasAttribute('data-line') && !tr.classList.contains('mat-section')) return 'vt'; return ''; }
+  function xsRows(tb, kind){ return Array.prototype.filter.call(tb.children, function(r){ return xsKind(r)===kind; }); }
+  function xsFields(kind, tb){ if (kind==='vt') return XL_VT_FIELDS; var r = tb.querySelector('tr[data-pc]'); return r ? Array.prototype.map.call(r.querySelectorAll('[data-f]'), function(x){ return x.getAttribute('data-f'); }) : []; }
+  function xsCellOf(node){
+    if (!node || !node.closest) return null;
+    var td = node.closest('td'); if (!td) return null;
+    var tr = td.parentNode, kind = xsKind(tr); if (!kind) return null;
+    var fe = td.querySelector('[data-f]'); if (!fe) return null;
+    var tb = tr.parentNode, f = fe.getAttribute('data-f'), r = xsRows(tb, kind).indexOf(tr), c = xsFields(kind, tb).indexOf(f);
+    if (r < 0 || c < 0) return null;
+    return {tb:tb, kind:kind, r:r, c:c, key:(kind==='vt' ? tr.getAttribute('data-order') : 'td')};
+  }
+  function xsTb(){
+    if (!XS) return null;
+    if (XS.tb && document.body.contains(XS.tb)) return XS.tb;
+    var sel = XS.kind==='vt' ? 'tr[data-line][data-order="'+XS.key+'"]' : 'tr[data-pc]', tr = document.querySelector(sel);
+    XS.tb = tr ? tr.parentNode : null; return XS.tb;
+  }
+  function xsCellEl(tb, kind, r, c){
+    var rows = xsRows(tb, kind), fields = xsFields(kind, tb), row = rows[r]; if (!row) return null;
+    var fe = row.querySelector('[data-f="'+fields[c]+'"]'); return fe ? fe.closest('td') : null;
+  }
+  function xsPaint(){
+    document.querySelectorAll('td.xl-sel,td.xl-prev').forEach(function(td){ td.classList.remove('xl-sel','xl-t','xl-b','xl-l','xl-r','xl-prev'); });
+    var h = document.getElementById('xlHandle');
+    if (!XS || !xsTb()){ if (h) h.style.display = 'none'; return; }
+    var tb = XS.tb, a = Math.min(XS.r0,XS.r1), b = Math.max(XS.r0,XS.r1), c0 = Math.min(XS.c0,XS.c1), c1 = Math.max(XS.c0,XS.c1), last = null;
+    for (var r=a; r<=b; r++) for (var c=c0; c<=c1; c++){
+      var td = xsCellEl(tb, XS.kind, r, c); if (!td) continue;
+      td.classList.add('xl-sel'); if (r===a) td.classList.add('xl-t'); if (r===b) td.classList.add('xl-b'); if (c===c0) td.classList.add('xl-l'); if (c===c1) td.classList.add('xl-r');
+      if (r===b && c===c1) last = td;
+    }
+    if (XSF && XSF.to!=null){
+      var lo = Math.min(XSF.to, a-1+1), hi = Math.max(XSF.to, b);
+      var ra = XSF.to > b ? b+1 : XSF.to, rb = XSF.to > b ? XSF.to : a-1;
+      for (var rr=ra; rr<=rb; rr++) for (var cc=c0; cc<=c1; cc++){ var t2 = xsCellEl(tb, XS.kind, rr, cc); if (t2) t2.classList.add('xl-prev'); }
+    }
+    if (!h){ h = document.createElement('div'); h.id = 'xlHandle'; h.title = 'Kéo để điền xuống / lên'; document.body.appendChild(h); }
+    if (last){ var rc = last.getBoundingClientRect(); if (rc.height > 0 && rc.bottom > 0 && rc.top < window.innerHeight){ h.style.left = (rc.right-5)+'px'; h.style.top = (rc.bottom-5)+'px'; h.style.display = 'block'; } else h.style.display = 'none'; } else h.style.display = 'none';
+  }
+  function xsClear(){ XS = null; XSD = null; XSF = null; xsPaint(); }
+  function xsMulti(){ return !!XS && (XS.r0!==XS.r1 || XS.c0!==XS.c1); }
+  function xsValue(tr, f){
+    var el = tr.querySelector('[data-f="'+f+'"]'); if (!el) return '';
+    var v = el.value == null ? '' : String(el.value);
+    if (f==='reqDate' && /^\d{4}-\d{2}-\d{2}$/.test(v)) v = v.slice(8,10)+'/'+v.slice(5,7)+'/'+v.slice(0,4);
+    return v;
+  }
+  function xsTSV(){
+    var tb = xsTb(); if (!tb) return '';
+    var rows = xsRows(tb, XS.kind), fields = xsFields(XS.kind, tb), a = Math.min(XS.r0,XS.r1), b = Math.max(XS.r0,XS.r1), c0 = Math.min(XS.c0,XS.c1), c1 = Math.max(XS.c0,XS.c1), out = [];
+    for (var r=a; r<=b; r++){ var row = []; for (var c=c0; c<=c1; c++) row.push(xsValue(rows[r], fields[c]).replace(/[\t\r\n]+/g,' ')); out.push(row.join('\t')); }
+    return out.join('\n');
+  }
+  // ops: [{tr, f, v}] — ghi vào dữ liệu (không dựng lại giao diện từng ô), có chụp lại để Ctrl+Z
+  function xsApply(kind, ops, note){
+    if (!ops.length || readOnlyNote()) return;
+    if (kind==='vt'){
+      var id = ops[0].tr.getAttribute('data-order'), o = STATE.orders[id]; if (!o) return;
+      XL.t = Date.now(); XL.undo = {kind:'vt', id:id, snap:JSON.stringify(o.materials)};
+      ops.forEach(function(op){ var line = o.materials[+op.tr.getAttribute('data-line')]; if (line) xlSetVT(line, op.f, op.v); });
+      patchOrder(id, {materials:o.materials});
+    } else {
+      var seen = {}, undo = [], docs = [];
+      ops.forEach(function(op){
+        var d = pcGet(op.tr.getAttribute('data-pc')); if (!d) return;
+        if (!seen[d.id]){ seen[d.id] = 1; undo.push({id:d.id, snap:JSON.stringify(d)}); docs.push(d); }
+        var v = String(op.v==null?'':op.v).trim();
+        if (op.f==='title' && !v) return;
+        if (op.f==='date' || op.f==='start'){ var dd = xlDate(v); v = dd || (v==='' ? '' : d[op.f]||''); }
+        if (op.f==='status'){ v = xlPick(TK_ST.map(function(s){ return [s]; }), v) || v; }
+        d[op.f] = v;
+      });
+      docs.forEach(function(d){ d._edited = 1; delete d.virtual; tkSave(d); });
+      XL.t = Date.now(); XL.undo = {kind:'td', docs:undo};
+    }
+    renderAll(); setTimeout(xsPaint, 30);
+    if (note) toast(note+' (Ctrl+Z để hoàn tác).', 3600);
+  }
+  function xsRangeOps(fn){
+    var tb = xsTb(); if (!tb) return [];
+    var rows = xsRows(tb, XS.kind), fields = xsFields(XS.kind, tb), a = Math.min(XS.r0,XS.r1), b = Math.max(XS.r0,XS.r1), c0 = Math.min(XS.c0,XS.c1), c1 = Math.max(XS.c0,XS.c1), ops = [];
+    for (var r=a; r<=b; r++) for (var c=c0; c<=c1; c++){ var v = fn(r-a, c-c0, rows[r], fields[c]); if (v !== undefined) ops.push({tr:rows[r], f:fields[c], v:v}); }
+    return ops;
+  }
+  function xsFillRange(){      // Ctrl+D trong vùng chọn: lấy dòng đầu điền xuống các dòng còn lại
+    var first = {}; var tb = xsTb(); if (!tb) return;
+    xsApply(XS.kind, xsRangeOps(function(ri, ci, tr, f){ if (ri===0){ first[f] = xsValue(tr, f); return undefined; } return first[f]; }), 'Đã điền xuống vùng chọn');
+  }
+  function xsFillDrag(to){
+    var tb = xsTb(); if (!tb || to==null) return;
+    var rows = xsRows(tb, XS.kind), fields = xsFields(XS.kind, tb), a = Math.min(XS.r0,XS.r1), b = Math.max(XS.r0,XS.r1), c0 = Math.min(XS.c0,XS.c1), c1 = Math.max(XS.c0,XS.c1), n = b-a+1, ops = [];
+    to = Math.max(0, Math.min(rows.length-1, to));
+    if (to > b || to < a){
+      for (var c=c0; c<=c1; c++){
+        var f = fields[c], src = []; for (var r=a; r<=b; r++) src.push(xsValue(rows[r], f));
+        var nums = src.map(function(x){ var v = String(x).trim().replace(',','.'); return (v!=='' && !isNaN(Number(v))) ? Number(v) : null; });
+        var series = n>=2 && nums.every(function(x){ return x!==null; }) && nums.every(function(x,i){ return i===0 || Math.abs((x-nums[i-1])-(nums[1]-nums[0]))<1e-9; }), step = series ? nums[1]-nums[0] : 0;
+        if (to > b){ for (var rr=b+1; rr<=to; rr++){ var i = rr-b; ops.push({tr:rows[rr], f:f, v: series ? String(Math.round((nums[n-1]+step*i)*1e6)/1e6) : src[(i-1)%n]}); } }
+        else { for (var rr2=a-1; rr2>=to; rr2--){ var i2 = a-rr2; ops.push({tr:rows[rr2], f:f, v: series ? String(Math.round((nums[0]-step*i2)*1e6)/1e6) : src[(n-((i2-1)%n)-1)]}); } }
+      }
+    }
+    if (!ops.length) return;
+    var kind = XS.kind; if (to > b) XS.r1 = to; else XS.r0 = to;
+    xsApply(kind, ops, 'Đã điền '+Math.abs(to>b ? to-b : a-to)+' dòng');
+  }
+
+  (function xsStyle(){
+    var st = document.createElement('style');
+    st.textContent =
+      'html td.xl-sel{background:rgba(31,95,168,.13) !important;box-shadow:var(--xt,0 0 #0000),var(--xb,0 0 #0000),var(--xl,0 0 #0000),var(--xr,0 0 #0000);}'+
+      'html td.xl-t{--xt:inset 0 2px 0 #1f5fa8;}html td.xl-b{--xb:inset 0 -2px 0 #1f5fa8;}html td.xl-l{--xl:inset 2px 0 0 #1f5fa8;}html td.xl-r{--xr:inset -2px 0 0 #1f5fa8;}'+
+      'html td.xl-prev{background:repeating-linear-gradient(135deg,rgba(31,95,168,.18) 0 6px,rgba(31,95,168,.06) 6px 12px) !important;}'+
+      'html #xlHandle{position:fixed;width:10px;height:10px;background:#1f5fa8;border:1.5px solid #fff;border-radius:2px;cursor:crosshair;z-index:900;display:none;box-shadow:0 0 0 1px #1f5fa8;}'+
+      'html.xl-dragging, html.xl-dragging *{user-select:none !important;-webkit-user-select:none !important;cursor:cell !important;}'+
+      'html.xl-dragging table input, html.xl-dragging table select{pointer-events:none !important;}';
+    document.head.appendChild(st);
+  })();
+
+  document.addEventListener('mousedown', function(e){
+    if (e.button !== 0) return;
+    if (e.target && e.target.id==='xlHandle'){
+      if (!XS) return; e.preventDefault(); XSF = {to:null}; document.documentElement.classList.add('xl-dragging'); return;
+    }
+    var cell = xsCellOf(e.target);
+    if (!cell){ if (XS && !(e.target.closest && e.target.closest('table,.modal,#spkModal'))) xsClear(); return; }
+    if (e.shiftKey && XS && XS.kind===cell.kind && XS.key===cell.key){
+      XS.r1 = cell.r; XS.c1 = cell.c; e.preventDefault(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); xsPaint(); return;
+    }
+    XS = {kind:cell.kind, tb:cell.tb, key:cell.key, r0:cell.r, c0:cell.c, r1:cell.r, c1:cell.c};
+    XSD = {r:cell.r, c:cell.c, tb:cell.tb, moved:false};
+    xsPaint();
+  });
+  document.addEventListener('mousemove', function(e){
+    if (!(e.buttons & 1)) return;
+    if (XSF){
+      var el = document.elementFromPoint(e.clientX, e.clientY), tr = el && el.closest ? el.closest('tr') : null, tb = xsTb();
+      if (tr && tb && tr.parentNode===tb && xsKind(tr)===XS.kind){ XSF.to = xsRows(tb, XS.kind).indexOf(tr); xsPaint(); }
+      return;
+    }
+    if (!XSD) return;
+    var cell = xsCellOf(document.elementFromPoint(e.clientX, e.clientY)); if (!cell || cell.tb!==XSD.tb) return;
+    if (!XSD.moved && (cell.r!==XSD.r || cell.c!==XSD.c)){
+      XSD.moved = true; document.documentElement.classList.add('xl-dragging'); if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    }
+    if (XSD.moved){ XS.r0 = XSD.r; XS.c0 = XSD.c; XS.r1 = cell.r; XS.c1 = cell.c; xsPaint(); }
+  });
+  document.addEventListener('mouseup', function(){
+    document.documentElement.classList.remove('xl-dragging');
+    if (XSF){ var to = XSF.to; XSF = null; if (to!=null) xsFillDrag(to); else xsPaint(); }
+    XSD = null;
+  });
+  document.addEventListener('focusin', function(e){
+    if (XSD && XSD.moved) return;
+    var cell = xsCellOf(e.target); if (!cell) return;
+    if (XS && xsMulti() && XS.kind===cell.kind && XS.key===cell.key && cell.r>=Math.min(XS.r0,XS.r1) && cell.r<=Math.max(XS.r0,XS.r1) && cell.c>=Math.min(XS.c0,XS.c1) && cell.c<=Math.max(XS.c0,XS.c1)) return;
+    XS = {kind:cell.kind, tb:cell.tb, key:cell.key, r0:cell.r, c0:cell.c, r1:cell.r, c1:cell.c}; xsPaint();
+  });
+  window.addEventListener('scroll', function(){ if (XS) xsPaint(); }, true);
+  window.addEventListener('resize', function(){ if (XS) xsPaint(); });
+  try { new MutationObserver(function(){ if (XS){ clearTimeout(xsPaint._t); xsPaint._t = setTimeout(xsPaint, 40); } }).observe(document.getElementById('main'), {childList:true, subtree:true}); } catch(e){}
+
+  function xsIdle(){ var a = document.activeElement; return !a || a===document.body || !/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
+  document.addEventListener('keydown', function(e){
+    if (!XS || !xsIdle()) return;
+    if (e.key==='Escape'){ xsClear(); return; }
+    if (!xsMulti() && !(e.key==='Delete')) return;
+    if (e.key==='Delete' || e.key==='Backspace'){ e.preventDefault(); xsApply(XS.kind, xsRangeOps(function(){ return ''; }), 'Đã xóa '+(Math.abs(XS.r1-XS.r0)+1)*(Math.abs(XS.c1-XS.c0)+1)+' ô'); return; }
+    if ((e.ctrlKey || e.metaKey) && (e.key==='d' || e.key==='D')){ e.preventDefault(); xsFillRange(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key==='z' || e.key==='Z') && XL.undo && Date.now()-(XL.t||0) < 90000){ e.preventDefault(); xlUndo(); setTimeout(xsPaint, 40); }
+  });
+  document.addEventListener('copy', function(e){
+    if (!XS || !xsMulti() || !xsIdle()) return;
+    e.clipboardData.setData('text/plain', xsTSV()); e.preventDefault(); toast('Đã sao chép '+((Math.abs(XS.r1-XS.r0)+1)*(Math.abs(XS.c1-XS.c0)+1))+' ô.', 1800);
+  });
+  document.addEventListener('cut', function(e){
+    if (!XS || !xsMulti() || !xsIdle()) return;
+    e.clipboardData.setData('text/plain', xsTSV()); e.preventDefault(); xsApply(XS.kind, xsRangeOps(function(){ return ''; }), 'Đã cắt vùng chọn');
+  });
+  // Dán khi đang chọn vùng (không có ô nào đang gõ): 1 giá trị -> điền cả vùng; nhiều ô -> dán từ góc trên trái vùng chọn
+  document.addEventListener('paste', function(e){
+    if (!XS || !xsIdle() || !xsTb()) return;
+    var txt = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\r/g,'').replace(/\n+$/,''); if (txt==='') return;
+    e.preventDefault();
+    var tb = XS.tb, rows = xsRows(tb, XS.kind), fields = xsFields(XS.kind, tb), a = Math.min(XS.r0,XS.r1), c0 = Math.min(XS.c0,XS.c1), data = txt.split('\n').map(function(r){ return r.split('\t'); }), ops = [];
+    if (data.length===1 && data[0].length===1 && xsMulti()){ var v1 = data[0][0]; ops = xsRangeOps(function(){ return v1; }); xsApply(XS.kind, ops, 'Đã điền '+ops.length+' ô'); return; }
+    data.forEach(function(row, ri){ var tr = rows[a+ri]; if (!tr) return; row.forEach(function(v, ci){ var f = fields[c0+ci]; if (f) ops.push({tr:tr, f:f, v:v}); }); });
+    var rEnd = Math.min(rows.length-1, a+data.length-1), cEnd = Math.min(fields.length-1, c0+Math.max.apply(null, data.map(function(r){ return r.length; }))-1);
+    XS.r0 = a; XS.r1 = rEnd; XS.c0 = c0; XS.c1 = cEnd;
+    xsApply(XS.kind, ops, 'Đã dán '+ops.length+' ô');
   });
   renderBanner();
   loadFromSeedOnly();
