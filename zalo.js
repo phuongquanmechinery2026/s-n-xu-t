@@ -800,7 +800,7 @@ module.exports = function (ctx) {
 
   /* ---------------- NHAC VIEC TU DONG (qua nhom Zalo) ---------------- */
   function vnNow() { return new Date(Date.now() + 7 * 3600 * 1000); }
-  function remindCfg() { const M = ctx.loadColl('zalo_meta'); const r = M.remind || {}; return { on: !!r.on, hour: r.hour == null ? 7 : r.hour, minute: r.minute == null ? 30 : r.minute, chatId: String(r.chatId || ''), lastDate: String(r.lastDate || ''), hold: (r.hold && typeof r.hold === 'object') ? r.hold : {} }; }
+  function remindCfg() { const M = ctx.loadColl('zalo_meta'); const r = M.remind || {}; return { on: !!r.on, hour: r.hour == null ? 7 : r.hour, minute: r.minute == null ? 30 : r.minute, chatId: String(r.chatId || ''), lastDate: String(r.lastDate || ''), hold: (r.hold && typeof r.hold === 'object') ? r.hold : {}, week: (r.week && typeof r.week === 'object') ? r.week : {} }; }
   function remindSave(r) { const M = ctx.loadColl('zalo_meta'); M.remind = r; ctx.saveColl('zalo_meta', M); }
   function seenChats() {
     const out = {}, L = ctx.loadColl('zalo_log'), X = ctx.loadColl('xuathang');
@@ -887,6 +887,36 @@ module.exports = function (ctx) {
     try { h.lastDate = today; r.hold = h; remindSave(r); await holdSend(h.chatId); } catch (e) {} finally { holdBusy = false; }
   }
   setInterval(function () { holdTick().catch(function () {}); }, 60000);
+
+  /* ---------------- BAO CAO TUAN (7h sang thu Hai): anh dashboard + 2 tin chu rieng ---------------- */
+  const REPORT = (function () { try { return require('./report.js'); } catch (e) { return null; } })();
+  function nextMon() { const tt = vnToday(), dw = new Date(tt + 'T00:00:00Z').getUTCDay(); return REPORT.addDays(tt, (8 - dw) % 7); }
+  function weekBuild(base) { if (!REPORT) throw new Error('Thieu report.js'); const D = REPORT.buildData(ctx.loadColl('orders'), ctx.loadColl('tasks'), base || vnToday()); return { D: D, M: REPORT.messages(D) }; }
+  function weekImgPath() { return path.join(DATA_DIR, 'week_report.png'); }
+  async function weekSend(chatId) {
+    const B = weekBuild(), r = remindCfg(), w = r.week || {}, res = { photo: null, parts: 0, projects: B.D.P.length };
+    if (B.D.P.length) {
+      try {
+        fs.writeFileSync(weekImgPath(), REPORT.dashboardPng(B.D));
+        w.token = w.token || crypto.randomBytes(12).toString('hex'); r.week = w; remindSave(r);
+        const url = cfg().publicUrl + '/api/zalo/week/img/' + w.token + '.png?d=' + B.D.base;
+        const pr = await zaloCall('sendPhoto', { chat_id: String(chatId), photo: url, caption: 'DASHBOARD TIẾN ĐỘ — tuần ' + B.D.base.slice(8, 10) + '/' + B.D.base.slice(5, 7) });
+        res.photo = !!(pr && pr.status === 200 && pr.data && pr.data.ok !== false); if (!res.photo) res.photoErr = String((pr && pr.raw) || '').slice(0, 200);
+      } catch (e) { res.photo = false; res.photoErr = String((e && e.message) || e); }
+    }
+    await sendText(chatId, B.M.tin1); res.parts++;
+    if (B.M.tin2) { await sendText(chatId, B.M.tin2); res.parts++; }
+    return res;
+  }
+  let weekBusy = false;
+  async function weekTick() {
+    if (weekBusy) return; const r = remindCfg(), w = r.week || {}; if (!w.on || !w.chatId) return;
+    const n = vnNow(), today = vnToday(); if (n.getUTCDay() !== 1 || w.lastDate === today) return;
+    if (n.getUTCHours() * 60 + n.getUTCMinutes() < 7 * 60) return;
+    weekBusy = true;
+    try { w.lastDate = today; r.week = w; remindSave(r); await weekSend(w.chatId); } catch (e) {} finally { weekBusy = false; }
+  }
+  setInterval(function () { weekTick().catch(function () {}); }, 60000);
 
   /* ---------------- Cac duong /api/zalo/* ---------------- */
   function safeEq(a, b) {
@@ -997,11 +1027,33 @@ module.exports = function (ctx) {
       aiCfgSave(c); ctx.sendJson(res, 200, { ok: true }); return true;
     }
 
+    // ---- Anh bao cao tuan (cong khai, theo ma ngau nhien — Zalo tai anh ve) ----
+    if (p.indexOf('/api/zalo/week/img/') === 0 && method === 'GET') {
+      const tk = (remindCfg().week || {}).token || '', mm = /^\/api\/zalo\/week\/img\/([a-f0-9]{24})\.png$/.exec(p);
+      if (mm && tk && mm[1] === tk) { try { ctx.sendBytes(res, 200, 'image/png', fs.readFileSync(weekImgPath())); } catch (e) { ctx.sendJson(res, 404, { error: 'no image' }); } } else ctx.sendJson(res, 404, { error: 'not found' });
+      return true;
+    }
     // ---- Nhac viec tu dong (chi chu): /api/zalo/remind (GET xem, POST luu), /api/zalo/remind/now (POST gui thu ngay) ----
     if (p.indexOf('/api/zalo/remind') === 0) {
       const c = aiCfg();
       if (!((c.ownerHash || (ctx.authOn && ctx.authOn())) && ownerMode(req))) { ctx.sendJson(res, 403, { ok: false, error: 'Chỉ chủ mới dùng được nhắc việc' }); return true; }
-      if (p === '/api/zalo/remind' && method === 'GET') { const r = remindCfg(); ctx.sendJson(res, 200, { ok: true, on: r.on, hour: r.hour, minute: r.minute, chatId: r.chatId, lastDate: r.lastDate, hold: { on: !!(r.hold && r.hold.on), chatId: String((r.hold && r.hold.chatId) || ''), lastDate: String((r.hold && r.hold.lastDate) || '') }, chats: seenChats() }); return true; }
+      if (p === '/api/zalo/remind' && method === 'GET') { const r = remindCfg(); ctx.sendJson(res, 200, { ok: true, on: r.on, hour: r.hour, minute: r.minute, chatId: r.chatId, lastDate: r.lastDate, hold: { on: !!(r.hold && r.hold.on), chatId: String((r.hold && r.hold.chatId) || ''), lastDate: String((r.hold && r.hold.lastDate) || '') }, week: { on: !!(r.week && r.week.on), chatId: String((r.week && r.week.chatId) || ''), lastDate: String((r.week && r.week.lastDate) || '') }, chats: seenChats() }); return true; }
+      if (p === '/api/zalo/remind/week/preview' && method === 'GET') { try { const B = weekBuild(nextMon()); ctx.sendJson(res, 200, { ok: true, parts: [B.M.tin1, B.M.tin2].filter(Boolean), count: B.D.P.length, base: B.D.base }); } catch (e) { ctx.sendJson(res, 200, { ok: false, error: String((e && e.message) || e) }); } return true; }
+      if (p === '/api/zalo/remind/week/preview.png' && method === 'GET') { try { const B = weekBuild(nextMon()); ctx.sendBytes(res, 200, 'image/png', REPORT.dashboardPng(B.D)); } catch (e) { ctx.sendJson(res, 500, { ok: false, error: String((e && e.message) || e) }); } return true; }
+      if (p === '/api/zalo/remind/week' && method === 'POST') {
+        let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+        const r = remindCfg(), w = r.week || {}; w.on = !!b.on; w.chatId = String(b.chatId || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80);
+        if (w.on && !w.chatId) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa chọn nhóm nhận báo cáo' }); return true; }
+        const n0 = vnNow(); if (w.on && n0.getUTCDay() === 1 && n0.getUTCHours() * 60 + n0.getUTCMinutes() >= 7 * 60 && !w.lastDate) w.lastDate = vnToday();   // bat sau 7h thu Hai: de tuan sau, khong gui bu
+        r.week = w; remindSave(r); ctx.sendJson(res, 200, { ok: true }); return true;
+      }
+      if (p === '/api/zalo/remind/week/now' && method === 'POST') {
+        let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}
+        const chatId = String(b.chatId || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80);
+        if (!chatId) { ctx.sendJson(res, 400, { ok: false, error: 'Chưa chọn nhóm' }); return true; }
+        try { const k = await weekSend(chatId); ctx.sendJson(res, 200, { ok: true, photo: k.photo, photoErr: k.photoErr || '', parts: k.parts, projects: k.projects }); } catch (e) { ctx.sendJson(res, 200, { ok: false, error: String((e && e.message) || e) }); }
+        return true;
+      }
       if (p === '/api/zalo/remind/hold/preview' && method === 'GET') { const ps = holdParts(); ctx.sendJson(res, 200, { ok: true, parts: ps, count: ps.length ? (O_count()) : 0 }); return true; }
       if (p === '/api/zalo/remind/hold' && method === 'POST') {
         let b = {}; try { b = JSON.parse((await ctx.readBody(req)) || '{}'); } catch (e) {}

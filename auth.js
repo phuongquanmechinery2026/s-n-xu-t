@@ -446,7 +446,7 @@ module.exports = function (ctx) {
   // Cho phep / chan 1 yeu cau /api/* (goi trong server.js truoc khi xu ly)
   function allow(req, p, method) {
     if (!authOn()) return { ok: true };
-    if (p === '/api/ping' || p === '/api/zalo/webhook' || p.indexOf('/api/auth/') === 0) return { ok: true };
+    if (p === '/api/ping' || p === '/api/zalo/webhook' || p.indexOf('/api/auth/') === 0 || p.indexOf('/api/zalo/week/img/') === 0) return { ok: true };
     const s = sessionOf(req);
     if (!s) return { ok: false, status: 401, error: 'Cần đăng nhập' };
     req.nmsxUser = s;

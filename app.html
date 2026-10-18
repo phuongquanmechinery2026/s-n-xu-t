@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-18x-may';
+  var BUILD_ID = '2026-10-18y-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3461,7 +3461,7 @@
     var c = o && o.customerInfo ? String(o.customerInfo).split(/[\r\n]+/)[0].trim() : '';
     return c ? '<span style="display:block;font-size:12px;font-weight:400;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(c)+'</span>' : '';
   }
-  function renderPlan(){ return renderPlan0() + holdSection(); }
+  function renderPlan(){ return renderPlan0() + holdSection() + weekPanel(); }
   function renderPlan0(){
     var act = activeOrders().filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o); });
     // Đơn đã sản xuất xong, chờ giao: đưa xuống cuối trang, việc cần làm nằm trên.
@@ -10056,6 +10056,43 @@ function stockMatch(name, spec, rows) {
       'html.pq-ro-orders .sched-btn{display:none !important;}';
     document.head.appendChild(st);
   })();
+  /* ===== 08y: BÁO CÁO TUẦN — bảng cài đặt (chỉ chủ, bản web) ở cuối trang Kế hoạch: chọn nhóm Zalo, bật/tắt, xem trước, gửi thử ===== */
+  function weekPanel(){
+    if (!(window.NMSX_AUTH && window.NMSX_AUTH.on) || !auOwner()) return '';
+    if (!HM.d) return '';
+    var d = HM.d, w = d.week || {}, chats = d.chats || [], cur = w.chatId || '';
+    var opts = '<option value="">— chọn nhóm Zalo nhận báo cáo —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===cur?' selected':'')+'>'+esc((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5))+'</option>'; }).join('');
+    return '<div class="panel" style="margin-top:14px;padding:12px 14px;"><div class="panel-head" style="padding:0 0 8px;border:none;"><h2>📊 Báo cáo tuần — đăng nhóm Zalo 7:00 sáng thứ Hai</h2></div>'+
+      '<div class="pqd-cap" style="margin-bottom:8px;">'+(w.on ? '<b style="color:var(--good,#1f8a4c);">ĐANG BẬT</b> — ' : '<b>ĐANG TẮT</b> — ')+'mỗi sáng thứ Hai 7:00 bot tự lấy dữ liệu và đăng lên nhóm: <b>ảnh dashboard tiến độ</b> + <b>tin tiến độ</b> + <b>tin vật tư (riêng)</b> cho các công trình đến hạn trong 2 tuần tới. Đơn đã giao và đơn tạm dừng không đưa vào; ngày giao lấy theo lịch đã chốt ở "Đổi lịch". Bot chỉ thấy nhóm đã có người nhắn tên bot ít nhất 1 lần.</div>'+
+      '<div class="pqd-bar" style="padding:0;flex-wrap:wrap;gap:10px;"><select id="wkChat" class="pqd-inp" style="width:auto;max-width:420px;">'+opts+'</select>'+
+      '<label class="pqd-cap" style="display:inline-flex;gap:6px;align-items:center;"><input type="checkbox" id="wkOn"'+(w.on?' checked':'')+'> Bật báo cáo tự động</label>'+
+      '<button class="btn btn-primary btn-sm" id="wkSave" type="button">Lưu</button><button class="btn btn-sm" id="wkPrev" type="button">Xem trước báo cáo</button><button class="btn btn-sm" id="wkNow" type="button">Gửi thử ngay</button></div><div class="pqd-cap" id="wkMsg" style="min-height:18px;margin-top:6px;">'+esc(HM.wmsg||'')+'</div></div>';
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('#wkSave,#wkPrev,#wkNow') : null; if (!b) return;
+    var $ = function(id){ return document.getElementById(id); };
+    var msg = function(t, bad){ HM.wmsg = t; var m = $('wkMsg'); if (m){ m.style.color = bad ? 'var(--bad,#c0362c)' : 'var(--good,#1f8a4c)'; m.textContent = t; } };
+    if (b.id === 'wkPrev'){
+      return auApi('/api/zalo/remind/week/preview').then(function(j){
+        if (!j.ok) return msg(j.error || 'Không xem được.', true);
+        var tq = (typeof auTq==='function' && auTq()) || '', src = '/api/zalo/remind/week/preview.png'+tq+(tq ? '&' : '?')+'x='+Date.now();
+        var bd = auModal('<h3>Báo cáo tuần — xem trước (bản sẽ đăng sáng thứ Hai tới)</h3><div class="pqd-cap">'+(j.count ? j.count+' công trình đến hạn trong 2 tuần tới.' : 'Hiện chưa có công trình nào đến hạn trong 2 tuần tới.')+' Bot sẽ gửi: ảnh → tin tiến độ → tin vật tư.</div>'+
+          (j.count ? '<img src="'+esc(src)+'" alt="Dashboard" style="width:100%;max-width:520px;border:1px solid var(--border,#dde1dd);border-radius:10px;margin:8px 0;display:block;">' : '')+
+          (j.parts||[]).map(function(t, i){ return '<div class="pqd-cap" style="margin-top:8px;font-weight:700;">Tin '+(i+1)+(i===1?' (vật tư, riêng)':'')+'</div><pre style="white-space:pre-wrap;font:inherit;font-size:13px;background:var(--surface-2,#f1f3f4);padding:10px 12px;border-radius:8px;">'+esc(t)+'</pre>'; }).join('')+
+          '<div class="modal-actions"><button class="btn btn-ghost" id="wkPrevX" type="button">Đóng</button></div>', true);
+        $('wkPrevX').onclick = function(){ bd.remove(); };
+      });
+    }
+    var body = {on:$('wkOn').checked, chatId:$('wkChat').value};
+    if (b.id === 'wkSave'){
+      if (body.on && !body.chatId) return msg('Chọn nhóm Zalo nhận báo cáo trước khi bật.', true);
+      auPost('/api/zalo/remind/week', body).then(function(j){ if (j.ok){ HM.d = null; HM.wmsg = 'Đã lưu.'; holdLoad(); } else msg(j.error || 'Không lưu được.', true); });
+    } else {
+      if (!body.chatId) return msg('Chọn nhóm Zalo trước.', true);
+      if (!window.confirm('Gửi NGAY báo cáo tuần (ảnh + 2 tin) vào nhóm Zalo đã chọn?')) return;
+      msg('Đang gửi…'); auPost('/api/zalo/remind/week/now', {chatId:body.chatId}).then(function(j){ msg(j.ok ? ('Đã gửi '+j.parts+' tin'+(j.projects ? (j.photo ? ' + ảnh dashboard.' : '. ẢNH CHƯA GỬI ĐƯỢC ('+(j.photoErr||'lỗi')+').') : ' (không có công trình đến hạn nên không có ảnh).')) : (j.error || 'Không gửi được.'), !j.ok || (j.projects && !j.photo)); });
+    }
+  });
   renderBanner();
   loadFromSeedOnly();
   boot();
