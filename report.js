@@ -33,8 +33,13 @@ function buildData(orders, tasks, baseIso) {
     const mats = (o.materials || []).filter(function (m) { return m && m.name && String(m.name).trim() && (m.unit || (m.qty != null && m.qty !== '')) && m.section !== true; });
     const c = { ok: 0, req: 0, new: 0 }; mats.forEach(function (m) { c[matClass(m.status)]++; });
     const late = mats.filter(function (m) { return matClass(m.status) !== 'ok' && m.reqDate && isoOf(m.reqDate) <= baseIso; });
-    const name = its.length ? (String(its[0].name).replace(/\s+/g, ' ').trim().replace(/[:：]\s*$/, '') + (its.length > 1 ? ' +' + (its.length - 1) + ' hạng mục khác' : '')) : String(o.customerInfo || '').split(/[\r\n]+/)[0];
-    const p = { id: o.id, code: o.code || o.id, dept: dept, due: eff, name: name.slice(0, 70), cust: String(o.customerInfo || '').split(/[\r\n]+/)[0].replace(/\s+/g, ' ').trim().slice(0, 60),
+    // tên công trình: đơn nhiều hạng mục -> lấy tên thiết bị trong "Khách - Thiết bị"; đơn 1 hạng mục -> tên hạng mục
+    const cl = String(o.customerInfo || '').split(/[\r\n]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    let equip = cl.length > 1 ? cl.slice(1).join(' ') : (cl[0] || '').split(/\s-\s|-\s/).slice(1).join(' - ');
+    equip = equip.replace(/[…\.]+\s*$/, '').replace(/\s+/g, ' ').trim();
+    const first = its.length ? String(its[0].name).replace(/\s+/g, ' ').trim().replace(/[:：]\s*$/, '') : '';
+    const name = (its.length > 1 && equip.length >= 4) ? equip : (its.length ? first + (its.length > 1 ? ' +' + (its.length - 1) + ' hạng mục khác' : '') : (cl[0] || ''));
+    const p = { id: o.id, code: o.code || o.id, dept: dept, due: eff, name: name.slice(0, 70), cust: String(o.customerInfo || '').split(/[\r\n]+/)[0].replace(/\s+/g, ' ').replace(/[\s-]+$/, '').trim().slice(0, 60),
       nIt: its.length, nDone: done, nWork: work, rev: (o.sched && o.sched.rev) || 0, orig: isoOf(o.sched && o.sched.orig) || sn,
       tkOpen: tk.length, tkLate: tk.filter(function (t) { return t.date && isoOf(t.date) < baseIso; }).length, who: Array.from(new Set(tk.map(function (t) { return t.who; }).filter(Boolean))).sort() };
     P.push(p);
