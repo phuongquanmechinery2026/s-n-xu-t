@@ -1551,6 +1551,7 @@
       <div class="tab" data-view="plan" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"/></svg>Kế hoạch</div>
       <div class="tab" data-view="lich" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/></svg>Lịch tháng</div>
       <div class="tab" data-view="tiendo" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg>Báo cáo tiến độ</div>
+      <div class="tab" data-view="meeting" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM4 9h16M8 3v4M16 3v4M8 14l2.5 2.5L16 12"/></svg>Họp tiến độ</div>
       <div class="pq-navlbl">Tham khảo</div>
       <div class="tab" data-view="electric" data-group="sheets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"/></svg>Sheets tham khảo</div>
     </div>
@@ -1644,7 +1645,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-17t-may';
+  var BUILD_ID = '2026-10-18u-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1843,7 +1844,8 @@
     var readyToShip = items.filter(function(it){ return it.status==='SẢN XUẤT XONG'; });
     return {notReady:notReady, readyToShip:readyToShip};
   }
-  function headlineSnapshot(o){
+  function headlineSnapshot(o){ var b = headlineSnapshot0(o), sc = o && o.sched; if (!(sc && sc.ship)) return b; var c = Object.assign({cluster:null, banve:null, vattu:null, tien:null}, b || {}); c.origDate = (b && b.deliveryDate) || null; c.deliveryDate = sc.ship; c.confirmed = true; return c; }
+  function headlineSnapshot0(o){
     var snaps = o.progressSnapshots || [];
     if (!snaps.length) return null;
     var withDate = snaps.filter(function(s){ return !!s.deliveryDate; });
@@ -2314,7 +2316,7 @@
     {key:'congviec', label:'Công việc', views:['tasks','kanban','alerts','tcal']},
     {key:'donhang',  label:'Đơn hàng',  views:['current','yearly']},
     {key:'vattukho', label:'Vật tư & Kho', views:['mrp','reqdate','pr','xuat','issue','kho']},
-    {key:'kehoach',  label:'Kế hoạch', views:['plan','lich','tiendo']},
+    {key:'kehoach',  label:'Kế hoạch', views:['plan','lich','tiendo','meeting']},
     {key:'sheets',   label:'Sheets tham khảo', views:['electric']}
   ];
   function groupOfView(v){
@@ -2367,7 +2369,7 @@
     try { var ca = document.getElementById('countAlert'); if (ca){ var nA = cvAlertCount(); ca.textContent = nA; ca.style.display = nA ? '' : 'none'; } } catch(e){}
     var main = document.getElementById('main');
     // Màn hình bảng/chi tiết -> rộng gần hết màn hình; Tổng quan/Kế hoạch -> vừa phải.
-    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo','pr','issue','tasks','kanban','xuat','alerts','tcal'].indexOf(STATE.view)>=0);
+    main.classList.toggle('main-wide', ['current','yearly','order','mrp','reqdate','kho','electric','lich','tiendo','pr','issue','tasks','kanban','xuat','alerts','tcal','meeting'].indexOf(STATE.view)>=0);
     if (STATE.view==='dashboard') main.innerHTML = renderDashboardPQ();
     else if (STATE.view==='current'){
       // Khi lọc "Đã giao": phải hiện được các đơn ĐÃ giao (không thì bấm chip
@@ -2384,6 +2386,7 @@
     else if (STATE.view==='plan') main.innerHTML = renderPlan();
     else if (STATE.view==='lich') main.innerHTML = renderLich();
     else if (STATE.view==='tiendo') main.innerHTML = renderTienDo();
+    else if (STATE.view==='meeting') main.innerHTML = renderMeeting();
     else if (STATE.view==='kho') main.innerHTML = renderKho();
     else if (STATE.view==='tasks') main.innerHTML = renderTasks();
     else if (STATE.view==='kanban') main.innerHTML = renderKanban();
@@ -3484,14 +3487,14 @@
       var overdue = items.some(function(x){ return daysRemaining(x.snap.deliveryDate)<0; });
       html += '<div class="plan-week"><div class="plan-week-head'+(overdue?' overdue':'')+'">Tuần '+fmtDate(wsDate.toISOString().slice(0,10))+' – '+fmtDate(weDate.toISOString().slice(0,10))+' <span style="font-weight:600;opacity:.85;">('+items.length+' mục)</span></div><div class="plan-week-body">';
       items.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+holdBtn(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.snap.cluster?' · '+esc(x.snap.cluster):'')+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+schedPill(x.o)+remainingPillForOrder(x.o)+holdBtn(x.o)+'</div>';
       });
       html += '</div></div>';
     });
     if (noDate.length){
       html += '<div class="plan-week"><div class="plan-week-head">Chưa có ngày giao <span style="font-weight:600;opacity:.85;">('+noDate.length+' mục)</span></div><div class="plan-week-body">';
       noDate.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+remainingPillForOrder(x.o)+holdBtn(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(orderProdDone(x.o)?'<span class="pill pill-info">Đã sản xuất xong · chờ giao</span> ':'')+schedPill(x.o)+remainingPillForOrder(x.o)+holdBtn(x.o)+'</div>';
       });
       html += '</div></div>';
     }
@@ -3503,7 +3506,7 @@
     if (waiting.length){
       html += '<div class="plan-week"><div class="plan-week-head">Đã sản xuất xong · chờ giao <span style="font-weight:600;opacity:.85;">('+waiting.length+' mục)</span></div><div class="plan-week-body">';
       waiting.forEach(function(x){
-        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="plan-row" data-goto-td="'+esc(x.o.id)+'"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+planCust(x.o)+'</span>'+(x.snap && x.snap.deliveryDate ? '<span class="pill pill-neutral">Giao '+esc(fmtDate(x.snap.deliveryDate))+'</span> ' : '')+schedPill(x.o)+remainingPillForOrder(x.o)+'</div>';
       });
       html += '</div></div>';
     }
@@ -3540,12 +3543,13 @@
     var byDay = {};
     var monOrders = {}, monMatRows = 0, monMatDone = 0;
     currentWorkOrders().forEach(function(o){
-      (o.progressSnapshots||[]).forEach(function(s){
+      lichSnaps(o).forEach(function(s){
         if (!s.deliveryDate || !_inMonth(s.deliveryDate, y, m)) return;
         var d = s.deliveryDate.slice(0,10);
         (byDay[d] = byDay[d] || {ords:[], mats:[]}).ords.push({o:o, cluster:s.cluster||null});
         monOrders[o.id] = 1;
       });
+      if (o.sched && o.sched.test && _inMonth(o.sched.test, y, m)){ var dt0 = String(o.sched.test).slice(0,10); (byDay[dt0] = byDay[dt0] || {ords:[], mats:[]}).ords.push({o:o, cluster:null, test:true}); }
       (orderProdDone(o) ? [] : (o.materials||[])).forEach(function(mm){
         if (!mm || !mm.reqDate || !_inMonth(mm.reqDate, y, m) || isMatSection(mm)) return;
         var d = mm.reqDate.slice(0,10);
@@ -3588,7 +3592,7 @@
       html += '<div class="cal-cell'+(dk===todayIso?' today':'')+(has?' has':'')+(STATE.lichDay===dk?' sel':'')+'" data-lich-day="'+dk+'">';
       html += '<div class="cal-daynum">'+day+'</div>';
       ev.ords.slice(0,4).forEach(function(x){
-        html += '<div class="cal-chip '+lichChipCls(x.o, x.cluster, dk)+'" title="Giao hàng: '+esc(orderTitle(x.o))+(x.cluster?' · '+esc(x.cluster):'')+'">🚚 <b>'+esc(x.o.code||'')+'</b> '+esc(x.cluster||orderTitle(x.o))+'</div>';
+        html += '<div class="cal-chip '+(x.test?'lc-test':lichChipCls(x.o, x.cluster, dk))+'" title="'+(x.test?'Thử máy: ':'Giao hàng: ')+esc(orderTitle(x.o))+(x.cluster?' · '+esc(x.cluster):'')+'">'+(x.test?'🔧':'🚚')+' <b>'+esc(x.o.code||'')+'</b> '+esc(x.cluster||orderTitle(x.o))+'</div>';
       });
       if (ev.ords.length>4) html += '<div class="cal-more">+'+(ev.ords.length-4)+' đơn nữa</div>';
       if (ev.mats.length) html += '<div class="cal-chip lc-mat">📦 Vật tư cần về: '+ev.mats.length+' dòng</div>';
@@ -3608,7 +3612,7 @@
       var ev = byDay[dk];
       html += '<div class="lich-day-grp"><div class="lich-day-hd">'+fmtDate(dk)+' — '+(daysRemaining(dk)<0?('<span style="color:var(--bad);">quá hạn '+Math.abs(daysRemaining(dk))+' ngày</span>'):(daysRemaining(dk)===0?'hôm nay':('còn '+daysRemaining(dk)+' ngày'))) + '</div>';
       ev.ords.forEach(function(x){
-        html += '<div class="lich-row" data-goto-td="'+esc(x.o.id)+'"><span class="lc-dot '+lichChipCls(x.o,x.cluster,dk)+'"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(orderTitle(x.o))+(x.cluster?' · <b>'+esc(x.cluster)+'</b>':'')+planCust(x.o)+'</span>'+remainingPillForOrder(x.o)+'</div>';
+        html += '<div class="lich-row" data-goto-td="'+esc(x.o.id)+'"><span class="lc-dot '+(x.test?'lc-test':lichChipCls(x.o,x.cluster,dk))+'"></span><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+(x.test?'🔧 Thử máy · ':'')+esc(orderTitle(x.o))+(x.cluster?' · <b>'+esc(x.cluster)+'</b>':'')+planCust(x.o)+'</span>'+remainingPillForOrder(x.o)+'</div>';
       });
       ev.mats.forEach(function(x){
         var cls = matStatusClass(x.m.status);
@@ -9985,6 +9989,87 @@ function stockMatch(name, spec, rows) {
       };
     });
   }
+  /* ===== 08u: HỌP TIẾN ĐỘ — xác nhận lịch THỬ MÁY và XUẤT HÀNG sau mỗi cuộc họp (đơn đã giao / tạm dừng không hiện) =====
+     o.sched = {test, ship, note, at (ngày họp), by, log:[…]}. Ngày xuất hàng đã xác nhận THAY cho ngày giao ban đầu ở Kế hoạch / Lịch / Tổng quan / Quá hạn. */
+  function lichSnaps(o){
+    var sn = o.progressSnapshots || []; if (!(o.sched && o.sched.ship)) return sn;
+    var hs0 = headlineSnapshot0(o), out = sn.filter(function(s){ return s!==hs0; });
+    out.push({cluster:(hs0 && hs0.cluster) || null, deliveryDate:o.sched.ship}); return out;
+  }
+  function schedPill(o){
+    var s = o && o.sched; if (!s || (!s.test && !s.ship)) return '';
+    return (s.test ? '<span class="pill pill-info" style="white-space:nowrap;">🔧 Thử máy '+esc(fmtDate(s.test))+'</span> ' : '')+'<span class="pill pill-good" style="white-space:nowrap;" title="Đã xác nhận trong họp tiến độ ngày '+esc(fmtDate(s.at||''))+'">✓ lịch đã xác nhận</span> ';
+  }
+  function mtOrig(o){ var b = headlineSnapshot0(o); return b && b.deliveryDate ? String(b.deliveryDate).slice(0,10) : ''; }
+  function mtOrders(){
+    return currentWorkOrders().slice().sort(function(a, b){
+      var da = (headlineSnapshot(a) || {}).deliveryDate || '9999', db2 = (headlineSnapshot(b) || {}).deliveryDate || '9999'; return da < db2 ? -1 : (da > db2 ? 1 : 0);
+    });
+  }
+  function mtVal(o, f){
+    var d = (STATE.mtDraft || {})[o.id] || {}, s = o.sched || {};
+    if (d[f] != null) return d[f];
+    return f==='ship' ? (s.ship || mtOrig(o)) : (s[f] || '');
+  }
+  function mtDirty(o){ var d = (STATE.mtDraft || {})[o.id]; if (!d) return false; return ['test','ship','note'].some(function(f){ return d[f]!=null && d[f] !== (f==='ship' ? ((o.sched&&o.sched.ship) || mtOrig(o)) : ((o.sched && o.sched[f]) || '')); }); }
+  function mtWeekStart(iso){ var dt = new Date(iso+'T00:00:00'); return rdAddDays(iso, -((dt.getDay()+6)%7)); }
+  function renderMeeting(){
+    STATE.mtDate = STATE.mtDate || pqxToday(); STATE.mtDraft = STATE.mtDraft || {};
+    var rows = mtOrders(), ws = mtWeekStart(STATE.mtDate), fresh = 0, moved = 0, dirty = 0;
+    rows.forEach(function(o){ var s = o.sched; if (s && s.at && s.at >= ws) fresh++; if (s && s.ship && mtOrig(o) && s.ship !== mtOrig(o)) moved++; if (mtDirty(o)) dirty++; });
+    var h = '<div class="pqd-head"><div><h1>Họp tiến độ — xác nhận lịch thử máy & xuất hàng</h1><div class="pqd-sub">Sau mỗi buổi họp, điền ngày <b>thử máy</b> và <b>xuất hàng</b> đã chốt rồi bấm <b>Xác nhận</b>. Ngày xuất hàng đã xác nhận sẽ thay cho ngày giao ban đầu ở Kế hoạch, Lịch tháng, Tổng quan và mục Quá hạn. <b>Đơn đã giao và đơn đang tạm dừng không hiện ở đây.</b></div></div></div>';
+    h += '<div class="panel" style="padding:12px 14px;margin-bottom:12px;"><div class="pqd-bar" style="padding:0;flex-wrap:wrap;gap:12px;align-items:center;"><label class="pqd-cap">Ngày họp <input type="date" class="pqd-inp" id="mtDate" value="'+esc(STATE.mtDate)+'" style="width:150px;"></label>'+
+      '<span class="pill pill-info">Đã xác nhận tuần này: <b>'+fresh+'/'+rows.length+'</b></span><span class="pill pill-warn">Đã dời so với ban đầu: <b>'+moved+'</b></span><span style="flex:1"></span>'+
+      '<button class="btn btn-primary" data-mt="all"'+(dirty?'':' disabled')+'>✓ Xác nhận các dòng đã sửa ('+dirty+')</button></div></div>';
+    if (!rows.length) return h + '<div class="panel"><div class="empty-note">Không có đơn nào đang chạy ở bộ phận này.</div></div>';
+    h += '<div class="panel" style="padding:0;"><div class="table-wrap" style="border:none;"><table class="mrp-table pqd-table"><thead><tr><th style="width:92px;">Mã đơn</th><th>Công trình</th><th style="width:108px;">Giao ban đầu</th><th style="width:150px;">🔧 Thử máy</th><th style="width:150px;">🚚 Xuất hàng</th><th style="width:210px;">Ghi chú họp</th><th style="width:190px;">Tình trạng lịch</th><th style="width:150px;"></th></tr></thead><tbody>';
+    rows.forEach(function(o){
+      var s = o.sched || {}, orig = mtOrig(o), ship = mtVal(o, 'ship'), test = mtVal(o, 'test'), dr = ship ? daysRemaining(ship) : null;
+      var diff = (s.ship && orig) ? Math.round((new Date(s.ship+'T00:00:00') - new Date(orig+'T00:00:00')) / 86400000) : 0;
+      var st = s.at ? '<span class="pill pill-good" style="white-space:nowrap;">✓ '+esc(fmtDate(s.at))+(s.by ? ' · '+esc(s.by) : '')+'</span>'+(diff ? '<div class="pqd-cap" style="color:'+(diff>0?'var(--bad,#c0362c)':'var(--good,#1f8a4c)')+';">'+(diff>0?'dời +':'sớm ')+Math.abs(diff)+' ngày so với ban đầu</div>' : '<div class="pqd-cap">giữ nguyên ngày ban đầu</div>') : '<span class="pill pill-warn" style="white-space:nowrap;">chưa xác nhận</span>';
+      if (test && ship && test > ship) st += '<div class="pqd-cap" style="color:var(--bad,#c0362c);">⚠ thử máy sau ngày xuất</div>';
+      h += '<tr data-mt-row="'+esc(o.id)+'"'+(mtDirty(o)?' class="pqd-on"':'')+'><td class="num"><b>'+esc(o.code||'—')+'</b></td><td><b>'+esc(orderTitle(o))+'</b>'+planCust(o)+(orderProdDone(o)?' <span class="pill pill-info">Đã SX xong · chờ giao</span>':'')+'</td><td class="num">'+(orig ? esc(fmtDate(orig)) : '—')+'</td>'+
+        '<td><input type="date" class="pqd-inp" data-mt-f="test" data-id="'+esc(o.id)+'" value="'+esc(test)+'"></td>'+
+        '<td><input type="date" class="pqd-inp" data-mt-f="ship" data-id="'+esc(o.id)+'" value="'+esc(ship)+'"'+(dr!==null && dr<0 ? ' style="border-color:var(--bad,#c0362c);"' : '')+'></td>'+
+        '<td><input type="text" class="pqd-inp" data-mt-f="note" data-id="'+esc(o.id)+'" value="'+esc(mtVal(o, 'note'))+'" placeholder="vd: chờ vật tư, khách dời…" maxlength="160" autocomplete="off" style="width:100%;"></td>'+
+        '<td>'+st+'</td><td style="white-space:nowrap;"><button class="btn btn-sm btn-primary" data-mt="ok" data-id="'+esc(o.id)+'">Xác nhận</button> <button class="btn btn-sm" data-mt="hist" data-id="'+esc(o.id)+'" title="Lịch sử đổi lịch">🕘</button></td></tr>';
+    });
+    return h + '</tbody></table></div></div>';
+  }
+  function mtConfirm(id){
+    var o = STATE.orders[id]; if (!o || readOnlyNote()) return false;
+    var s0 = o.sched || {}, orig = mtOrig(o), who = (typeof pqWhoGet==='function' && pqWhoGet()) || '', at = STATE.mtDate || pqxToday();
+    var test = mtVal(o, 'test'), ship = mtVal(o, 'ship'), note = String(mtVal(o, 'note') || '').trim();
+    var log = (s0.log || []).concat([{at:at, by:who, test:test || null, ship:ship || null, note:note}]).slice(-30);
+    patchOrder(id, {sched:{test:test || null, ship:ship || null, note:note, at:at, by:who, log:log}});
+    if (STATE.mtDraft) delete STATE.mtDraft[id]; return true;
+  }
+  document.addEventListener('input', function(e){
+    var t = e.target; if (!t.getAttribute || !t.getAttribute('data-mt-f')) return;
+    var id = t.getAttribute('data-id'); STATE.mtDraft = STATE.mtDraft || {}; (STATE.mtDraft[id] = STATE.mtDraft[id] || {})[t.getAttribute('data-mt-f')] = t.value;
+    var row = t.closest('tr'); if (row){ var o = STATE.orders[id]; row.classList.toggle('pqd-on', !!(o && mtDirty(o))); }
+    var all = document.querySelector('[data-mt="all"]'); if (all && STATE.view==='meeting'){ var n = mtOrders().filter(mtDirty).length; all.disabled = !n; all.textContent = '✓ Xác nhận các dòng đã sửa ('+n+')'; }
+  });
+  document.addEventListener('change', function(e){ if (e.target && e.target.id==='mtDate'){ STATE.mtDate = e.target.value || pqxToday(); renderAll(); } });
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-mt]'); if (!b) return;
+    var a = b.getAttribute('data-mt'), id = b.getAttribute('data-id');
+    if (a === 'ok'){ if (mtConfirm(id)){ renderAll(); toast('Đã xác nhận lịch đơn '+((STATE.orders[id]||{}).code||'')+'.', 2600); } }
+    else if (a === 'all'){ var n = 0; mtOrders().filter(mtDirty).forEach(function(o){ if (mtConfirm(o.id)) n++; }); renderAll(); toast('Đã xác nhận '+n+' đơn.', 3000); }
+    else if (a === 'hist'){
+      var o = STATE.orders[id]; if (!o) return; var L = ((o.sched && o.sched.log) || []).slice().reverse();
+      var bd = auModal('<h3>Lịch sử đổi lịch — '+esc(o.code||'')+'</h3><div class="pqd-cap" style="margin-bottom:6px;">Ngày giao ban đầu (Sheet): <b>'+esc(fmtDate(mtOrig(o)))+'</b></div>'+(L.length ? '<div class="table-wrap" style="border:none;max-height:50vh;overflow:auto;"><table class="mrp-table pqd-table"><thead><tr><th>Ngày họp</th><th>Người ghi</th><th>Thử máy</th><th>Xuất hàng</th><th>Ghi chú</th></tr></thead><tbody>'+L.map(function(x){ return '<tr><td>'+esc(fmtDate(x.at))+'</td><td>'+esc(x.by||'')+'</td><td>'+(x.test?esc(fmtDate(x.test)):'—')+'</td><td>'+(x.ship?esc(fmtDate(x.ship)):'—')+'</td><td>'+esc(x.note||'')+'</td></tr>'; }).join('')+'</tbody></table></div>' : '<div class="empty-note">Chưa xác nhận lần nào.</div>')+'<div class="modal-actions"><button class="btn btn-ghost" id="mtHistX" type="button">Đóng</button></div>', true);
+      bd.querySelector('#mtHistX').onclick = function(){ bd.remove(); };
+    }
+  });
+  (function mtStyle(){
+    var st = document.createElement('style');
+    st.textContent =
+      '.cal-chip.lc-test{background:#efe3ff;color:#4b2c8a;border-color:#cdb6f5;}.lc-dot.lc-test{background:#8a5be0;}'+
+      'html.pq-ro-orders #main[data-view="meeting"] :is(input,select,textarea){pointer-events:none;}html.pq-ro-orders #main[data-view="meeting"] :is([data-mt="ok"],[data-mt="all"]){display:none !important;}'+
+      'html.pq-ro-orders #main[data-view="meeting"]::before{content:"🔒 Bạn chỉ có quyền XEM phần này (vai trò hiện tại không được sửa đơn).";display:block;padding:8px 12px;margin:0 0 10px;background:#fff4d6;color:#7a4b00;border-radius:8px;font-size:13px;font-weight:600;}';
+    document.head.appendChild(st);
+  })();
   renderBanner();
   loadFromSeedOnly();
   boot();

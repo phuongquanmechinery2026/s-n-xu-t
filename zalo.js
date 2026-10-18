@@ -359,43 +359,28 @@ module.exports = function (ctx) {
   function itemLine(it, i) {
     return (i + 1) + '. ' + it.name + (it.spare ? ' (dự phòng)' : '') + (it.spec ? ' (' + it.spec + ')' : '') + (it.qty ? ' x ' + it.qty : '') + (it.unit ? ' ' + it.unit : '') + stockLine(it);
   }
-  const BOT_TAG = process.env.ZALO_BOT_TAG != null ? process.env.ZALO_BOT_TAG : '(Thử nghiệm) ';
-  const BUYER = process.env.ZALO_BUYER_NAME || 'Chú 9';
-  function missingItems(doc) { return (doc.items || []).filter(function (it) { return it.stock && it.stock.st !== 'co'; }); }
-  function buyLine(doc) {
-    const miss = missingItems(doc); if (!miss.length) return '';
-    const all = miss.length === (doc.items || []).length;
-    return '\n' + (all ? 'Kho không có hàng' : 'Kho không có ' + miss.length + ' mục') + ' → @' + BUYER + ' đặt hàng giúp nhé.';
-  }
   function summaryText(doc) {
-    const t0 = summaryCore(doc);
-    if (!t0) return '';
-    const who = doc.fromName ? '@' + doc.fromName + ' ' : '';
-    return BOT_TAG + who + t0;
-  }
-  function summaryCore(doc) {
     const n = (doc.items || []).length;
     if (doc.intent === 'khac' || doc.status === 'ignored') return '';
     if (doc.intent === 'hoi') {
       if (!n) return '';
       let t = 'Tra cứu tồn kho:';
       doc.items.slice(0, 8).forEach(function (it, i) { t += '\n' + (i + 1) + '. ' + it.name + (it.stock ? stockLine(it).replace(/^ → /, ' — ') : ' — chưa có dữ liệu kho'); });
-      if (missingItems(doc).length) t += '\nCần đặt thì nhắn: @Bot mua <tên hàng> <số lượng> <mã công trình>.';
       return t;
     }
     if (doc.status === 'applied' && doc.applied) {
       let t = 'Đã ghi ĐỀ XUẤT MUA ' + doc.id + ' (' + n + ' mục) vào VT:';
       (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); });
       t += '\nCông trình: ' + (doc.orderCode || (doc.items[0] && doc.items[0].orderCode) || '') + '. Đã lập phiếu đề nghị mua ' + doc.applied.purchaseId + ' (chờ duyệt).';
-      return t + buyLine(doc);
+      return t;
     }
-    if (doc.intent === 'mua' && n && !(doc.items || []).every(function (it) { return it.orderId; })) return 'Đã đọc đề xuất MUA ' + doc.id + ' nhưng chưa rõ công trình nào. Anh/chị nhắn lại kèm mã đơn (ví dụ 2026-191), hoặc thủ kho chọn công trình trên web.' + (function () { let t = ''; (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); }); return t; })() + buyLine(doc);
+    if (doc.intent === 'mua' && n && !(doc.items || []).every(function (it) { return it.orderId; })) return 'Đã đọc đề xuất MUA ' + doc.id + ' nhưng chưa rõ công trình nào. Anh/chị nhắn lại kèm mã đơn (ví dụ 2026-191), hoặc thủ kho chọn công trình trên web.';
     const kind = doc.intent === 'mua' ? 'MUA' : (doc.intent === 'xuat' ? 'XUẤT KHO' : 'chưa rõ MUA hay XUẤT');
     let t = 'Đã nhận yêu cầu ' + kind + ' ' + doc.id + (n ? ' gồm ' + n + ' mục:' : ': chưa đọc được mục nào, thủ kho sẽ xem tin gốc.');
     (doc.items || []).slice(0, 8).forEach(function (it, i) { t += '\n' + itemLine(it, i); });
     if (n > 8) t += '\n… và ' + (n - 8) + ' mục nữa';
     if (doc.orderCode) t += '\nCông trình: ' + doc.orderCode;
-    return t + buyLine(doc) + '\nChờ thủ kho xử lý.';
+    return t + '\nChờ thủ kho xử lý.';
   }
 
 
@@ -872,6 +857,7 @@ module.exports = function (ctx) {
       const its = (o.items || []).filter(function (i) { return i && String(i.name || '').trim(); });
       if (its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) return;
       let due = ''; (o.progressSnapshots || []).forEach(function (sn) { const d = sn && sn.deliveryDate ? String(sn.deliveryDate).slice(0, 10) : ''; if (d && (!due || d < due)) due = d; });
+      if (o.sched && o.sched.ship) due = String(o.sched.ship).slice(0, 10);
       const title = String((its[0] && its[0].name) || o.customerInfo || '').replace(/\s+/g, ' ').slice(0, 60) + (its.length > 1 ? ' +' + (its.length - 1) + ' hạng mục' : '');
       const cust = String(o.customerInfo || '').split(/[\r\n]+/)[0].replace(/\s+/g, ' ').trim().slice(0, 45);
       L.push({ since: String(o.hold.since).slice(0, 10), code: o.code || id, title: title, cust: cust, dept: o.dept === 'dien' ? 'Điện' : 'Cơ khí', due: due, why: String(o.hold.reason || '').replace(/\s+/g, ' ').slice(0, 100) });
@@ -1134,6 +1120,5 @@ module.exports = function (ctx) {
     return true;
   }
 
-  function extSend(chatId, text) { return sendText(chatId, BOT_TAG + String(text || '')); }
-  return { handle: handle, ext: { chats: seenChats, send: extSend }, _test: { remindParts: remindParts, holdParts: holdParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
+  return { handle: handle, _test: { remindParts: remindParts, holdParts: holdParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
 };
