@@ -217,6 +217,9 @@ const server = http.createServer(function (req, res) {
         return sendJson(res, 200, { ok: true, id: o.id, material: m });
       }
       if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
+      // Xem truoc bao cao tuan (thu Hai toi) de Javis lam demo cho chu duyet
+      if (p === '/api/ext/week/preview' && method === 'GET') return sendJson(res, 200, zalo.ext.weekPreview());
+      if (p === '/api/ext/week/preview.png' && method === 'GET') return sendBytes(res, 200, 'image/png', zalo.ext.weekPng());
       if (p === '/api/ext/notify' && method === 'POST') {
         const b = JSON.parse((await readBody(req)) || '{}');
         if (!b.chatId || !b.text) return sendJson(res, 400, { error: 'thieu chatId/text' });
