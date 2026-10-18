@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-18w-may';
+  var BUILD_ID = '2026-10-18x-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2839,7 +2839,7 @@
     var html = '';
     var delivered = rollupStatus(o)==='ĐÃ GIAO';
     var headerDone = false;
-    var _schedDone = false, _se = function(){ if (_schedDone || delivered || (o.progressSnapshots||[]).filter(function(x){ return x.deliveryDate; }).length > 1) return false; _schedDone = true; return true; };
+    var _schedDone = false, _se = function(){ if (_schedDone || delivered) return false; _schedDone = true; return true; };
     var midColspan = 9;
     flat.forEach(function(row, ridx){
       html += '<tr>';
@@ -9988,7 +9988,7 @@ function stockMatch(name, spec, rows) {
       };
     });
   }
-  /* ===== 08w: LỊCH THỬ MÁY KIÊM XUẤT HÀNG — sửa thẳng ở cột "Ngày giao" của trang "Công việc hiện tại" (không còn trang riêng) =====
+  /* ===== 08x: LỊCH THỬ MÁY KIÊM XUẤT HÀNG — nút "📅 Đổi lịch" ngay ở cột "Ngày giao" của trang "Công việc hiện tại" =====
      o.sched = {ship, at, by, orig, rev, log:[{n, at, by, prev, ship, note}]}. Đơn không đổi ngày thì giữ nguyên lịch cũ (không có sched).
      Ngày đã chốt THAY ngày giao ban đầu ở Kế hoạch / Lịch / Tổng quan / Quá hạn; mỗi lần đổi ghi "Lần 1, 2, 3…". */
   function lichSnaps(o){
@@ -10001,43 +10001,59 @@ function stockMatch(name, spec, rows) {
     var s = o && o.sched; if (!s || !s.ship) return '';
     return '<span class="pill pill-good" style="white-space:nowrap;" title="Thử máy & xuất hàng — lịch đã chốt (ban đầu '+esc(fmtDate(schedOrig(o)))+')">✓ lịch lần '+(s.rev || 1)+'</span> ';
   }
-  // ô "Ngày giao" sửa được (chỉ ô đầu của đơn, đơn chưa giao, đơn có tối đa 1 ngày giao)
+  // ô "Ngày giao" có nút Đổi lịch (chỉ ô đầu của đơn chưa giao)
   function schedCell(o, snap, rs){
-    var s = o.sched, eff = (s && s.ship) || (snap && snap.deliveryDate) || '';
+    var s = o.sched, eff = String((s && s.ship) || (snap && snap.deliveryDate) || '').slice(0,10);
     var dr = eff ? daysRemaining(eff) : null, late = dr!==null && dr<0;
-    var h = '<td'+rs+' class="c-date c-sched"><input type="date" class="sched-date" data-sched-ship="'+esc(o.id)+'" value="'+esc(String(eff).slice(0,10))+'" title="Sửa ngày THỬ MÁY kiêm XUẤT HÀNG sau họp tiến độ"'+(late?' style="border-color:var(--bad,#c0362c);"':'')+'>';
+    var h = '<td'+rs+' class="c-date c-sched"><div class="sched-d'+(late ? ' late' : '')+'">'+(eff ? esc(fmtDate(eff)) : '—')+'</div>'+
+      '<button type="button" class="sched-btn" data-sched-edit="'+esc(o.id)+'" title="Đổi ngày thử máy kiêm xuất hàng sau họp tiến độ">📅 Đổi lịch</button>';
     if (s && s.ship) h += '<div class="sched-rev" data-sched-hist="'+esc(o.id)+'" title="Bấm để xem lịch sử các lần đổi lịch">Lần '+(s.rev || 1)+' · gốc '+esc(fmtDate(schedOrig(o)).slice(0,5))+'</div>';
     return h+'</td>';
   }
-  function schedSet(o, v){
-    if (!o || readOnlyNote()) return;
+  function schedSet(o, v, note){
+    if (!o || readOnlyNote()) return false;
     var s0 = o.sched || {}, cur = (headlineSnapshot(o) || {}).deliveryDate || '', n = (s0.rev || 0) + 1, who = (typeof pqWhoGet==='function' && pqWhoGet()) || '', at = pqxToday();
-    var log = (s0.log || []).concat([{n:n, at:at, by:who, prev:cur ? String(cur).slice(0,10) : null, ship:v, note:''}]).slice(-30);
+    var log = (s0.log || []).concat([{n:n, at:at, by:who, prev:cur ? String(cur).slice(0,10) : null, ship:v, note:String(note || '').trim().slice(0,160)}]).slice(-30);
     patchOrder(o.id, {sched:{ship:v, at:at, by:who, orig:s0.orig || schedOrig(o), rev:n, log:log}});
-    renderAll(); toast('Đã cập nhật lịch thử máy & xuất hàng đơn '+(o.code||'')+' — Lần '+n+'.', 3200);
+    renderAll(); toast('Đã cập nhật lịch thử máy & xuất hàng đơn '+(o.code||'')+' — Lần '+n+'.', 3400); return true;
   }
-  document.addEventListener('change', function(e){
-    var t = e.target; if (!t.classList || !t.classList.contains('sched-date')) return;
-    var o = STATE.orders[t.getAttribute('data-sched-ship')]; if (!o) return;
-    var cur = String((headlineSnapshot(o) || {}).deliveryDate || '').slice(0,10);
-    if (!t.value || t.value === cur){ t.value = cur; return; }
-    schedSet(o, t.value);
-  });
+  function schedHistHtml(o){
+    var L = ((o.sched && o.sched.log) || []).slice().reverse();
+    return L.length ? '<div class="drw-h" style="margin-top:12px;">Lịch sử các lần đổi lịch</div><div class="table-wrap" style="border:none;max-height:30vh;overflow:auto;"><table class="mrp-table pqd-table"><thead><tr><th>Lần</th><th>Ngày ghi</th><th>Người ghi</th><th>Từ ngày</th><th>Sang ngày</th><th>Ghi chú</th></tr></thead><tbody>'+L.map(function(x){ return '<tr><td><b>Lần '+esc(String(x.n||''))+'</b></td><td>'+esc(fmtDate(x.at))+'</td><td>'+esc(x.by||'')+'</td><td>'+(x.prev?esc(fmtDate(x.prev)):'—')+'</td><td><b>'+esc(fmtDate(x.ship))+'</b></td><td>'+esc(x.note||'')+'</td></tr>'; }).join('')+'</tbody></table></div>' : '<div class="pqd-cap" style="margin-top:10px;">Chưa đổi lịch lần nào (đang theo ngày giao ban đầu).</div>';
+  }
+  function schedOpen(id, histOnly){
+    var o = STATE.orders[id]; if (!o) return;
+    var cur = String((headlineSnapshot(o) || {}).deliveryDate || '').slice(0,10), nextN = ((o.sched && o.sched.rev) || 0) + 1;
+    var bd = auModal('<h3>📅 Lịch thử máy & xuất hàng — '+esc(o.code||'')+'</h3><div class="pqd-cap">'+esc(orderTitle(o))+'</div>'+
+      '<div class="pqd-cap" style="margin:6px 0;">Ngày giao ban đầu: <b>'+esc(fmtDate(schedOrig(o)))+'</b> · Đang áp dụng: <b>'+esc(cur ? fmtDate(cur) : '—')+'</b>'+((o.sched && o.sched.rev) ? ' (Lần '+o.sched.rev+')' : '')+'</div>'+
+      (histOnly ? '' : '<label class="pqd-cap" style="display:block;margin-top:8px;">Ngày thử máy kiêm xuất hàng MỚI<input type="date" class="pqd-inp" id="schD" value="'+esc(cur)+'" style="width:100%;"></label>'+
+      '<label class="pqd-cap" style="display:block;margin-top:8px;">Lý do / ghi chú (không bắt buộc)<input type="text" class="pqd-inp" id="schN" maxlength="160" autocomplete="off" placeholder="vd: khách dời, chờ vật tư, làm xong 20/10…" style="width:100%;"></label><div class="pqd-cap" id="schM" style="min-height:18px;color:var(--bad,#c0362c);"></div>')+
+      schedHistHtml(o)+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="schNo" type="button">'+(histOnly ? 'Đóng' : 'Hủy')+'</button>'+(histOnly ? '' : '<button class="btn btn-primary" id="schYes" type="button">Lưu — Lần '+nextN+'</button>')+'</div>', true);
+    bd.querySelector('#schNo').onclick = function(){ bd.remove(); };
+    if (histOnly) return;
+    var d = bd.querySelector('#schD'), n = bd.querySelector('#schN'), m = bd.querySelector('#schM');
+    setTimeout(function(){ try { d.focus(); } catch(e){} }, 40);
+    var go = function(){
+      if (!d.value){ m.textContent = 'Chọn ngày mới.'; return; }
+      if (d.value === cur){ m.textContent = 'Ngày chưa đổi — chọn ngày khác ngày hiện tại. (Không đổi thì cứ giữ nguyên lịch cũ.)'; return; }
+      if (schedSet(o, d.value, n.value)) bd.remove();
+    };
+    bd.querySelector('#schYes').onclick = go;
+    n.addEventListener('keydown', function(e){ if (e.key==='Enter'){ e.preventDefault(); go(); } });
+  }
   document.addEventListener('click', function(e){
-    var b = e.target.closest && e.target.closest('[data-sched-hist]'); if (!b) return;
-    e.stopPropagation();
-    var o = STATE.orders[b.getAttribute('data-sched-hist')]; if (!o) return; var L = ((o.sched && o.sched.log) || []).slice().reverse();
-    var bd = auModal('<h3>Lịch thử máy & xuất hàng — '+esc(o.code||'')+'</h3><div class="pqd-cap" style="margin-bottom:6px;">Ngày giao ban đầu: <b>'+esc(fmtDate(schedOrig(o)))+'</b> · hiện tại: <b>'+esc(fmtDate((o.sched && o.sched.ship) || ''))+'</b></div>'+
-      (L.length ? '<div class="table-wrap" style="border:none;max-height:50vh;overflow:auto;"><table class="mrp-table pqd-table"><thead><tr><th>Lần</th><th>Ngày ghi</th><th>Người ghi</th><th>Từ ngày</th><th>Sang ngày</th><th>Ghi chú</th></tr></thead><tbody>'+L.map(function(x){ return '<tr><td><b>Lần '+esc(String(x.n||''))+'</b></td><td>'+esc(fmtDate(x.at))+'</td><td>'+esc(x.by||'')+'</td><td>'+(x.prev?esc(fmtDate(x.prev)):'—')+'</td><td><b>'+esc(fmtDate(x.ship))+'</b></td><td>'+esc(x.note||'')+'</td></tr>'; }).join('')+'</tbody></table></div>' : '<div class="empty-note">Chưa đổi lịch lần nào.</div>')+
-      '<div class="modal-actions"><button class="btn btn-ghost" id="schHistX" type="button">Đóng</button></div>', true);
-    bd.querySelector('#schHistX').onclick = function(){ bd.remove(); };
+    var b = e.target.closest && e.target.closest('[data-sched-edit],[data-sched-hist]'); if (!b) return;
+    e.stopPropagation(); e.preventDefault();
+    if (b.hasAttribute('data-sched-edit')) schedOpen(b.getAttribute('data-sched-edit'), false); else schedOpen(b.getAttribute('data-sched-hist'), true);
   }, true);
   (function schedStyle(){
     var st = document.createElement('style');
     st.textContent =
-      'td.c-sched{min-width:128px;}td.c-sched input.sched-date{width:122px;font:inherit;font-size:12px;padding:3px 4px;border:1px solid var(--border,#dde1dd);border-radius:6px;background:#fff;}'+
+      'td.c-sched{min-width:118px;}td.c-sched .sched-d{font-weight:700;}td.c-sched .sched-d.late{color:var(--bad,#c0362c);}'+
+      '.sched-btn{margin-top:5px;border:1px solid #1f5fa8;background:#e8f1fb;color:#1f5fa8;border-radius:14px;padding:3px 9px;font:600 11.5px system-ui,sans-serif;cursor:pointer;white-space:nowrap;}.sched-btn:hover{background:#1f5fa8;color:#fff;}'+
       '.sched-rev{margin-top:4px;font-size:11px;font-weight:700;color:#1f5fa8;cursor:pointer;text-decoration:underline dotted;}'+
-      'html.pq-ro-orders td.c-sched input.sched-date{pointer-events:none;}';
+      'html.pq-ro-orders .sched-btn{display:none !important;}';
     document.head.appendChild(st);
   })();
   renderBanner();
