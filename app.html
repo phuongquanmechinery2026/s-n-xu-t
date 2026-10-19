@@ -1545,8 +1545,8 @@
       <div class="tab" data-view="pr" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"/></svg>Đề nghị mua</div>
       <div class="tab" data-view="xuat" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10v9H4zM14 10h4l3 3v3h-7zM9 12h-3M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Yêu cầu mua / xuất<span class="xh-badge" id="xhBadge" style="display:none;"></span></div>
       <div class="tab pq-later" data-view="issue" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Cấp phát vật tư</div>
-      <div class="tab" data-view="kho" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10l8-6 8 6v10H4zM9 20v-6h6v6"/></svg>Kho &amp; Chất lượng</div>
-      <button type="button" class="pq-more" id="pqMore" aria-expanded="false" title="Hiện thêm mục: Công việc / Đọc kế hoạch (Cơ khí), Cấp phát vật tư, Kho &amp; Chất lượng">+ Mục khác</button>
+      <div class="tab" data-view="kho" data-group="vattukho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10l8-6 8 6v10H4zM9 20v-6h6v6"/></svg>Kho</div>
+      <button type="button" class="pq-more" id="pqMore" aria-expanded="false" title="Hiện thêm mục: Công việc / Đọc kế hoạch (Cơ khí), Cấp phát vật tư, Kho">+ Mục khác</button>
       <div class="pq-navlbl">Kế hoạch</div>
       <div class="tab" data-view="plan" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"/></svg>Kế hoạch</div>
       <div class="tab" data-view="lich" data-group="kehoach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/></svg>Lịch tháng</div>
@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-19d-may';
+  var BUILD_ID = '2026-10-19e-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3804,8 +3804,6 @@
     html += '<div class="kho-stat-grid">';
     html += statCard('Dòng vật tư đã có', matHave, 'accent-good');
     html += statCard('Dòng vật tư cần mua', matNeed, 'accent-warn', ' data-goto-mrp="1" title="Xem chi tiết trong \'Vật tư cần mua\'"');
-    html += statCard('Hạng mục QC không đạt', qcFail.length, 'accent-bad');
-    html += statCard('Hạng mục chưa kiểm (đã SX/giao)', qcUnchecked.length, 'accent-warn');
     html += '</div>';
     html += '<div class="panel"><div class="panel-head"><h2>Vật tư cần mua — Công việc hiện tại</h2><span style="font-size:12px;color:var(--text-muted);">'+mrpRows.length+' loại</span></div><div class="panel-body">';
     if (!mrpRows.length){
@@ -3816,14 +3814,6 @@
       });
       html += '<div style="padding:10px 18px;"><button class="btn btn-sm" data-goto-mrp="1">Xem đầy đủ ở "Vật tư cần mua" ('+mrpRows.length+' loại) →</button></div>';
     }
-    html += '</div></div>';
-    html += '<div class="panel" style="margin-top:14px;"><div class="panel-head"><h2>Hạng mục QC không đạt</h2></div><div class="panel-body">';
-    if (!qcFail.length){ html += '<div class="empty-note">Không có hạng mục nào bị đánh dấu Không đạt.</div>'; }
-    else qcFail.forEach(function(x){ html += '<div class="qc-row"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(x.it.name)+'</span><span class="pill pill-bad">Không đạt</span></div>'; });
-    html += '</div></div>';
-    html += '<div class="panel" style="margin-top:14px;"><div class="panel-head"><h2>Hạng mục đã sản xuất/giao nhưng chưa kiểm QC</h2></div><div class="panel-body">';
-    if (!qcUnchecked.length){ html += '<div class="empty-note">Không có hạng mục nào cần xác nhận QC.</div>'; }
-    else qcUnchecked.slice(0,30).forEach(function(x){ html += '<div class="qc-row"><span class="code">'+esc(x.o.code||'—')+'</span><span class="title">'+esc(x.it.name)+'</span><span class="pill pill-warn">Chưa kiểm</span></div>'; });
     html += '</div></div>';
     return html;
   }
@@ -10104,6 +10094,8 @@ function stockMatch(name, spec, rows) {
      "Có tại kho" tính như "đã có" -> tự biến khỏi Vật tư cần mua / Đề nghị mua. Dòng không chắc thì giữ nguyên, vẫn xem được "Kho CÓ…" ở thẻ Zalo. */
   var KHO_TAG = 'Có tại kho', KHO_BUSY = false, KHO_TMR = {};
   function khoCanEdit(o){ return can('edit_orders') && deptCan(o && o.dept==='dien' ? 'dien' : 'cokhi', 'edit'); }
+  // thép hình U/I/H và tôn thường (Tôn xx mm) mua theo quy cách/cắt theo bản vẽ -> không tự ghi "Có tại kho"; tôn có mác S50C thì vẫn xét
+  function khoByDims(m){ var n = stripDiacritics(String(m.name||'')+' '+String(m.spec||'')); if (/s\s?50\s?c/.test(n)) return false; return /^(thep\s*)?(u|i|h)\s*\d{2,3}(\D|$)/.test(n.trim()) || /^ton\s*\d+([.,]\d+)?\s*(mm|ly)\b/.test(n.trim()); }
   function khoNums(t){ return (String(t).match(/\d+/g) || []).map(function(v){ return String(parseInt(v, 10)); }); }
   function khoSure(m){
     var f = khoFor(m); if (!f || f.st!=='co') return null;
@@ -10123,7 +10115,8 @@ function stockMatch(name, spec, rows) {
     if (!o || !khoHas() || !khoCanEdit(o)) return done;
     (o.materials||[]).forEach(function(m){
       if (!isRealMaterial(m)) return;
-      var st = stripDiacritics(String(m.status||'').trim()); if (st && st !== 'chua xem') return;
+      var st = stripDiacritics(String(m.status||'').trim()); if (st && st !== 'chua xem' && st !== 'check') return;
+      if (khoByDims(m)) return;
       var x = khoSure(m); if (!x) return;
       var tx = 'Kho còn '+fmtNum(x.q)+' '+(x.u||'')+' — '+String(x.n||'').slice(0,40)+' ('+String(x.wh||'').replace(/^Kho\s*/i,'')+')';
       m.status = KHO_TAG; m.note = m.note ? (String(m.note)+' · '+tx) : tx; done.push(m.name);
