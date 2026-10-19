@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-19a-may';
+  var BUILD_ID = '2026-10-19b-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -3836,7 +3836,7 @@
   function eleColName(n){ var s=''; n++; while(n>0){ var m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=(n-m-1)/26|0; } return s; }
 
   function sheetColl(suffix){ return STATE.sheetNs + suffix; }
-  var SHEET_NS_LABEL = {electric:'Điện', cokhi:'Cơ khí'};
+  var SHEET_NS_LABEL = {electric:'Điện', cokhi:'Cơ khí', cokhi_old:'Cơ khí cũ'};
   // Excel cắt tên sheet ở 31 ký tự: các tên dưới đây là TÊN ĐỦ theo Google Sheet (kiểm tra 2026-10-06).
   var SHEET_NAME_FIX = {
     'vit tai may nghien bot nhang a':'Vit tai may nghien bot nhang A Toan',
@@ -4033,7 +4033,7 @@
     var nsLbl = SHEET_NS_LABEL[STATE.sheetNs] || '';
     var html = '<div class="panel sheet-panel" style="padding:16px;">';
     html += '<div class="ele-ns-tabs">';
-    ['electric','cokhi'].forEach(function(ns){
+    ['electric','cokhi','cokhi_old'].forEach(function(ns){
       html += '<button class="ele-ns-tab'+(STATE.sheetNs===ns?' active':'')+'" data-sheet-ns="'+ns+'">Sheet '+SHEET_NS_LABEL[ns]+'</button>';
     });
     html += '</div>';
