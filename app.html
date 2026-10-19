@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-18z-may';
+  var BUILD_ID = '2026-10-19a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1810,7 +1810,7 @@
     // tư chưa xem / cần mua hôm nay" (lọc đúng bằng mst-bad) sẽ bỏ sót toàn bộ
     // các dòng chưa từng được xem qua — ngược với đúng tên gọi của nó.
     if (!n) return 'mst-bad';
-    if (/da co|co san|du hang|nhap kho|trong kho|da nhan|tan dung/.test(n)) return 'mst-good';
+    if (/da co|co san|du hang|nhap kho|trong kho|co tai kho|da nhan|tan dung/.test(n)) return 'mst-good';
     if (/^da dat|dang dat|da dat hang|da dat mua/.test(n)) return 'mst-info';
     if (/yeu cau dat|can dat|can mua/.test(n)) return 'mst-bad';
     if (/dang gia cong|dang lam|dang tien|dang cat/.test(n)) return 'mst-warn';
@@ -2044,6 +2044,7 @@
     if (db && STATE.dbWritable){
       queueWrite(id, 'update', patch);
     }
+    if (patch && patch.materials && !KHO_BUSY && typeof khoSoon === 'function') khoSoon(id);
   }
   function deleteOrderById(id){
     delete STATE.orders[id];
@@ -2964,6 +2965,7 @@
     html += '<button class="btn btn-sm btn-primary" data-draw-ai="'+esc(o.id)+'" title="AI đọc bản vẽ PDF/ảnh, bóc tách vật tư và đề xuất việc cần làm">Đọc bản vẽ (AI)</button>';
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
     if (auOwner()) html += '<button class="btn btn-sm" data-order-hist="'+esc(o.id)+'" data-order-code="'+esc(o.code||'')+'" title="Ai đã sửa gì trong đơn này (chỉ chủ xem)">🕘 Lịch sử đơn</button>';
+    html += '<button class="btn btn-sm" data-kho-check="'+esc(o.id)+'" title="Dòng nào kho đã có đủ thì tự ghi \"Có tại kho\" (kế toán khỏi dò lại)">🔍 Kiểm kho</button>';
     html += '<button class="btn btn-sm" data-copy-zalo="'+esc(o.id)+'" title="Chép dòng tiêu đề (khách - thiết bị - MS - TĐ) + vật tư giống Google Sheet, để dán vào Zalo / Excel">📋 Chép gửi Zalo</button>';
     html += '<button class="btn btn-sm" data-add-line="'+esc(o.id)+'">+ Thêm dòng (cuối)</button></div></div>';
     html += '<div class="pqd-cap" style="margin:0 0 6px;">⌨ Nhập như Excel: <b>↑ ↓ Enter</b> đổi dòng · <b>← →</b> đổi ô · <b>Dán nhiều ô</b> từ Excel/Sheet (Ctrl+V) tự trải ra nhiều dòng, nhiều cột (thiếu dòng tự thêm) · <b>Ctrl+D</b> điền xuống · <b>Kéo chuột</b> chọn vùng ô, kéo <b>ô vuông xanh ở góc</b> để điền (như Excel) · <b>Ctrl+C</b> vùng chọn = có kèm dòng tiêu đề <b>MS – TĐ</b> như copy từ Sheet · <b>Dán tin Zalo / Sheet</b> có dòng "… MS : mã - TĐ : ngày": tự bỏ dòng tiêu đề, tách Tên · ĐVT · SL · <b>Delete</b> xóa ô · <b>Ctrl+Z</b> hoàn tác.</div>';
@@ -3184,7 +3186,7 @@
   }
   // Tình trạng vật tư — bộ chọn đầy đủ (theo sheet gốc anh Quốc dùng) + mọi giá
   // trị đang có thật trong dữ liệu (lọc bỏ rác: "Tiến độ:…", tên đơn vị lạc…).
-  var MAT_STATUS_STD = ['Chưa xem','Yêu cầu đặt','Đã đặt','Đã đặt mua','Đã nhận','Đã có','Đã có (tận dụng)','Đang gia công','Không cần mua'];
+  var MAT_STATUS_STD = ['Chưa xem','Yêu cầu đặt','Đã đặt','Đã đặt mua','Đã nhận','Đã có','Đã có (tận dụng)','Có tại kho','Đang gia công','Không cần mua'];
   function matStatusOptions(){
     var out = [], lc = {};
     MAT_STATUS_STD.forEach(function(s){ out.push(s); lc[stripDiacritics(s)] = 1; });
@@ -3363,7 +3365,7 @@
     groups.sort(function(a, b){ return pqOrderSort(a.o, b.o); });
     var html = '<div class="panel sheet-panel" style="padding:16px;">';
     html += '<div class="mrp-note">'+ICO.clipboard+' <span>Vật tư còn thiếu của các <b>công trình đang làm</b> (chưa "đã có/đã mua"), gom theo công trình. Bấm ▾ ở tên công trình để thu gọn. Ngày yêu cầu của từng dòng nhập ở tab <b>VT</b> của công trình (bấm mã đơn để mở).</span></div>';
-    html += '<div class="pqd-bar" style="padding:8px 0 10px;"><b>'+groups.length+' công trình · '+total+' dòng vật tư</b><span style="flex:1"></span>'+pqcBar('mrp')+'</div>';
+    html += '<div class="pqd-bar" style="padding:8px 0 10px;"><b>'+groups.length+' công trình · '+total+' dòng vật tư</b><span style="flex:1"></span><button class="btn btn-sm" data-kho-check-all="1" title="Dòng nào kho đã có đủ thì tự ghi Có tại kho và biến khỏi danh sách cần mua">🔍 Kiểm kho tất cả</button>'+pqcBar('mrp')+'</div>';
     if (!groups.length){
       html += '<div class="empty-note">Không có vật tư nào đang thiếu.</div>';
     } else {
@@ -6592,7 +6594,7 @@
         var o = STATE.orders[oid]; if (!o) return; var hit = false, keys = pqxKeys(o);
         (o.materials||[]).forEach(function(m, i){
           if (!byOrder[oid][keys[i]]) return;
-          if (/da co|da nhan/.test(stripDiacritics(m.status||'')) && newMat==='Đã đặt') return;
+          if (/da co|da nhan|co tai kho/.test(stripDiacritics(m.status||'')) && newMat==='Đã đặt') return;
           if (m.status!==newMat){ m.status = newMat; hit = true; changed++; }
           if (p.supplier && !m.supplier){ m.supplier = p.supplier; hit = true; }
         });
@@ -10092,6 +10094,62 @@ function stockMatch(name, spec, rows) {
       if (!window.confirm('Gửi NGAY báo cáo tuần (ảnh + 2 tin) vào nhóm Zalo đã chọn?')) return;
       msg('Đang gửi…'); auPost('/api/zalo/remind/week/now', {chatId:body.chatId}).then(function(j){ msg(j.ok ? ('Đã gửi '+j.parts+' tin'+(j.projects ? (j.photo ? ' + ảnh dashboard.' : '. ẢNH CHƯA GỬI ĐƯỢC ('+(j.photoErr||'lỗi')+').') : ' (không có công trình đến hạn nên không có ảnh).')) : (j.error || 'Không gửi được.'), !j.ok || (j.projects && !j.photo)); });
     }
+  });
+  /* ===== 08z: KIỂM KHO KHI LÊN ĐƠN — dòng vật tư mà kho ĐÃ CÓ ĐỦ thì tự ghi "Có tại kho" (kế toán khỏi dò lại) =====
+     Chỉ ghi khi CHẮC (trùng mã/ký hiệu hoặc trùng ≥85% tên), kho còn ≥ SL cần, cùng ĐVT. Chỉ đụng dòng chưa có tình trạng / "Chưa xem".
+     "Có tại kho" tính như "đã có" -> tự biến khỏi Vật tư cần mua / Đề nghị mua. Dòng không chắc thì giữ nguyên, vẫn xem được "Kho CÓ…" ở thẻ Zalo. */
+  var KHO_TAG = 'Có tại kho', KHO_BUSY = false, KHO_TMR = {};
+  function khoCanEdit(o){ return can('edit_orders') && deptCan(o && o.dept==='dien' ? 'dien' : 'cokhi', 'edit'); }
+  function khoSure(m){
+    var f = khoFor(m); if (!f || f.st!=='co') return null;
+    var q = parseFloat(String(m.qty==null?'':m.qty).replace(',', '.')), mu = stripDiacritics(String(m.unit||'').trim()); var need = KHOM.words(String(m.name||'')+' '+String(m.spec||'')).filter(function(w){ return !/\d/.test(w) && w.length >= 3; }).length ? 3.5 : 3.0;
+    for (var i = 0; i < f.c.length; i++){
+      var x = f.c[i]; if (!(x.q > 0)) continue;
+      if (!(x.score >= need || (x.score <= 1 && x.score >= 0.85))) continue;
+      var xu = stripDiacritics(String(x.u||'').trim()); if (mu && xu && mu !== xu) continue;
+      if (q > 0 && x.q < q) continue;
+      return x;
+    }
+    return null;
+  }
+  function khoAutoMark(o){
+    var done = [];
+    if (!o || !khoHas() || !khoCanEdit(o)) return done;
+    (o.materials||[]).forEach(function(m){
+      if (!isRealMaterial(m)) return;
+      var st = stripDiacritics(String(m.status||'').trim()); if (st && st !== 'chua xem') return;
+      var x = khoSure(m); if (!x) return;
+      var tx = 'Kho còn '+fmtNum(x.q)+' '+(x.u||'')+' — '+String(x.n||'').slice(0,40)+' ('+String(x.wh||'').replace(/^Kho\s*/i,'')+')';
+      m.status = KHO_TAG; m.note = m.note ? (String(m.note)+' · '+tx) : tx; done.push(m.name);
+    });
+    if (done.length){ KHO_BUSY = true; try { patchOrder(o.id, {materials:o.materials}); } finally { KHO_BUSY = false; } }
+    return done;
+  }
+  // gọi từ patchOrder khi có sửa vật tư: đợi gõ xong ~1 giây rồi kiểm kho 1 lần
+  function khoSoon(id){
+    clearTimeout(KHO_TMR[id]);
+    KHO_TMR[id] = setTimeout(function(){
+      var o = STATE.orders[id]; if (!o) return;
+      if (!khoHas()){ khoLoad(false); return; }
+      if (khoAutoMark(o).length && !pqxTyping() && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) renderAll();
+    }, 1000);
+  }
+  function khoAutoAll(){
+    if (!khoHas()) return 0; var n = 0;
+    matOrders().forEach(function(o){ n += khoAutoMark(o).length; });
+    if (n && !pqxTyping() && !document.querySelector('.modal-backdrop') && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) renderAll();
+    return n;
+  }
+  function khoPass(){ khoLoad(true); var t = setInterval(function(){ if (!KHOD.loading){ clearInterval(t); try { khoAutoAll(); } catch(e){} } }, 600); setTimeout(function(){ clearInterval(t); }, 25000); }
+  setTimeout(khoPass, 9000); setInterval(khoPass, 600000);
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-kho-check],[data-kho-check-all]'); if (!b) return;
+    if (!khoHas()){ khoLoad(true); toast('Đang tải tồn kho… anh bấm lại sau vài giây.', 3200); return; }
+    var list = [], one = b.getAttribute('data-kho-check');
+    if (one){ var o = STATE.orders[one]; if (o) list = khoAutoMark(o); }
+    else matOrders().forEach(function(o){ list = list.concat(khoAutoMark(o)); });
+    renderAll();
+    toast(list.length ? 'Kho đã có sẵn '+list.length+' vật tư → ghi "Có tại kho": '+list.slice(0,3).join(', ')+(list.length>3?'…':'') : 'Không có dòng nào mới chắc chắn có trong kho (chỉ ghi khi trùng mã/tên rõ ràng và kho còn đủ số lượng).', 5200);
   });
   renderBanner();
   loadFromSeedOnly();
