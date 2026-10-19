@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-19b-may';
+  var BUILD_ID = '2026-10-19c-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -10100,6 +10100,7 @@ function stockMatch(name, spec, rows) {
      "Có tại kho" tính như "đã có" -> tự biến khỏi Vật tư cần mua / Đề nghị mua. Dòng không chắc thì giữ nguyên, vẫn xem được "Kho CÓ…" ở thẻ Zalo. */
   var KHO_TAG = 'Có tại kho', KHO_BUSY = false, KHO_TMR = {};
   function khoCanEdit(o){ return can('edit_orders') && deptCan(o && o.dept==='dien' ? 'dien' : 'cokhi', 'edit'); }
+  function khoNums(t){ return (String(t).match(/\d+/g) || []).map(function(v){ return String(parseInt(v, 10)); }); }
   function khoSure(m){
     var f = khoFor(m); if (!f || f.st!=='co') return null;
     var q = parseFloat(String(m.qty==null?'':m.qty).replace(',', '.')), mu = stripDiacritics(String(m.unit||'').trim()); var need = KHOM.words(String(m.name||'')+' '+String(m.spec||'')).filter(function(w){ return !/\d/.test(w) && w.length >= 3; }).length ? 3.5 : 3.0;
@@ -10107,7 +10108,8 @@ function stockMatch(name, spec, rows) {
       var x = f.c[i]; if (!(x.q > 0)) continue;
       if (!(x.score >= need || (x.score <= 1 && x.score >= 0.85))) continue;
       var xu = stripDiacritics(String(x.u||'').trim()); if (mu && xu && mu !== xu) continue;
-      if (q > 0 && x.q < q) continue;
+      if (!(q > 0) || x.q < q) continue;
+      var rn = khoNums(String(x.c||'')+' '+String(x.n||'')); if (!khoNums(String(m.name||'')+' '+String(m.spec||'')).every(function(v){ return rn.indexOf(v) >= 0; })) continue;
       return x;
     }
     return null;
