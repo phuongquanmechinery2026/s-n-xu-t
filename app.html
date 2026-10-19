@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-19c-may';
+  var BUILD_ID = '2026-10-19d-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2022,11 +2022,13 @@
   // CHỈ đến từ đúng 1 chỗ: parseLichTrinh() tự đánh dấu "ĐÃ GIAO" khi TOÀN BỘ
   // hạng mục của 1 đơn đã bị ẨN trên Sheet (ẩn cả cụm — không phải ẩn lẻ vài
   // dòng), lúc đó rollupStatus() ở đây tự nhiên trả về 'ĐÃ GIAO' rồi.
-  function currentWorkOrders(){ return activeOrders().filter(function(o){return rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o);}); }
+  function currentWorkOrders(){ return activeOrders().filter(function(o){return !o.shop && rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o);}); }
+  // Mã Nhà xưởng (NX): vật tư tiêu hao dùng chung — luôn có mặt ở các trang vật tư để kế toán biết mà mua
+  function shopOrders(){ return activeOrders().filter(function(o){ return o.shop===true; }); }
   // Đơn đã SẢN XUẤT XONG toàn bộ hạng mục (chưa giao hoặc đã giao): vẫn nằm ở Kế hoạch / Đơn hàng để nhắc việc giao,
   // nhưng vật tư của đơn đó KHÔNG còn nhắc mua/về nữa.
   function orderProdDone(o){ var its = (o.items||[]).filter(function(it){ return (it.name||'').trim(); }); return its.length>0 && its.every(function(it){ return it.status==='SẢN XUẤT XONG' || it.status==='ĐÃ GIAO'; }); }
-  function matOrders(){ return currentWorkOrders().filter(function(o){ return !orderProdDone(o); }); }
+  function matOrders(){ return currentWorkOrders().filter(function(o){ return !orderProdDone(o); }).concat(shopOrders()); }
 
   function saveOrder(order){
     STATE.orders[order.id] = order;
@@ -3465,7 +3467,7 @@
   }
   function renderPlan(){ return renderPlan0() + holdSection() + weekPanel(); }
   function renderPlan0(){
-    var act = activeOrders().filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o); });
+    var act = activeOrders().filter(function(o){ return !o.shop && rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o); });
     // Đơn đã sản xuất xong, chờ giao: đưa xuống cuối trang, việc cần làm nằm trên.
     var waiting = act.filter(orderProdDone).map(function(o){ return {o:o, snap: headlineSnapshot(o)}; });
     waiting.sort(function(a,b){ var da = a.snap && a.snap.deliveryDate ? a.snap.deliveryDate : '9999', db2 = b.snap && b.snap.deliveryDate ? b.snap.deliveryDate : '9999'; return da<db2 ? -1 : (da>db2 ? 1 : 0); });
@@ -6612,7 +6614,7 @@
     return mp;
   }
   function issOrders(){
-    return currentWorkOrders().slice().sort(function(a,b){ return String(b.code||'')<String(a.code||'') ? -1 : 1; });
+    return currentWorkOrders().concat(shopOrders()).sort(function(a,b){ return String(b.code||'')<String(a.code||'') ? -1 : 1; });
   }
   function renderIssue(){
     pqxInit();
@@ -8894,12 +8896,13 @@ function khoCodes(words) { // ma ky hieu: co chu so, dai >= 4 (23228, h2328, kcl
   return words.filter(function (w) { return /\d/.test(w) && w.length >= 4; });
 }
 // rows: [{c,n,u,q,wh}] ; tra ve toi da 3 dong gan nhat: [{c,n,u,q,wh,score}]
+function khoNumsOf(t) { var s = stripD(t).replace(/(?:\bx\s*)?\b\d+\s*(?:cai|chiec|o|cay|bo|soi|cuon|tam|con|cap|doi|qua|bao|thung|lo|chai)\b/g, ' '); return (s.match(/\d+/g) || []).map(function (v) { return String(parseInt(v, 10)); }); }
 function stockMatch(name, spec, rows) {
   var qw = khoWords(String(name || '') + ' ' + String(spec || ''));
   if (!qw.length || !rows || !rows.length) return [];
   var qcodes = khoCodes(qw);
   var qtext = qw.filter(function (w) { return !/\d/.test(w) && w.length >= 3 && !KHO_STOP[w]; });
-  var out = [];
+  var out = [], qn = khoNumsOf(String(name || '') + ' ' + String(spec || ''));
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (!r._w) { r._w = khoWords((r.c || '') + ' ' + (r.n || '')); r._s = r._w.join(''); }
@@ -8919,6 +8922,7 @@ function stockMatch(name, spec, rows) {
       if (shared < 2 || !uni || shared / uni < 0.5) continue;
       score = shared / uni;
     }
+    if (qn.length) { if (!r._n) r._n = khoNumsOf((r.c || '') + ' ' + (r.n || '')); if (!qn.every(function (v) { return r._n.indexOf(v) >= 0; })) continue; }
     out.push({ c: r.c, n: r.n, u: r.u, q: r.q, wh: r.wh, score: Math.round(score * 100) / 100 });
   }
   out.sort(function (x, y) { return y.score - x.score || y.q - x.q; });

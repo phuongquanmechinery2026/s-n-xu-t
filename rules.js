@@ -17,12 +17,13 @@ function khoCodes(words) { // ma ky hieu: co chu so, dai >= 4 (23228, h2328, kcl
   return words.filter(function (w) { return /\d/.test(w) && w.length >= 4; });
 }
 // rows: [{c,n,u,q,wh}] ; tra ve toi da 3 dong gan nhat: [{c,n,u,q,wh,score}]
+function khoNumsOf(t) { var s = stripD(t).replace(/(?:\bx\s*)?\b\d+\s*(?:cai|chiec|o|cay|bo|soi|cuon|tam|con|cap|doi|qua|bao|thung|lo|chai)\b/g, ' '); return (s.match(/\d+/g) || []).map(function (v) { return String(parseInt(v, 10)); }); }
 function stockMatch(name, spec, rows) {
   var qw = khoWords(String(name || '') + ' ' + String(spec || ''));
   if (!qw.length || !rows || !rows.length) return [];
   var qcodes = khoCodes(qw);
   var qtext = qw.filter(function (w) { return !/\d/.test(w) && w.length >= 3 && !KHO_STOP[w]; });
-  var out = [];
+  var out = [], qn = khoNumsOf(String(name || '') + ' ' + String(spec || ''));
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (!r._w) { r._w = khoWords((r.c || '') + ' ' + (r.n || '')); r._s = r._w.join(''); }
@@ -42,6 +43,7 @@ function stockMatch(name, spec, rows) {
       if (shared < 2 || !uni || shared / uni < 0.5) continue;
       score = shared / uni;
     }
+    if (qn.length) { if (!r._n) r._n = khoNumsOf((r.c || '') + ' ' + (r.n || '')); if (!qn.every(function (v) { return r._n.indexOf(v) >= 0; })) continue; }
     out.push({ c: r.c, n: r.n, u: r.u, q: r.q, wh: r.wh, score: Math.round(score * 100) / 100 });
   }
   out.sort(function (x, y) { return y.score - x.score || y.q - x.q; });
