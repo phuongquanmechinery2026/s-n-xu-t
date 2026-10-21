@@ -177,6 +177,29 @@ const server = http.createServer(function (req, res) {
     // Cong rieng cho Javis (tro li doc don moi tu Zalo roi them len web, danh dau VT da nhan).
     // KHONG XOA khoi nay khi sua server.js (da bi chep de mat 2 lan).
     // Khoa EXT_API_KEY tren Render (>= 16 ky tu); chua dat khoa thi cong nay tat.
+    // Google Apps Script (chay trong tai khoan Google cua anh Quoc) day Sheet Co khi (rieng tu) len moi sang. Khong dung khoa:
+    // server hoi Google token do la cua ai; chi nhan email trong danh sach (mac dinh email cua anh Quoc, them bang bien EXT_UPLOAD_EMAILS).
+    if (p === '/api/ext/file/cokhi.xlsx' && method === 'PUT' && /^Bearer /.test(String(req.headers.authorization || ''))) {
+      const who = await new Promise(function (resolve) {
+        const rq = require('https').request({ hostname: 'www.googleapis.com', path: '/drive/v3/about?fields=user(emailAddress)', method: 'GET', headers: { Authorization: req.headers.authorization } }, function (r2) {
+          const cs = []; r2.on('data', function (c) { cs.push(c); }); r2.on('end', function () { try { resolve((JSON.parse(Buffer.concat(cs).toString('utf8')).user || {}).emailAddress || ''); } catch (e) { resolve(''); } });
+        });
+        rq.on('error', function () { resolve(''); }); rq.setTimeout(15000, function () { rq.destroy(); resolve(''); }); rq.end();
+      });
+      const okMails = String(process.env.EXT_UPLOAD_EMAILS || 'phuongquan1504@gmail.com').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+      if (!who || okMails.indexOf(who.toLowerCase()) < 0) return sendJson(res, 403, { error: 'tai khoan Google khong duoc phep', who: who ? who.replace(/^(.).*(@.*)$/, '$1***$2') : '' });
+      const fdir0 = path.join(DATA_DIR, 'ext_files'); fs.mkdirSync(fdir0, { recursive: true });
+      const chunks0 = []; let size0 = 0, tooBig0 = false;
+      await new Promise(function (resolve, reject) {
+        req.on('data', function (c) { size0 += c.length; if (size0 > 30 * 1024 * 1024) { tooBig0 = true; return; } chunks0.push(c); });
+        req.on('end', resolve); req.on('error', reject);
+      });
+      if (tooBig0) return sendJson(res, 413, { error: 'qua 30MB' });
+      const buf0 = Buffer.concat(chunks0);
+      if (buf0.length < 1000 || buf0[0] !== 0x50 || buf0[1] !== 0x4B) return sendJson(res, 400, { error: 'khong phai file xlsx' });
+      fs.writeFileSync(path.join(fdir0, 'cokhi.xlsx'), buf0); fs.writeFileSync(path.join(fdir0, 'cokhi.xlsx.meta'), JSON.stringify({ at: Date.now(), size: buf0.length, by: who }));
+      return sendJson(res, 200, { ok: true, size: buf0.length, by: who });
+    }
     if (p.indexOf('/api/ext/') === 0) {
       const key = String(process.env.EXT_API_KEY || '').trim();
       const got = String(req.headers['x-ext-key'] || '');
