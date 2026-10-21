@@ -181,7 +181,7 @@ const server = http.createServer(function (req, res) {
       const key = String(process.env.EXT_API_KEY || '').trim();
       const got = String(req.headers['x-ext-key'] || '');
       if (key.length < 16 || got.length !== key.length || !require('crypto').timingSafeEqual(Buffer.from(got), Buffer.from(key))) return sendJson(res, 403, { error: 'forbidden' });
-      req.nmsxUser = { username: 'javis', name: 'Javis (trợ lí)' };
+      req.nmsxUser = { username: 'javis', name: String(req.headers['x-ext-who'] || '').slice(0, 60) || 'Javis (trợ lí)' };
       let mx;
       if ((mx = p.match(/^\/api\/ext\/order\/([^/]+)$/)) && method === 'GET') {
         const O = loadColl('orders'); const id = decodeURIComponent(mx[1]);
@@ -215,6 +215,26 @@ const server = http.createServer(function (req, res) {
         cleanOrderDoc(o); saveColl('orders', O);
         auth.record(req, 'orders', o.id, before, o);
         return sendJson(res, 200, { ok: true, id: o.id, material: m });
+      }
+      // Dong bo Sheet TU DONG (script tren may anh Quoc, khong can Chrome): doc / ghi 1 tai lieu cua 'orders' hoac guong Sheet.
+      // Chan ghi don thieu id/code (tranh lam mat du lieu don) va chi cho phep dung cac bo suu tap nay.
+      if ((mx = p.match(/^\/api\/ext\/doc\/([^/]+)\/(.+)$/))) {
+        const cn = mx[1], did = decodeURIComponent(mx[2]);
+        if (!(cn === 'orders' || /^(cokhi|electric|cokhi_old)_(s\d+|meta)$/.test(cn))) return sendJson(res, 403, { error: 'bo suu tap khong duoc phep' });
+        const data = loadColl(cn);
+        if (method === 'GET') { const has = Object.prototype.hasOwnProperty.call(data, did); return sendJson(res, 200, { exists: has, data: has ? data[did] : null }); }
+        if (method === 'PUT') {
+          const patch = JSON.parse((await readBody(req)) || '{}'); const mode = u.searchParams.get('mode') || 'set';
+          if (cn === 'orders') {
+            if (mode === 'set' && (!patch || patch.id !== did || !patch.code)) return sendJson(res, 400, { error: 'don thieu id/code' });
+            cleanOrderDoc(patch);
+          }
+          const before = (cn === 'orders' && data[did] != null) ? auth.clone(data[did]) : null;
+          if (mode === 'update' && data[did] && typeof data[did] === 'object') Object.assign(data[did], patch); else data[did] = patch;
+          saveColl(cn, data);
+          if (cn === 'orders') auth.record(req, 'orders', did, before, data[did]);
+          return sendBytes(res, 204, 'text/plain', Buffer.alloc(0));
+        }
       }
       if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
       // Xem truoc bao cao tuan (thu Hai toi) de Javis lam demo cho chu duyet
