@@ -216,6 +216,31 @@ const server = http.createServer(function (req, res) {
         auth.record(req, 'orders', o.id, before, o);
         return sendJson(res, 200, { ok: true, id: o.id, material: m });
       }
+      // Nhan file .xlsx do Google Apps Script cua anh Quoc day len moi sang (Sheet Co khi RIENG TU, khong chia se cong khai)
+      // roi script tren may anh Quoc tai ve de cap nhat. Chi cho phep ten file co dinh, toi da 30MB.
+      if ((mx = p.match(/^\/api\/ext\/file\/(cokhi\.xlsx)$/))) {
+        const fdir = path.join(DATA_DIR, 'ext_files'); fs.mkdirSync(fdir, { recursive: true });
+        const fp = path.join(fdir, mx[1]), mp = fp + '.meta';
+        if (method === 'PUT') {
+          const chunks = []; let size = 0, tooBig = false;
+          await new Promise(function (resolve, reject) {
+            req.on('data', function (c) { size += c.length; if (size > 30 * 1024 * 1024) { tooBig = true; return; } chunks.push(c); });
+            req.on('end', resolve); req.on('error', reject);
+          });
+          if (tooBig) return sendJson(res, 413, { error: 'qua 30MB' });
+          const buf = Buffer.concat(chunks);
+          if (buf.length < 1000 || buf[0] !== 0x50 || buf[1] !== 0x4B) return sendJson(res, 400, { error: 'khong phai file xlsx' });
+          fs.writeFileSync(fp, buf); fs.writeFileSync(mp, JSON.stringify({ at: Date.now(), size: buf.length }));
+          return sendJson(res, 200, { ok: true, size: buf.length });
+        }
+        if (method === 'GET') {
+          if (!fs.existsSync(fp)) return sendJson(res, 404, { error: 'chua co file' });
+          let at = 0; try { at = JSON.parse(fs.readFileSync(mp, 'utf8')).at || 0; } catch (e) {}
+          const b = fs.readFileSync(fp);
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': b.length, 'x-uploaded-at': String(at), 'Cache-Control': 'no-store' });
+          return res.end(b);
+        }
+      }
       // Dong bo Sheet TU DONG (script tren may anh Quoc, khong can Chrome): doc / ghi 1 tai lieu cua 'orders' hoac guong Sheet.
       // Chan ghi don thieu id/code (tranh lam mat du lieu don) va chi cho phep dung cac bo suu tap nay.
       if ((mx = p.match(/^\/api\/ext\/doc\/([^/]+)\/(.+)$/))) {
