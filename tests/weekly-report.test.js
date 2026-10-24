@@ -12,6 +12,7 @@ function order(id, due, status) {
 async function main() {
   const orders = {
     warehouseOnly: { id: 'NX', code: 'NX', customerInfo: 'Vật tư nhà xưởng', items: [], materials: [{ name: 'Kho' }] },
+    electrical: Object.assign(order('D-2026-108', '2026-10-29'), { dept: 'dien' }),
     late: order('2026-101', '2026-10-20'),
     soon: order('2026-102', '2026-10-29'),
     later: order('2026-103', '2026-12-20'),
@@ -20,12 +21,13 @@ async function main() {
     held: Object.assign(order('2026-106', '2026-10-29'), { hold: { since: '2026-10-20' } })
   };
   const d = report.buildData(orders, {}, base);
-  assert.deepStrictEqual(d.P.map(p => p.code), ['2026-102']);
+  assert.deepStrictEqual(d.P.map(p => p.code), ['2026-101', '2026-102']);
   assert.strictEqual(d.pending.length, 4);
   assert.strictEqual(d.over, 1);
   assert.strictEqual(d.held, 1);
   const m = report.messages(d);
-  ['2026-101', '2026-102', '2026-103', '2026-104'].forEach(code => assert(m.tin2.includes(code)));
+  ['2026-101', '2026-102', '2026-103', '2026-104'].forEach(code => assert((m.tin1 + m.tin2).includes(code)));
+  assert(!(m.tin1 + m.tin2).includes('D-2026-108'));
   assert(!m.tin2.includes('2026-105'));
   assert(!m.tin2.includes('KHONG_DUOC_DANG_VAT_TU'));
   assert(!d.pending.some(p => p.code === 'NX'));

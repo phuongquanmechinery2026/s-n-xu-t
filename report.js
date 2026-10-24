@@ -27,6 +27,7 @@ function buildData(orders, tasks, baseIso) {
   Object.keys(orders || {}).forEach(function (id) {
     const o = orders[id]; if (!o || o.legacy || o.dept === 'dien') return;   // báo cáo chỉ theo Cơ khí (Điện hay cập nhật trễ)
     const its = (o.items || []).filter(function (i) { return i && String(i.name || '').trim(); });
+    if (!its.length) return;
     if (its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) return;
     const code = o.code || o.id;
     if (o.hold && o.hold.since) { if (!heldCodes[code]) { heldCodes[code] = 1; held++; } return; }
@@ -34,7 +35,7 @@ function buildData(orders, tasks, baseIso) {
     const rec = { o: o, its: its, code: code, dien: o.dept === 'dien', eff: isoOf(o.sched && o.sched.ship) || sn, sn: sn };
     (G[code] = G[code] || []).push(rec);
   });
-  const P = []; let over = 0;
+  const P = [], pending = []; let over = 0;
   Object.keys(G).forEach(function (code) {
     const recs = G[code], main = recs.filter(function (r) { return !r.dien; })[0] || recs[0];
     // Cơ khí đổi lịch thì Điện đổi theo -> lấy lịch của Cơ khí làm chuẩn
@@ -47,7 +48,7 @@ function buildData(orders, tasks, baseIso) {
     });
     const late = !!eff && eff < baseIso, allDone = nIt > 0 && nDone === nIt;
     if (late && !allDone) over++;                       // quá hạn mà chưa xong (không tạm dừng — đơn tạm dừng đã loại ở trên)
-    if (!eff || eff > end || (late && allDone)) return;  // đã sản xuất xong thì không coi là trễ
+    if (late && allDone) return;
     // tên thiết bị: đơn nhiều hạng mục -> lấy phần thiết bị trong "Khách - Thiết bị"; đơn 1 hạng mục -> tên hạng mục
     const cl = String(o.customerInfo || '').split(/[\r\n]+/).map(function (x) { return x.trim(); }).filter(Boolean);
     let equip = cl.length > 1 ? cl.slice(1).join(' ') : (cl[0] || '').split(/\s-\s|-\s/).slice(1).join(' - ');
@@ -55,12 +56,14 @@ function buildData(orders, tasks, baseIso) {
     const first = its.length ? String(its[0].name).replace(/\s+/g, ' ').trim().replace(/[:：]\s*$/, '') : '';
     const name = ((its.length > 1 && equip.length >= 4) ? equip : (first || equip || cl[0] || '')).split(' / ')[0].replace(/\s+/g, ' ').trim();
     const sc = (recs.filter(function (r) { return r.o.sched && r.o.sched.rev; })[0] || main).o.sched || {};
-    P.push({ id: o.id, code: code, due: eff, name: name.slice(0, 70), cust: shortCust(o.customerInfo || (recs[0].o.customerInfo)),
+    const project = { id: o.id, code: code, due: eff, name: name.slice(0, 70), cust: shortCust(o.customerInfo || (recs[0].o.customerInfo)),
       late: late, lateDays: late ? diffDays(baseIso, eff) : 0, nIt: nIt, nDone: nDone, nWork: nWork, rev: sc.rev || 0, orig: isoOf(sc.orig) || main.sn,
-      tkOpen: tkOpen, tkLate: tkLate, who: Object.keys(who).sort() });
+      tkOpen: tkOpen, tkLate: tkLate, who: Object.keys(who).sort() };
+    pending.push(project);
+    if (eff && eff <= end) P.push(project);
   });
   P.sort(function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : (a.code < b.code ? -1 : 1); });
-  return { base: baseIso, end: end, P: P, over: over, overCk: over, overDien: 0, held: held };
+  return { base: baseIso, end: end, P: P, pending: pending, over: over, overCk: over, overDien: 0, held: held };
 }
 
 /* ---------- tin chữ: 1 tin tóm tắt lịch thử máy & xuất hàng (báo cáo vật tư làm sau) ---------- */
@@ -89,9 +92,13 @@ function messages(D) {
     lt.slice().sort(function (a, b) { return b.lateDays - a.lateDays; }).forEach(function (p) {
       M.push('• [' + p.code + '] ' + (p.cust ? p.cust + ' – ' : '') + p.name + ': hạn ' + dm(p.due) + ' (' + WD[dow(p.due)] + '), trễ ' + p.lateDays + ' ngày · xong ' + p.nDone + '/' + p.nIt + ' hạng mục');
     });
-    let more = 0; while (M.join('\n').length > 1750 && M.length > 4) { M.pop(); more++; }
-    if (more) M.push('… và ' + more + ' công trình nữa (xem trên web, trang Kế hoạch).');
     tin2 = M.join('\n');
+  }
+  const extra = (D.pending || []).filter(function (p) { return (!p.due || p.due > D.end) && (p.nDone < p.nIt || p.tkOpen > 0); });
+  if (extra.length) {
+    const E = ['CÔNG VIỆC CHƯA XONG KHÁC - ngoài lịch hai tuần hoặc chưa có ngày giao:'];
+    extra.forEach(function (p) { E.push('[' + p.code + '] ' + (p.cust ? p.cust + ' - ' : '') + p.name + ': còn ' + Math.max(0, p.nIt - p.nDone) + '/' + p.nIt + ' hạng mục chưa xong; ' + (p.due ? 'hạn ' + dm(p.due) : 'chưa có ngày giao') + (p.tkOpen ? '; ' + p.tkOpen + ' việc đang mở' : '') + '.'); });
+    tin2 += (tin2 ? '\n\n' : '') + E.join('\n');
   }
   return { tin1: L.join('\n'), tin2: tin2 };
 }
@@ -186,7 +193,7 @@ function dashboardPng(D) {
   const nIt = P.reduce(function (s, p) { return s + p.nIt; }, 0), nDone = P.reduce(function (s, p) { return s + p.nDone; }, 0), nWork = P.reduce(function (s, p) { return s + p.nWork; }, 0);
   const tile = function (x, y, big, small, col) { g.rrect(x, y, 240, 128, 18, [255, 255, 255]); g.rrect(x, y, 240, 128, 18, LINE, 2); g.text(String(big), x + 20, y + 8, 56, col, true); g.text(small, x + 20, y + 82, 23, MUTE, false); };
   let y = 215;
-  tile(48, y, P.filter(function (p) { return !p.late; }).length, 'công trình 2 tuần tới', BLUE); tile(306, y, P.filter(function (p) { return diffDays(p.due, D.base) <= 0; }).length, 'giao hôm nay', RED);
+  tile(48, y, P.filter(function (p) { return !p.late; }).length, 'công trình 2 tuần tới', BLUE); tile(306, y, P.filter(function (p) { return p.due === D.base; }).length, 'giao hôm nay', RED);
   tile(564, y, nDone + '/' + nIt, 'hạng mục đã xong', GRN); tile(822, y, D.over, 'quá hạn chưa giao', [160, 40, 40]);
   y += 160;
   g.rrect(48, y, W - 96, 300, 18, [255, 255, 255]); g.rrect(48, y, W - 96, 300, 18, LINE, 2);
