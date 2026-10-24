@@ -27,6 +27,7 @@ function buildData(orders, tasks, baseIso) {
   Object.keys(orders || {}).forEach(function (id) {
     const o = orders[id]; if (!o || o.legacy) return;
     const its = (o.items || []).filter(function (i) { return i && String(i.name || '').trim(); });
+    if (!its.length) return;
     if (its.length && its.every(function (i) { return i.status === 'ĐÃ GIAO'; })) return;
     const code = o.code || o.id;
     if (o.hold && o.hold.since) { if (!heldCodes[code]) { heldCodes[code] = 1; held++; } return; }

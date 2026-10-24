@@ -11,6 +11,7 @@ function order(id, due, status) {
 }
 async function main() {
   const orders = {
+    warehouseOnly: { id: 'NX', code: 'NX', customerInfo: 'Vật tư nhà xưởng', items: [], materials: [{ name: 'Kho' }] },
     late: order('2026-101', '2026-10-20'),
     soon: order('2026-102', '2026-10-29'),
     later: order('2026-103', '2026-12-20'),
@@ -27,6 +28,7 @@ async function main() {
   ['2026-101', '2026-102', '2026-103', '2026-104'].forEach(code => assert(m.tin2.includes(code)));
   assert(!m.tin2.includes('2026-105'));
   assert(!m.tin2.includes('KHONG_DUOC_DANG_VAT_TU'));
+  assert(!d.pending.some(p => p.code === 'NX'));
   assert(m.tin2.includes('chưa có ngày giao'));
   const png = report.dashboardPng(d);
   assert.strictEqual(png.readUInt32BE(16), 1080);
