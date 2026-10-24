@@ -86,21 +86,17 @@ function messages(D) {
       else if (p.rev) L.push('   ✓ Đã xác nhận lịch (lần ' + p.rev + ')');
     });
   }
-  let tin2 = '';
+  // 1 tin duy nhất: lịch 2 tuần tới + đơn quá hạn chưa xong (ngắn gọn, ≤1700 ký tự)
   if (lt.length) {
-    const M = ['⚠ QUÁ HẠN CHƯA XONG — chưa giao, không tạm dừng (' + lt.length + ' công trình):', ''];
-    lt.slice().sort(function (a, b) { return b.lateDays - a.lateDays; }).forEach(function (p) {
-      M.push('• [' + p.code + '] ' + (p.cust ? p.cust + ' – ' : '') + p.name + ': hạn ' + dm(p.due) + ' (' + WD[dow(p.due)] + '), trễ ' + p.lateDays + ' ngày · xong ' + p.nDone + '/' + p.nIt + ' hạng mục');
+    L.push('', '⚠ QUÁ HẠN CHƯA XONG — chưa giao, không tạm dừng (' + lt.length + ' công trình):');
+    const rows = lt.slice().sort(function (a, b) { return b.lateDays - a.lateDays; }).map(function (p) {
+      return '• [' + p.code + '] ' + (p.cust ? p.cust + ' – ' : '') + p.name + ': hạn ' + dm(p.due) + ' (' + WD[dow(p.due)] + '), trễ ' + p.lateDays + ' ngày · xong ' + p.nDone + '/' + p.nIt + ' hạng mục';
     });
-    tin2 = M.join('\n');
+    let more = 0; while (rows.length > 1 && (L.join('\n') + '\n' + rows.join('\n')).length > 1700) { rows.pop(); more++; }
+    rows.forEach(function (r) { L.push(r); });
+    if (more) L.push('… và ' + more + ' công trình nữa (xem trên web, trang Kế hoạch).');
   }
-  const extra = (D.pending || []).filter(function (p) { return (!p.due || p.due > D.end) && (p.nDone < p.nIt || p.tkOpen > 0); });
-  if (extra.length) {
-    const E = ['CÔNG VIỆC CHƯA XONG KHÁC - ngoài lịch hai tuần hoặc chưa có ngày giao:'];
-    extra.forEach(function (p) { E.push('[' + p.code + '] ' + (p.cust ? p.cust + ' - ' : '') + p.name + ': còn ' + Math.max(0, p.nIt - p.nDone) + '/' + p.nIt + ' hạng mục chưa xong; ' + (p.due ? 'hạn ' + dm(p.due) : 'chưa có ngày giao') + (p.tkOpen ? '; ' + p.tkOpen + ' việc đang mở' : '') + '.'); });
-    tin2 += (tin2 ? '\n\n' : '') + E.join('\n');
-  }
-  return { tin1: L.join('\n'), tin2: tin2 };
+  return { tin1: L.join('\n'), tin2: '' };
 }
 
 /* ---------- bộ vẽ ---------- */
