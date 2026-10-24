@@ -361,11 +361,12 @@ module.exports = function (ctx) {
   }
   const BOT_TAG = process.env.ZALO_BOT_TAG != null ? process.env.ZALO_BOT_TAG : '(Thử nghiệm) ';
   const BUYER = process.env.ZALO_BUYER_NAME || 'Chú 9';
-  function missingItems(doc) { return (doc.items || []).filter(function (it) { return it.stock && it.stock.st !== 'co'; }); }
+  function missingItems(doc) { return (doc.items || []).filter(function (it) { return it.stock && (it.stock.st === 'het' || it.stock.st === 'thieu' || it.stock.st === 'khong'); }); }
   function buyLine(doc) {
-    const miss = missingItems(doc); if (!miss.length) return '';
-    const all = miss.length === (doc.items || []).length;
-    return '\n' + (all ? 'Kho không có hàng' : 'Kho không có ' + miss.length + ' mục') + ' → @' + BUYER + ' đặt hàng giúp nhé.';
+    const stocked = (doc.items || []).filter(function (it) { return it.stock && (it.stock.st === 'co' || it.stock.st === 'thieu'); });
+    const warehouse = stocked.length ? '\nNhờ thủ kho kiểm tra và cấp các mục có tồn kho đúng mã, quy cách và số lượng; báo lại trên nhóm sau khi cấp.' : '';
+    const miss = missingItems(doc); if (!miss.length) return warehouse;
+    return warehouse + '\nCó ' + miss.length + ' mục thiếu, hết hoặc chưa tìm thấy mã trong kho. @' + BUYER + ' kiểm tra các mục này và đặt phần còn thiếu giúp nhé; mục chưa rõ mã cần thủ kho xác nhận trước khi đặt.';
   }
   function summaryText(doc) {
     const t0 = summaryCore(doc);
@@ -521,7 +522,10 @@ module.exports = function (ctx) {
     if (!rows || !rows.length) return null;
     const c = RULES.stockMatch(it.name, it.spec, rows);
     const have = c.filter(function (x) { return x.q > 0; });
-    return { st: have.length ? 'co' : (c.length ? 'het' : 'khong'), c: c.slice(0, 2).map(function (x) { return { c: x.c, n: x.n, u: x.u, q: x.q, wh: x.wh }; }) };
+    const best = have[0] || c[0], qty = Number(String(it.qty || '').replace(',', '.'));
+    const unitMatch = best && (!it.unit || stripD(it.unit).trim() === stripD(best.u).trim());
+    const insufficient = best && best.q > 0 && qty > 0 && unitMatch && Number(best.q) < qty;
+    return { st: insufficient ? 'thieu' : (have.length ? 'co' : (c.length ? 'het' : 'khong')), shortage: insufficient ? qty - Number(best.q) : 0, compared: !!(qty > 0 && unitMatch), c: (best ? [best] : []).map(function (x) { return { c: x.c, n: x.n, u: x.u, q: x.q, wh: x.wh }; }) };
   }
   function attachStock(doc) {
     const rows = khoRows(); doc.khoRows = rows.length;
@@ -531,7 +535,8 @@ module.exports = function (ctx) {
     const s = it.stock; if (!s) return '';
     if (s.st === 'khong') return ' → kho: không thấy';
     const b = s.c[0]; const tag = b ? (b.n + ' · ' + b.q + ' ' + (b.u || '') + ' (' + String(b.wh || '').replace(/^Kho\s*/i, '') + ')') : '';
-    return s.st === 'co' ? ' → kho CÓ: ' + tag : ' → kho hết: ' + tag;
+    if (s.st === 'thieu') return ' → kho CÓ NHƯNG THIẾU: ' + tag + '; cần thêm ' + s.shortage + ' ' + (b.u || '');
+    return s.st === 'co' ? ' → kho CÓ: ' + tag + (s.compared ? '; đủ số lượng yêu cầu' : '; thủ kho xác nhận số lượng/đơn vị trước khi cấp') : ' → kho hết: ' + tag;
   }
   function applyBuy(doc, itemsOverride) {
     const items = (itemsOverride || doc.items || []).filter(function (it) { return it && String(it.name || '').trim(); }).map(function (it) {
@@ -908,28 +913,55 @@ module.exports = function (ctx) {
   function nextMon() { const tt = vnToday(), dw = new Date(tt + 'T00:00:00Z').getUTCDay(); return REPORT.addDays(tt, (8 - dw) % 7); }
   function weekBuild(base) { if (!REPORT) throw new Error('Thieu report.js'); const D = REPORT.buildData(ctx.loadColl('orders'), ctx.loadColl('tasks'), base || vnToday()); return { D: D, M: REPORT.messages(D) }; }
   function weekImgPath() { return path.join(DATA_DIR, 'week_report.png'); }
-  async function weekSend(chatId) {
+  function reportChunks(text) {
+    const out = []; let part = '';
+    String(text || '').split('\n').forEach(function (line) {
+      while (line.length > 1700) { if (part) { out.push(part); part = ''; } out.push(line.slice(0, 1700)); line = line.slice(1700); }
+      if ((part + '\n' + line).length > 1700) { out.push(part); part = ''; }
+      part += (part ? '\n' : '') + line;
+    });
+    if (part.trim()) out.push(part);
+    return out;
+  }
+  function sentOk(r) { return !!(r && !r.error && r.status === 200 && r.data && r.data.ok === true); }
+  async function weekSend(chatId, resume) {
     const B = weekBuild(), r = remindCfg(), w = r.week || {}, res = { photo: null, parts: 0, projects: B.D.P.length };
-    if (B.D.P.length) {
+    const day = vnToday();
+    let delivery = w.delivery;
+    if (!resume || !delivery || delivery.day !== day || delivery.chatId !== chatId) delivery = { day: day, chatId: chatId, photo: false, parts: 0, texts: reportChunks(B.M.tin1).concat(reportChunks(B.M.tin2)) };
+    const checkpoint = function () { if (resume) { w.delivery = delivery; r.week = w; remindSave(r); } };
+    checkpoint();
+    if ((B.D.pending || B.D.P).length && !delivery.photo) {
       try {
         fs.writeFileSync(weekImgPath(), REPORT.dashboardPng(B.D));
         w.token = w.token || crypto.randomBytes(12).toString('hex'); r.week = w; remindSave(r);
         const url = cfg().publicUrl + '/api/zalo/week/img/' + w.token + '.png?d=' + B.D.base;
         const pr = await zaloCall('sendPhoto', { chat_id: String(chatId), photo: url, caption: 'DASHBOARD TIẾN ĐỘ — tuần ' + B.D.base.slice(8, 10) + '/' + B.D.base.slice(5, 7) });
-        res.photo = !!(pr && pr.status === 200 && pr.data && pr.data.ok !== false); if (!res.photo) res.photoErr = String((pr && pr.raw) || '').slice(0, 200);
-      } catch (e) { res.photo = false; res.photoErr = String((e && e.message) || e); }
+        res.photo = sentOk(pr); if (!res.photo) throw new Error('Không gửi được ảnh báo cáo: ' + String((pr && pr.raw) || '').slice(0, 200));
+        delivery.photo = true; checkpoint();
+      } catch (e) { throw new Error('Báo cáo nhóm ' + chatId + ': ' + String((e && e.message) || e)); }
     }
-    await sendText(chatId, B.M.tin1); res.parts++;
-    if (B.M.tin2) { await sendText(chatId, B.M.tin2); res.parts++; }
+    for (let i = delivery.parts; i < delivery.texts.length; i++) {
+      const result = await sendText(chatId, delivery.texts[i]);
+      if (!sentOk(result)) throw new Error('Báo cáo nhóm ' + chatId + ': lỗi tin chữ ' + (i + 1) + '/' + delivery.texts.length + '; đã gửi ' + delivery.parts + ' tin chữ, ảnh ' + (delivery.photo ? 'đã gửi' : 'chưa gửi') + '. ' + String((result && (result.error || result.raw)) || 'Không nhận xác nhận từ Zalo').slice(0, 200));
+      delivery.parts = i + 1; checkpoint();
+    }
+    res.photo = delivery.photo; res.parts = delivery.parts;
     return res;
   }
   let weekBusy = false;
   async function weekTick() {
-    if (weekBusy) return; const r = remindCfg(), w = r.week || {}; if (!w.on || !w.chatId) return;
+    if (weekBusy) return; const r = remindCfg(), w = r.week || {}; if (!w.on || !w.chatId || (w.retryAfter && w.retryAfter > Date.now())) return;
     const n = vnNow(), today = vnToday(); if (n.getUTCDay() !== 1 || w.lastDate === today) return;
     if (n.getUTCHours() * 60 + n.getUTCMinutes() < 7 * 60) return;
     weekBusy = true;
-    try { w.lastDate = today; r.week = w; remindSave(r); await weekSend(w.chatId); } catch (e) {} finally { weekBusy = false; }
+    try {
+      await weekSend(w.chatId, true);
+      const done = remindCfg(); done.week.lastDate = today; done.week.lastError = ''; done.week.retryAfter = 0; remindSave(done);
+    } catch (e) {
+      const failed = remindCfg(); failed.week.lastError = String((e && e.message) || e); failed.week.retryAfter = Date.now() + 15 * 60000; remindSave(failed);
+      console.error('Weekly report failed:', failed.week.lastError);
+    } finally { weekBusy = false; }
   }
   setInterval(function () { weekTick().catch(function () {}); }, 60000);
 
@@ -1188,5 +1220,5 @@ module.exports = function (ctx) {
   }
 
   function extSend(chatId, text) { return sendText(chatId, BOT_TAG + String(text || '')); }
-  return { handle: handle, ext: { chats: seenChats, send: extSend, weekPreview: function () { const B = weekBuild(nextMon()); return { base: B.D.base, count: B.D.P.length, parts: [B.M.tin1, B.M.tin2].filter(Boolean) }; }, weekPng: function () { return REPORT.dashboardPng(weekBuild(nextMon()).D); } }, _test: { remindParts: remindParts, holdParts: holdParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
+  return { handle: handle, ext: { chats: seenChats, send: extSend, weekPreview: function () { const B = weekBuild(nextMon()); return { base: B.D.base, count: B.D.P.length, pendingCount: (B.D.pending || []).length, parts: [B.M.tin1, B.M.tin2].filter(Boolean) }; }, weekPng: function () { return REPORT.dashboardPng(weekBuild(nextMon()).D); } }, _test: { stockFor: stockFor, stockLine: stockLine, buyLine: buyLine, weekSend: weekSend, weekTick: weekTick, reportChunks: reportChunks, remindParts: remindParts, holdParts: holdParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
 };
