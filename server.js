@@ -268,11 +268,12 @@ const server = http.createServer(function (req, res) {
       // Chan ghi don thieu id/code (tranh lam mat du lieu don) va chi cho phep dung cac bo suu tap nay.
       if ((mx = p.match(/^\/api\/ext\/doc\/([^/]+)\/(.+)$/))) {
         const cn = mx[1], did = decodeURIComponent(mx[2]);
-        if (!(cn === 'orders' || /^(cokhi|electric|cokhi_old)_(s\d+|meta)$/.test(cn))) return sendJson(res, 403, { error: 'bo suu tap khong duoc phep' });
+        if (!(cn === 'orders' || cn === 'kho' || /^(cokhi|electric|cokhi_old)_(s\d+|meta)$/.test(cn))) return sendJson(res, 403, { error: 'bo suu tap khong duoc phep' });
         const data = loadColl(cn);
         if (method === 'GET') { const has = Object.prototype.hasOwnProperty.call(data, did); return sendJson(res, 200, { exists: has, data: has ? data[did] : null }); }
         if (method === 'PUT') {
           const patch = JSON.parse((await readBody(req)) || '{}'); const mode = u.searchParams.get('mode') || 'set';
+          if (cn === 'kho' && (mode !== 'set' || (did !== 'cokhi' && did !== 'dien') || !patch || !Array.isArray(patch.rows) || patch.rows.length < 20)) return sendJson(res, 400, { error: 'kho: chi nhan cokhi/dien, mode=set, rows>=20' });
           if (cn === 'orders') {
             if (mode === 'set' && (!patch || patch.id !== did || !patch.code)) return sendJson(res, 400, { error: 'don thieu id/code' });
             cleanOrderDoc(patch);
