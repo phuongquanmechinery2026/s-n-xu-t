@@ -1644,7 +1644,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-19e-may';
+  var BUILD_ID = '2026-10-24a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1866,6 +1866,7 @@
     var st = rollupStatus(o);
     if (st==='ĐÃ GIAO') return '<span class="pill pill-good"><span class="pill-dot"></span>Đã giao</span>';
     if (isHeld(o)) return '<span class="pill pill-neutral">⏸ Tạm dừng</span>';
+    if (orderProdDone(o)) return '<span class="pill pill-good"><span class="pill-dot"></span>Đã xong</span>';
     var snap = headlineSnapshot(o);
     var dr = snap ? daysRemaining(snap.deliveryDate) : null;
     if (dr===null) return '<span class="pill pill-neutral">—</span>';
@@ -2731,9 +2732,9 @@
     var card = function(o){
       var ap = avgProgress(o) || {}, hs = headlineSnapshot(o), due = hs && hs.deliveryDate, dr = due ? daysRemaining(due) : null;
       var st = rollupStatus(o), items = o.items || [];
-      var c = '<article class="m-card'+(dr!==null && dr<0 && st!=='ĐÃ GIAO' ? ' late' : '')+'">';
+      var c = '<article class="m-card'+(dr!==null && dr<0 && st!=='ĐÃ GIAO' && !orderProdDone(o) ? ' late' : '')+'">';
       c += '<header><button class="m-code num" data-goto-vt="'+esc(o.id)+'">'+esc(o.legacy ? 'Đơn cũ' : (o.code||o.id))+'</button>';
-      c += '<span class="m-due">'+(due ? esc(fmtDate(due)) : 'Chưa có ngày giao')+(st==='ĐÃ GIAO' ? ' · <b>Đã giao</b>' : (dr===null ? '' : (dr<0 ? ' · <b class="neg">Trễ '+(-dr)+'</b>' : ' · còn '+dr+' ngày')))+'</span></header>';
+      c += '<span class="m-due">'+(due ? esc(fmtDate(due)) : 'Chưa có ngày giao')+(st==='ĐÃ GIAO' ? ' · <b>Đã giao</b>' : (orderProdDone(o) ? ' · <b>Đã xong</b>' : (dr===null ? '' : (dr<0 ? ' · <b class="neg">Trễ '+(-dr)+'</b>' : ' · còn '+dr+' ngày'))))+'</span></header>';
       c += '<button class="m-cust" data-goto-td="'+esc(o.id)+'">'+esc(o.customerInfo||'(chưa có thông tin)')+'</button>';
       c += '<div class="m-prog"><span>Bản vẽ <b class="num">'+pc(ap.banve)+'</b></span><span>Vật tư <b class="num">'+pc(ap.vattu)+'</b></span><span>Tiện <b class="num">'+pc(ap.tien)+'</b></span></div>';
       if (items.length){
@@ -2781,6 +2782,7 @@
     var clCls = (dr!==null && dr<0) ? ' cl-neg' : '';
     var clTxt = dr===null ? '—' : (dr<0 ? ('Trễ '+Math.abs(dr)) : (dr+' ngày'));
     if (delivered){ clCls = ' cl-done'; clTxt = 'Đã giao'; }
+    else if (o && orderProdDone(o)){ clCls = ' cl-done'; clTxt = 'Đã xong'; }
     var rs = ' rowspan="'+rowspan+'"';
     return '<td'+rs+' class="c-pct">'+bv+'</td><td'+rs+' class="c-pct">'+vt+'</td><td'+rs+' class="c-pct">'+ti+'</td>'+
       (canEdit && o ? schedCell(o, snap, rs) : '<td'+rs+' class="c-date">'+dd+'</td>')+'<td'+rs+' class="c-date'+clCls+'">'+clTxt+'</td>';
@@ -3141,7 +3143,8 @@
       html += '<div class="progress-field wide"><label>Ngày giao</label><input type="date" value="'+esc(snap.deliveryDate||'')+'" data-order="'+esc(o.id)+'" data-cluster="'+esc(clKey)+'" data-snapf="deliveryDate"></div>';
       var dr = snap.deliveryDate ? daysRemaining(snap.deliveryDate) : null;
       var _dlv = rollupStatus(o)==='ĐÃ GIAO';
-      html += '<div class="progress-field"><label>Còn lại</label><div class="remain-out" style="'+(!_dlv&&dr!==null&&dr<0?'color:var(--bad);':'')+'">'+(_dlv?'Đã giao':(dr===null?'—':(dr<0?('Trễ '+Math.abs(dr)):(dr+' ngày'))))+'</div></div>';
+      var _pdone = !_dlv && orderProdDone(o);
+      html += '<div class="progress-field"><label>Còn lại</label><div class="remain-out" style="'+(!_dlv&&!_pdone&&dr!==null&&dr<0?'color:var(--bad);':'')+'">'+(_dlv?'Đã giao':(_pdone?'Đã xong':(dr===null?'—':(dr<0?('Trễ '+Math.abs(dr)):(dr+' ngày')))))+'</div></div>';
       html += '</div>';
       html += '<div class="table-wrap"><table class="mat-table"><thead><tr><th>Thiết bị / Hạng mục</th><th title="Đã có bản vẽ — dùng để tự tính % Bản vẽ">Bản vẽ</th><th title="Đã đủ vật tư — dùng để tự tính % Vật tư">Vật tư</th><th>Tổ đội thực hiện</th><th>Người thực hiện</th><th>Yêu cầu</th><th>Trạng thái</th><th>QC</th><th>Ghi chú</th><th></th></tr></thead><tbody>';
       if (!g.items.length){
@@ -10000,7 +10003,7 @@ function stockMatch(name, spec, rows) {
   // ô "Ngày giao" có nút Đổi lịch (chỉ ô đầu của đơn chưa giao)
   function schedCell(o, snap, rs){
     var s = o.sched, eff = String((s && s.ship) || (snap && snap.deliveryDate) || '').slice(0,10);
-    var dr = eff ? daysRemaining(eff) : null, late = dr!==null && dr<0;
+    var dr = eff ? daysRemaining(eff) : null, late = dr!==null && dr<0 && !orderProdDone(o);
     var h = '<td'+rs+' class="c-date c-sched"><div class="sched-d'+(late ? ' late' : '')+'">'+(eff ? esc(fmtDate(eff)) : '—')+'</div>'+
       '<button type="button" class="sched-btn" data-sched-edit="'+esc(o.id)+'" title="Đổi ngày thử máy kiêm xuất hàng sau họp tiến độ">📅 Đổi lịch</button>';
     if (s && s.ship) h += '<div class="sched-rev" data-sched-hist="'+esc(o.id)+'" title="Bấm để xem lịch sử các lần đổi lịch">Lần '+(s.rev || 1)+' · gốc '+esc(fmtDate(schedOrig(o)).slice(0,5))+'</div>';
