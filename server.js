@@ -286,6 +286,11 @@ const server = http.createServer(function (req, res) {
         }
       }
       if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
+      if (p === '/api/ext/chatname' && method === 'POST') {
+        const b = JSON.parse((await readBody(req)) || '{}');
+        if (!b.chatId) return sendJson(res, 400, { error: 'thieu chatId' });
+        return sendJson(res, 200, { ok: zalo.ext.setChatName(b.chatId, b.name), chats: zalo.ext.chats() });
+      }
       // Xem truoc bao cao tuan (thu Hai toi) de Javis lam demo cho chu duyet
       if (p === '/api/ext/week/preview' && method === 'GET') return sendJson(res, 200, zalo.ext.weekPreview());
       if (p === '/api/ext/week/preview.png' && method === 'GET') return sendBytes(res, 200, 'image/png', zalo.ext.weekPng());

@@ -1162,6 +1162,9 @@
   html.pq-m table.mat-table tr[data-itemidx] td:nth-child(7){grid-column:3 / 5;grid-row:4;}
   html.pq-m table.mat-table tr[data-itemidx] td:nth-child(8){grid-column:1 / 3;grid-row:5;}
   html.pq-m table.mat-table tr[data-itemidx] td:nth-child(9){grid-column:3 / 5;grid-row:5;}
+  html.pq-m table.mat-table tr[data-itemidx] td.tien-td{grid-column:1 / 5;grid-row:6;}
+  html.pq-m table.mat-table tr[data-itemidx] td.tien-td:empty{display:none;}
+  table.mat-table td.tien-td .tien-chk{margin-top:0 !important;}
   html.pq-m table.mat-table tr[data-itemidx] td:nth-child(6),html.pq-m table.mat-table tr[data-itemidx] td:nth-child(7),html.pq-m table.mat-table tr[data-itemidx] td:nth-child(8){position:relative;}
   html.pq-m table.mat-table tr[data-itemidx] td:nth-child(6)::before,html.pq-m table.mat-table tr[data-itemidx] td:nth-child(7)::before,html.pq-m table.mat-table tr[data-itemidx] td:nth-child(8)::before{position:absolute;top:-7px;left:8px;background:var(--surface);padding:0 3px;font-size:10px;font-weight:600;color:var(--text-muted);z-index:1;}
   html.pq-m table.mat-table tr[data-itemidx] td:nth-child(6)::before{content:"Yêu cầu";}
@@ -1644,7 +1647,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-10-25a-may';
+  var BUILD_ID = '2026-11-03a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -1865,7 +1868,7 @@
   function remainingPillForOrder(o){
     var st = rollupStatus(o);
     if (st==='ĐÃ GIAO') return '<span class="pill pill-good"><span class="pill-dot"></span>Đã giao</span>';
-    if (isHeld(o)) return '<span class="pill pill-neutral">⏸ Tạm dừng</span>';
+    if (isHeld(o)) return '<span class="pill pill-neutral">⏸ Tạm hoãn</span>';
     if (orderProdDone(o)) return '<span class="pill pill-good"><span class="pill-dot"></span>Đã xong</span>';
     var snap = headlineSnapshot(o);
     var dr = snap ? daysRemaining(snap.deliveryDate) : null;
@@ -2023,6 +2026,7 @@
   // CHỈ đến từ đúng 1 chỗ: parseLichTrinh() tự đánh dấu "ĐÃ GIAO" khi TOÀN BỘ
   // hạng mục của 1 đơn đã bị ẨN trên Sheet (ẩn cả cụm — không phải ẩn lẻ vài
   // dòng), lúc đó rollupStatus() ở đây tự nhiên trả về 'ĐÃ GIAO' rồi.
+  function heldItemCount(){ var n = 0; try { holdList().forEach(function(o){ n += (o.items||[]).filter(function(i){ return i && String(i.name||'').trim(); }).length; }); } catch(e){} return n; }
   function currentWorkOrders(){ return activeOrders().filter(function(o){return !o.shop && rollupStatus(o)!=='ĐÃ GIAO' && !isHeld(o);}); }
   // Mã Nhà xưởng (NX): vật tư tiêu hao dùng chung — luôn có mặt ở các trang vật tư để kế toán biết mà mua
   function shopOrders(){ return activeOrders().filter(function(o){ return o.shop===true; }); }
@@ -2438,7 +2442,7 @@
     var producing = withStatus.filter(function(x){return x.st==='ĐANG SẢN XUẤT';}).length;
     var notStarted = withStatus.filter(function(x){return x.st==='CHƯA SẢN XUẤT';}).length;
     var delivered = withStatus.filter(function(x){return x.st==='ĐÃ GIAO';}).length;
-    var onHold = withStatus.filter(function(x){return x.st==='TẠM HOÃN';}).length;
+    var onHold = withStatus.filter(function(x){return x.st==='TẠM HOÃN' || (isHeld(x.o) && x.st!=='ĐÃ GIAO');}).length;
     var withHead = act.map(function(o){ return {o:o, snap: headlineSnapshot(o)}; }).filter(function(x){return x.snap && x.snap.deliveryDate;});
     var overdue = withHead.filter(function(x){ var d=daysRemaining(x.snap.deliveryDate); return d!==null && d<0 && rollupStatus(x.o)!=='ĐÃ GIAO'; });
     var soon = withHead.filter(function(x){ var d=daysRemaining(x.snap.deliveryDate); return d!==null && d>=0 && d<=7 && rollupStatus(x.o)!=='ĐÃ GIAO'; });
@@ -2523,8 +2527,9 @@
       var d = new Date(snap.deliveryDate);
       return !isNaN(d) && d>=wk.mon && d<=wk.sun;
     });
-    var denom = totalItems || 1;
-    var pctInProg = Math.round(inProg/denom*100);
+    var hItems = heldItemCount(); onHold += hItems;
+    var denom = (totalItems + hItems) || 1, denomA = totalItems || 1;
+    var pctInProg = Math.round(inProg/denomA*100);
 
     var segs = [
       {v:doneWait,    color:'var(--st-xuatxong-bg)', label:'Xong / chờ giao'},
@@ -2533,7 +2538,7 @@
       {v:onHold,      color:'var(--st-tamhoan-bg)',  label:'Tạm hoãn'}
     ];
     var doneAll = doneWait;
-    var pctDone = Math.round(doneAll/denom*100);
+    var pctDone = Math.round(doneAll/denomA*100);
 
     var weekNames = weekList.map(function(o){ return orderTitle(o); });
     var html = '<div class="vol-wrap">';
@@ -2569,7 +2574,8 @@
       if (it.status && counts.hasOwnProperty(it.status)) counts[it.status]++;
       else if (!it.status) counts['CHƯA SẢN XUẤT']++;
     });
-    var total = items.length || 1;
+    var hItems = heldItemCount(); counts['TẠM HOÃN'] += hItems;
+    var total = (items.length + hItems) || 1;
     var segDefs = [
       {key:'CHƯA SẢN XUẤT', label:'Chưa sản xuất', varBg:'--st-chuasx-bg'},
       {key:'ĐANG SẢN XUẤT', label:'Đang sản xuất', varBg:'--st-dangsx-bg'},
@@ -2973,6 +2979,7 @@
     html += '<button class="btn btn-sm" data-pdf-import="'+esc(o.id)+'">'+ICO.pdf+' Đọc PDF</button>';
     html += '<button class="btn btn-sm btn-primary" data-draw-ai="'+esc(o.id)+'" title="AI đọc bản vẽ PDF/ảnh, bóc tách vật tư và đề xuất việc cần làm">Đọc bản vẽ (AI)</button>';
     html += '<button class="btn btn-sm" data-steel-takeoff="'+esc(o.id)+'">Bóc tách từ bản vẽ</button>';
+    html += '<button class="btn btn-sm" data-ac-import="'+esc(o.id)+'" title="Nhập file VT-….csv / TD-….csv do lệnh PQXUAT trong AutoCAD xuất ra">Nhập từ AutoCAD</button>'+acUndoBtn(o.id);
     if (auOwner()) html += '<button class="btn btn-sm" data-order-hist="'+esc(o.id)+'" data-order-code="'+esc(o.code||'')+'" title="Ai đã sửa gì trong đơn này (chỉ chủ xem)">🕘 Lịch sử đơn</button>';
     html += '<button class="btn btn-sm" data-kho-check="'+esc(o.id)+'" title="Dòng nào kho đã có đủ thì tự ghi \"Có tại kho\" (kế toán khỏi dò lại)">🔍 Kiểm kho</button>';
     html += '<button class="btn btn-sm" data-copy-zalo="'+esc(o.id)+'" title="Chép dòng tiêu đề (khách - thiết bị - MS - TĐ) + vật tư giống Google Sheet, để dán vào Zalo / Excel">📋 Chép gửi Zalo</button>';
@@ -3126,9 +3133,10 @@
     html += '<div style="margin-left:auto;">'+remainingPillForOrder(o)+'</div>';
     html += '</div>';
     html += '<div class="toolbar-row"><span class="hint-txt">Sửa trực tiếp từng dòng; gom nhóm bằng "cụm". <b>Chuột phải vào 1 dòng</b> để chèn/xoá/tô nền/in đậm. Thêm hạng mục ở đây thì bên "Vật tư" tự có mục tương ứng.</span>';
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-sm" data-pdf-import="'+esc(o.id)+'">'+ICO.pdf+' Nhập từ PDF</button><button class="btn btn-sm" data-td-paste="'+esc(o.id)+'">Dán từ Sheet TD</button><button class="btn btn-sm" data-add-cluster="'+esc(o.id)+'">+ Thêm cụm</button><button class="btn btn-sm" data-add-item="'+esc(o.id)+'" data-cluster="">+ Thêm hạng mục</button></div></div>';
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-sm" data-pdf-import="'+esc(o.id)+'">'+ICO.pdf+' Nhập từ PDF</button><button class="btn btn-sm" data-td-paste="'+esc(o.id)+'">Dán từ Sheet TD</button><button class="btn btn-sm" data-ac-import="'+esc(o.id)+'" title="Nhập file TD-….csv / VT-….csv từ AutoCAD">Nhập từ AutoCAD</button>'+acUndoBtn(o.id)+'<button class="btn btn-sm'+(STATE.tienOnly?' btn-primary':'')+'" data-tien-only="1" title="Chỉ hiện các việc của tổ Phay tiện (dùng cho thợ tiện xem trên điện thoại)">'+(STATE.tienOnly?'✓ ':'')+'Chỉ việc Phay tiện</button><button class="btn btn-sm" data-add-cluster="'+esc(o.id)+'">+ Thêm cụm</button><button class="btn btn-sm" data-add-item="'+esc(o.id)+'" data-cluster="">+ Thêm hạng mục</button></div></div>';
     if (!groups.length){ html += '<div class="empty-note">Chưa có hạng mục nào cho đơn này.</div>'; }
     groups.forEach(function(g){
+      if (STATE.tienOnly && !g.items.some(isTienItem)) return;
       html += '<div class="cluster-card">';
       html += '<div class="cluster-card-head">';
       if (g.cluster!==null){
@@ -3151,15 +3159,16 @@
       var _pdone = !_dlv && orderProdDone(o);
       html += '<div class="progress-field"><label>Còn lại</label><div class="remain-out" style="'+(!_dlv&&!_pdone&&dr!==null&&dr<0?'color:var(--bad);':'')+'">'+(_dlv?'Đã giao':(_pdone?'Đã xong':(dr===null?'—':(dr<0?('Trễ '+Math.abs(dr)):(dr+' ngày')))))+'</div></div>';
       html += '</div>';
-      html += '<div class="table-wrap"><table class="mat-table"><thead><tr><th>Thiết bị / Hạng mục</th><th title="Đã có bản vẽ — dùng để tự tính % Bản vẽ">Bản vẽ</th><th title="Đã đủ vật tư — dùng để tự tính % Vật tư">Vật tư</th><th>Tổ đội thực hiện</th><th>Người thực hiện</th><th>Yêu cầu</th><th>Trạng thái</th><th>QC</th><th>Ghi chú</th><th></th></tr></thead><tbody>';
+      html += '<div class="table-wrap"><table class="mat-table"><thead><tr><th>Thiết bị / Hạng mục</th><th title="Đã có bản vẽ — dùng để tự tính % Bản vẽ">Bản vẽ</th><th title="Đã đủ vật tư — dùng để tự tính % Vật tư">Vật tư</th><th>Tổ đội thực hiện</th><th>Người thực hiện</th><th>Yêu cầu</th><th>Trạng thái</th><th>QC</th><th>Ghi chú</th><th></th><th title="Chỉ có ở việc của tổ Phay tiện">Tiện xong</th></tr></thead><tbody>';
       if (!g.items.length){
-        html += '<tr><td colspan="10" style="padding:12px;color:var(--text-faint);text-align:center;">Chưa có hạng mục trong cụm này.</td></tr>';
+        html += '<tr><td colspan="11" style="padding:12px;color:var(--text-faint);text-align:center;">Chưa có hạng mục trong cụm này.</td></tr>';
       }
       // "Tổ đội thực hiện" / "Người thực hiện": khớp đúng 2 cột trong file TD-
       // <mã đơn> gốc trên Google Sheet (Tổ đội thực hiện / Người thực hiện) —
       // để biết ai đang làm hạng mục nào, dùng chung datalist gợi ý các tổ đội
       // đã từng nhập, gõ tay được tự do (không giới hạn thành 1 danh sách cố định).
       g.items.forEach(function(it, ii){
+        if (STATE.tienOnly && !isTienItem(it)) return;
         var idx = g.idxs[ii];
         var cluTag = g.cluster ? '<span class="clu-tag">'+esc(g.cluster)+'</span>' : '<span class="clu-tag">Không phân cụm</span>';
         html += '<tr data-order="'+esc(o.id)+'" data-itemidx="'+idx+'"'+rowFmt(it)+'>';
@@ -3173,6 +3182,7 @@
         html += '<td>'+miniSelect(QC_OPTIONS, it.qc, 'qc')+'</td>';
         html += '<td><input value="'+esc(it.note||'')+'" data-itf="note" placeholder="Ghi chú"></td>';
         html += '<td><button class="row-del" data-del-item="1" data-order="'+esc(o.id)+'" data-itemidx="'+idx+'">✕</button></td>';
+        html += '<td class="tien-td">'+tienBox(it, o, idx)+'</td>';
         html += '</tr>';
       });
       html += '</tbody></table></div>';
@@ -4771,6 +4781,509 @@
     }, true);
   }
 
+  /* ============ NHẬP TỪ AUTOCAD (lệnh PQXUAT: VT-*.csv / TD-*.csv) + TỔ PHAY TIỆN "TIỆN XONG" · BUILD 2026-11-02b ============
+     Chỉ THÊM / CẬP NHẬT: không xoá dòng cũ, không đổi cấu trúc đơn. Nhập lại lần 2 không tạo dòng trùng. */
+  function acDecode(s){ return String(s==null?'':s).replace(/\\U\+([0-9A-Fa-f]{4,6})/g, function(_, h){ try { return String.fromCodePoint(parseInt(h, 16)); } catch(e){ return ''; } }); }
+  function acNorm(s){ return stripDiacritics(acDecode(s).replace(/∅/g, 'Ø')).replace(/[‐-―−]/g, '-').replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ').trim(); }
+  function acClean(s){ return acDecode(s).replace(/\s+/g, ' ').trim(); }
+  function acCsvParse(text){
+    text = String(text==null?'':text).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+    var first = text.split('\n').filter(function(l){ return l.trim(); })[0] || '';
+    var cnt = function(ch){ return first.split(ch).length - 1; };
+    var delim = cnt('\t') > 0 && cnt('\t') >= cnt(',') ? '\t' : (cnt(';') > cnt(',') ? ';' : ',');
+    var rows = [], row = [], cur = '', q = false;
+    for (var i=0;i<text.length;i++){
+      var c = text[i];
+      if (q){ if (c==='"'){ if (text[i+1]==='"'){ cur += '"'; i++; } else q = false; } else cur += c; }
+      else if (c==='"' && cur==='') q = true;
+      else if (c===delim){ row.push(cur); cur = ''; }
+      else if (c==='\n'){ row.push(cur); rows.push(row); row = []; cur = ''; }
+      else cur += c;
+    }
+    if (cur!=='' || row.length){ row.push(cur); rows.push(row); }
+    return rows.filter(function(r){ return r.some(function(c){ return String(c).trim(); }); });
+  }
+  function acKind(rows){
+    for (var i=0;i<Math.min(rows.length,8);i++){
+      var n = rows[i].map(acNorm);
+      if (n.indexOf('so hieu') >= 0 && n.indexOf('ten goi') >= 0) return 'vt';
+      if (n.indexOf('chuc nang') >= 0 && n.indexOf('nhiem vu') >= 0) return 'td';
+    }
+    return '';
+  }
+  function acNum(s){ var t = String(s==null?'':s).trim().replace(',', '.'); var v = parseFloat(t); return isFinite(v) ? v : null; }
+  function acParseVT(rows){
+    var h = -1; for (var i=0;i<Math.min(rows.length,8);i++){ var n = rows[i].map(acNorm); if (n.indexOf('so hieu')>=0 && n.indexOf('ten goi')>=0){ h = i; break; } }
+    if (h < 0) return {groups:[]};
+    var nh = rows[h].map(acNorm);
+    var col = function(name, dflt){ var k = nh.indexOf(name); return k >= 0 ? k : dflt; };
+    var cTen = col('ten goi',1), cQc = col('quy cach',2), cDvt = col('dvt',3), cSl = col('tong khoi luong',4), cGc = col('ghi chu',7);
+    var groups = [], cur = null;
+    for (var r=h+1;r<rows.length;r++){
+      var c = rows[r], no = String(c[0]==null?'':c[0]).trim();
+      if (/^\d+$/.test(no)){ cur = {name: acClean(c[cTen]), items: []}; groups.push(cur); }
+      else if (/^\d+\.\d+$/.test(no)){
+        if (!cur){ cur = {name: '', items: []}; groups.push(cur); }
+        var nm = acClean(c[cTen]); if (!nm) continue;
+        cur.items.push({name:nm, spec:acClean(c[cQc]), unit:acClean(c[cDvt]), qty:acNum(c[cSl]), note:acClean(c[cGc])});
+      }
+    }
+    return {groups: groups.filter(function(g){ return g.name || g.items.length; })};
+  }
+  function acParseTD(rows){
+    var h = -1; for (var i=0;i<Math.min(rows.length,8);i++){ var n = rows[i].map(acNorm); if (n.indexOf('chuc nang')>=0 && n.indexOf('nhiem vu')>=0){ h = i; break; } }
+    if (h < 0) return {clusters:[]};
+    var clusters = [], cur = null;
+    for (var r=h+1;r<rows.length;r++){
+      var c = rows[r], no = String(c[1]==null?'':c[1]).trim();
+      var clName = acClean(c[0]) || acClean(c[2]);
+      if (/^\d+$/.test(no)){ cur = {name: clName, items: []}; clusters.push(cur); }
+      else if (/^\d+\.\d+$/.test(no)){
+        var nm = acClean(c[2]); if (!nm) continue;
+        if (!cur || (clName && acNorm(cur.name) !== acNorm(clName))){ cur = {name: clName, items: []}; clusters.push(cur); }
+        var team = acClean(c[4]); if (/^\[.*\]$/.test(team)) team = '';
+        var person = acClean(c[5]); if (/^\[.*\]$/.test(person)) person = '';
+        var last = c.length > 13 ? acClean(c[13]) : '';
+        cur.items.push({name:nm, desc:acClean(c[3]), team:team, person:person, bv:/^true$/i.test(String(c[6]||'').trim()), gc:last});
+      }
+    }
+    return {clusters: clusters};
+  }
+  function acRoman(n){ var m = [[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']], s = ''; m.forEach(function(p){ while (n >= p[0]){ s += p[1]; n -= p[0]; } }); return s || String(n); }
+  /* Áp vào đối tượng `ord` (thật hoặc bản sao xem trước). Trả về thống kê + chi tiết từng nhóm. */
+  /* ---- Bộ PQ26-xx mới (BUILD 2026-11-03): số hiệu PQxx-xx-HTn-PK-NN; nguồn VẬT TƯ = bảng tổng hợp VT-TH; việc = từng tờ theo phân khu ---- */
+  var AC_TEAM_DEF = {GC:'Phay tiện', LR:'Hàn / lắp ráp', CN:'Cắt CNC – laser', VT:'Mua ngoài', LD:'Lắp đặt'};
+  var AC_TEAM = {GC:AC_TEAM_DEF.GC, LR:AC_TEAM_DEF.LR, CN:AC_TEAM_DEF.CN, VT:AC_TEAM_DEF.VT, LD:AC_TEAM_DEF.LD};
+  try { var acSaved = JSON.parse(localStorage.getItem('nmsx_ac_team') || 'null'); if (acSaved && typeof acSaved === 'object'){ Object.keys(AC_TEAM).forEach(function(k){ if (typeof acSaved[k] === 'string' && acSaved[k].trim()) AC_TEAM[k] = acSaved[k].trim(); }); } } catch(e){}
+  var AC_NOTASK = {TT:1, DM:1, ML:1, BIA:1};
+  var AC_UNDO = {};
+  var AC_RX_SH = /\bPQ\d{2}-\d{2}-(?:(HT\d+)-)?(TT|LD|LR|GC|CN|VT|DM|BIA|ML)-([A-Z0-9][A-Z0-9.]*)/;
+  var AC_KHUNG = ['CÔNG TRÌNH','HẠNG MỤC / CỤM','TÊN BẢN VẼ','PHÂN KHU','SỐ HIỆU BẢN VẼ','REV','TỶ LỆ','KHỔ','TỜ','NGÀY','VẼ','KIỂM TRA','DUYỆT'];
+  var AC_HEAD = ['TT','TÊN GỌI','QUY CÁCH','ĐVT','SL','GHI CHÚ'], AC_W = [8,40,48,12,10,44];
+  function acPdfItems(items){
+    var arr = (items||[]).map(function(x){ var t = x.transform || [1,0,0,1,0,0]; return {s:String(x.str||'').normalize('NFC').replace(/\s+/g,' ').trim(), e:t[4], f:t[5], w:x.width||0, k:((Math.round(Math.atan2(t[1],t[0])/(Math.PI/2))%4)+4)%4}; }).filter(function(x){ return x.s; });
+    if (!arr.length) return arr;
+    var cnt = [0,0,0,0]; arr.forEach(function(x){ cnt[x.k] += x.s.length; });
+    var k0 = cnt.indexOf(Math.max.apply(null, cnt)), th = k0*Math.PI/2, co = Math.round(Math.cos(th)), si = Math.round(Math.sin(th));
+    arr = arr.filter(function(x){ return x.k === k0; });
+    arr.forEach(function(x){ x.u = x.e*co + x.f*si; x.v = -x.e*si + x.f*co; });
+    return arr;
+  }
+  /* Khung tên: các nhãn nằm liền nhau trong luồng chữ, giá trị đứng ngay sau theo đúng thứ tự:
+     CÔNG TRÌNH, TÊN BẢN VẼ, PHÂN KHU (mã + tên), HẠNG MỤC / CỤM, SỐ HIỆU BẢN VẼ, … */
+  function acPdfKhung(arr){
+    var last = -1, first = -1;
+    arr.forEach(function(x, i){ if (first < 0 && x.s === 'CÔNG TRÌNH') first = i; });
+    if (first >= 0){ last = first; while (last+1 < arr.length && AC_KHUNG.indexOf(arr[last+1].s) >= 0) last++; }
+    var skip = new Set(), seq = [];
+    if (last < 0) return {ten:'', hm:'', sheetCands:[], skip:skip};
+    arr.forEach(function(x){ if (AC_KHUNG.indexOf(x.s) >= 0) skip.add(x); });
+    var STOP = ['TT','TÊN GỌI','QUY CÁCH','ĐVT','TỔNG SL','LẤY TỪ TỜ','GHI CHÚ'];
+    for (var i=last+1; i<arr.length && seq.length<16; i++){
+      var x = arr[i];
+      if (STOP.indexOf(x.s) >= 0 || /^TỔNG HỢP VẬT TƯ/i.test(x.s) || /^VẬT TƯ\s*[–—-]/i.test(x.s)) break;
+      seq.push(x); skip.add(x);
+    }
+    var ten = seq[1] ? seq[1].s : '';
+    var hmItem = seq.slice(3).filter(function(x){ return /^HT\d+|Toàn dự án|^Cụm/i.test(x.s); })[0];
+    var hm = hmItem ? hmItem.s : '';
+    var sheetCands = seq.filter(function(x){ return AC_RX_SH.test(x.s); });
+    return {ten:ten, hm:hm, sheetCands:sheetCands, skip:skip};
+  }
+  function acPdfPage(items){
+    var arr = acPdfItems(items); if (!arr.length) return null;
+    var K = acPdfKhung(arr);
+    var pool = K.sheetCands.length ? K.sheetCands : arr.filter(function(x){ return AC_RX_SH.test(x.s); });
+    if (!pool.length) return null;
+    var m = AC_RX_SH.exec(pool[0].s), code = m[2], ht = m[1] || '', tail = m[3];
+    var isVTH = /^TH/.test(tail);
+    var page = {code:code, ht:ht, tail:tail, sheet:(ht ? ht+'-' : '') + code + '-' + tail, ten:K.ten, cum:K.hm, rows:[], isVTH:isVTH, vth:null};
+    if (isVTH){ page._arr = arr; page._skip = K.skip; return page; }
+    page.rows = acPdfSheetRows(arr, arr.indexOf(pool[0]), K.skip);
+    return page;
+  }
+  /* Bảng VẬT TƯ của 1 tờ (6 cột): dựng biên cột từ 6 tiêu đề, gom dòng theo chiều dọc */
+  function acPdfSheetRows(arr, fi, skip){
+    var ti = -1, i;
+    for (i=0;i<arr.length;i++){ if (/^VẬT TƯ\s*[–—-]/i.test(arr[i].s)){ ti = i; break; } }
+    if (ti < 0) return [];
+    var hd = [];
+    for (var c=0;c<6;c++){ var h = null; for (i=ti+1;i<arr.length;i++){ if (arr[i].s === AC_HEAD[c]){ h = arr[i]; break; } } if (!h) return []; hd.push(h); }
+    var cen = hd.map(function(h){ return h.u + h.w/2; });
+    var colOf = function(x){ var best = 0, bd = 1e18; cen.forEach(function(cc, k){ var d = Math.abs(cc - (x.u + x.w/2)); if (d < bd){ bd = d; best = k; } }); return best; };
+    var hv = hd[1].v;
+    var body = arr.slice(ti+1).filter(function(x){ return !(skip && skip.has(x)) && hd.indexOf(x) < 0 && x.v < hv - 1; });
+    body.sort(function(a, b){ return b.v - a.v || a.u - b.u; });
+    var lines = [];
+    body.forEach(function(x){ var ln = lines[lines.length-1]; if (ln && Math.abs(ln.v - x.v) <= 2.5) ln.items.push(x); else lines.push({v:x.v, items:[x]}); });
+    var raw = lines.map(function(line){
+      var cells = ['','','','','',''];
+      line.items.sort(function(x, y){ return x.u - y.u; }).forEach(function(x){ var col = colOf(x); cells[col] += (cells[col] ? ' ' : '') + x.s; });
+      return {v:line.v, cells:cells};
+    });
+    var rows = raw.filter(function(l){ return /^\d+$/.test(l.cells[0].trim()); }).map(function(l){ return {v:l.v, cells:l.cells.slice()}; });
+    if (!rows.length) return [];
+    var ds = []; for (var d=1; d<rows.length; d++) ds.push(rows[d-1].v - rows[d].v);
+    ds.sort(function(x, y){ return x - y; });
+    var pitch = ds.length ? ds[Math.floor(ds.length/2)] : 30;
+    raw.forEach(function(l){
+      if (/^\d+$/.test(l.cells[0].trim()) || l.cells[0].trim()) return;
+      var best = -1, bd = 1e9; rows.forEach(function(r, ri){ var dd = Math.abs(r.v - l.v); if (dd < bd){ bd = dd; best = ri; } });
+      if (best < 0 || bd > pitch*0.9) return;
+      for (var k=1;k<6;k++){ if (l.cells[k]) rows[best].cells[k] += (rows[best].cells[k] ? ' ' : '') + l.cells[k]; }
+    });
+    return rows.map(function(r){ return {tt:r.cells[0].trim(), ten:r.cells[1], qc:r.cells[2], dvt:r.cells[3], sl:r.cells[4], gc:r.cells[5]}; });
+  }
+  /* Bảng tổng hợp VT-TH: TT | TÊN GỌI | QUY CÁCH | ĐVT | TỔNG SL | LẤY TỪ TỜ | GHI CHÚ; dòng "I. HTn – tên" là nhóm */
+  function acPdfVTH(page, st){
+    var arr = page._arr, skip = page._skip, H = ['TT','TÊN GỌI','QUY CÁCH','ĐVT','TỔNG SL','LẤY TỪ TỜ','GHI CHÚ'], hd = [];
+    for (var c=0;c<H.length;c++){ var h = null; for (var i=0;i<arr.length;i++){ if (arr[i].s === H[c] && !skip.has(arr[i])){ h = arr[i]; break; } } if (!h){ hd = null; break; } hd.push(h); }
+    /* Trang nối tiếp không có dòng tiêu đề: dùng lại vị trí cột của trang trước */
+    var hv = hd ? hd[0].v : Infinity;
+    var body = arr.filter(function(x){ return !skip.has(x) && (!hd || hd.indexOf(x) < 0) && x.v < hv - 2; });
+    body.sort(function(a, b){ return b.v - a.v || a.u - b.u; });
+    var lines = [];
+    body.forEach(function(x){ var ln = lines[lines.length-1]; if (ln && Math.abs(ln.v - x.v) <= 2.5) ln.items.push(x); else lines.push({v:x.v, items:[x]}); });
+    /* Mép trái của từng cột = vị trí bắt đầu ô trên những dòng có số TT (đúng 7 cột) */
+    var lefts = [];
+    lines.forEach(function(ln){ var f = ln.items.slice().sort(function(a, b){ return a.u - b.u; })[0]; if (f && /^\d+$/.test(f.s)) ln.items.forEach(function(x){ lefts.push(x.u); }); });
+    lefts.sort(function(a, b){ return a - b; });
+    var cl = [];
+    lefts.forEach(function(u){ var last = cl[cl.length-1]; if (last && u - last.hi <= 10){ last.hi = u; last.n++; } else cl.push({lo:u, hi:u, n:1}); });
+    if (cl.length > 7) cl = cl.slice().sort(function(p, q){ return q.n - p.n; }).slice(0, 7).sort(function(p, q){ return p.lo - q.lo; });
+    var starts = cl.length === 7 ? cl.map(function(c){ return c.lo; }) : [];
+    if (starts.length !== 7){ starts = (st.starts && st.starts.length === 7) ? st.starts : (hd ? hd.map(function(h){ return h.u - 3; }) : []); }
+    if (starts.length !== 7) return [];
+    st.starts = starts;
+    var colOf = function(x){ var best = 0; starts.forEach(function(sx, k){ if (x.u >= sx - 4) best = k; }); return best; };
+    /* Dòng có số TT là 1 dòng vật tư; dòng chữ không có số TT (ô xuống dòng, ghi chú) gán cho dòng vật tư GẦN NHẤT theo chiều dọc */
+    var out = [], rowLines = [], other = [];
+    lines.forEach(function(ln){
+      var txt = ln.items.slice().sort(function(a, b){ return a.u - b.u; }).map(function(x){ return x.s; }).join(' ');
+      var gm = /^([IVX]+)\.\s*(HT\d+)\s*[–-]\s*(.+)$/.exec(txt.trim());
+      if (gm){ other.push({grpHead:true, grp: gm[2] + ' – ' + gm[3].replace(/\s*·.*$/, '').trim(), v: ln.v}); return; }
+      var cells = ['','','','','','',''];
+      ln.items.slice().sort(function(a, b){ return a.u - b.u; }).forEach(function(x){ var col = colOf(x); cells[col] += (cells[col] ? ' ' : '') + x.s; });
+      if (/^\d+$/.test(cells[0].trim())) rowLines.push({v:ln.v, cells:cells, grp: null, ord: rowLines.length}); else other.push({v:ln.v, cells:cells});
+    });
+    /* Nhóm (I. HTn …) gắn cho mọi dòng nằm dưới nó trên trang */
+    var rowsOut = rowLines.map(function(r){
+      var g = st.grp || '';
+      other.forEach(function(o){ if (o.grpHead && o.v >= r.v) g = o.grp; });
+      var row = {grp: g, ten:r.cells[1], qc:r.cells[2], dvt:r.cells[3], sl:r.cells[4], src:r.cells[5], gc:r.cells[6]};
+      out.push(row); return row;
+    });
+    other.forEach(function(o){
+      if (o.grpHead || !o.cells) return;
+      var best = null, bd = 1e9;
+      rowLines.forEach(function(r, ri){ var d = Math.abs(r.v - o.v); if (d < bd){ bd = d; best = ri; } });
+      if (best === null) return;
+      var r0 = rowsOut[best];
+      ['ten','qc','dvt','sl','src','gc'].forEach(function(f, j){ if (o.cells[j+1]) r0[f] += (r0[f] ? ' ' : '') + o.cells[j+1]; });
+    });
+    var heads = other.filter(function(o){ return o.grpHead; });
+    if (heads.length) st.grp = heads[heads.length-1].grp; else if (out.length) st.grp = out[out.length-1].grp;
+    return out;
+  }
+  function acPdfBuild(pages){
+    var st = {grp:''}, htName = {}, vthRows = [], nVth = 0, nTable = 0;
+    pages.forEach(function(p){ if (p && p.cum && /^HT\d+/.test(p.cum)){ var nm = p.cum.replace(/\s*·.*$/, '').trim(); if (p.ht && !htName[p.ht]) htName[p.ht] = nm; } });
+    pages.forEach(function(p){ if (p && p.isVTH){ nVth++; vthRows = vthRows.concat(acPdfVTH(p, st)); } });
+    var groups = [], gmap = {};
+    if (vthRows.length){
+      vthRows.forEach(function(r){
+        var gname = r.grp || '(không nhóm)';
+        var g = gmap[gname]; if (!g){ g = gmap[gname] = {name:gname, items:[]}; groups.push(g); }
+        var sl = acNum(r.sl), note = [r.src ? 'Tờ '+r.src : '', r.gc].filter(Boolean).join(' – ');
+        var it = {on:true, name:r.ten, spec:r.qc, unit:r.dvt, qty:sl, note:note, sheet:'', chk:false, why:''};
+        if (sl == null){ it.chk = true; it.why = 'Thiếu số lượng'; }
+        else if (/chưa ghi|kiểm tra|xác định|thống nhất|cần /i.test(r.gc || '')){ it.chk = true; it.why = 'Ghi chú nhắc kiểm tra'; }
+        g.items.push(it);
+      });
+    } else {
+      /* Không có bảng VT-TH: lấy bảng VẬT TƯ của từng tờ */
+      pages.forEach(function(p){
+        if (!p || p.isVTH || !p.rows.length) return;
+        nTable++;
+        var gname = htName[p.ht] || p.cum || '(không nhóm)';
+        var g = gmap[gname]; if (!g){ g = gmap[gname] = {name:gname, items:[]}; groups.push(g); }
+        p.rows.forEach(function(r){
+          if (!r.ten) return;
+          var sl = acNum(r.sl), it = {on:true, name:r.ten, spec:r.qc, unit:r.dvt, qty:sl, note:[r.gc, 'Tờ '+p.sheet].filter(Boolean).join(' – '), sheet:p.sheet, chk:false, why:''};
+          if (sl == null){ it.chk = true; it.why = 'Thiếu số lượng'; }
+          g.items.push(it);
+        });
+      });
+    }
+    /* Công việc: từng tờ có phân khu làm việc (trừ TT, DM, ML, BIA, tờ tổng hợp VT-TH) */
+    var clusters = [], cmap = {};
+    pages.forEach(function(p){
+      if (!p || p.isVTH || AC_NOTASK[p.code] || !AC_TEAM[p.code]) return;
+      var cname = htName[p.ht] || p.cum || '(không cụm)';
+      var cl = cmap[cname]; if (!cl){ cl = cmap[cname] = {name:cname, items:[], ht:p.ht}; clusters.push(cl); }
+      var desc = p.rows.filter(function(r){ return r.ten; }).map(function(r){ var q = acNum(r.sl); return [r.ten, r.qc].filter(Boolean).join(' ') + (q != null ? ' x '+q+(r.dvt ? ' '+r.dvt : '') : ''); }).join('; ');
+      var duc = p.rows.some(function(r){ return /đúc|gang/i.test(r.ten+' '+r.qc+' '+r.gc); });
+      cl.items.push({on:true, name:p.ten || p.sheet, desc:desc, team:AC_TEAM[p.code], code:p.code, person:'', bv:true, sheet:p.sheet, gc:p.sheet+(duc ? ' – Đặt đúc ngoài' : '')});
+    });
+    clusters.sort(function(a, b){ return (parseInt((a.ht||'').slice(2), 10) || 999) - (parseInt((b.ht||'').slice(2), 10) || 999); });
+    groups = groups.filter(function(g){ return g.items.length; });
+    return {groups:groups, clusters:clusters, nTable:nVth ? nVth : nTable, nVth:nVth};
+  }
+  function acReadPdfs(files, onProgress){
+    var pages = [], chars = 0, nPages = 0, fileCount = files.length, fi = 0;
+    return files.reduce(function(chain, f){
+      return chain.then(function(){
+        fi++;
+        return f.arrayBuffer().then(function(buf){ return loadPdfJs().then(function(lib){ return lib.getDocument({data:buf}).promise; }); }).then(function(pdf){
+          nPages += pdf.numPages;
+          var inner = Promise.resolve();
+          for (var pn=1; pn<=pdf.numPages; pn++){ (function(pn){
+            inner = inner.then(function(){ return pdf.getPage(pn).then(function(pg){ return pg.getTextContent(); }).then(function(tc){
+              chars += tc.items.length; pages.push(acPdfPage(tc.items)); if (onProgress) onProgress(f.name, fi, fileCount, pn, pdf.numPages);
+            }); });
+          })(pn); }
+          return inner;
+        });
+      });
+    }, Promise.resolve()).then(function(){ var b = acPdfBuild(pages); b.nPages = nPages; b.nText = chars; b.nSheet = pages.filter(function(p){ return p; }).length; return b; });
+  }
+  function acApplyVT(ord, parsed){
+    ord.materials = ord.materials || [];
+    var st = {groupsNew:0, added:0, updated:0, same:0, per:[]};
+    parsed.groups.forEach(function(g){
+      var per = {name:g.name || '(không nhóm)', added:0, updated:0, same:0, isNew:false};
+      var mats = ord.materials, si = -1, key = acNorm(g.name);
+      if (g.name){
+        for (var i=0;i<mats.length;i++){ if (mats[i] && isMatSection(mats[i]) && acNorm(mats[i].name) === key){ si = i; break; } }
+        if (si < 0){
+          var nSec = mats.filter(function(m){ return m && m.section === true; }).length;
+          mats.push({no: acRoman(nSec + 1), name: g.name, spec:null, unit:null, qty:null, status:null, supplier:null, note:null, reqDate:null, section:true});
+          si = mats.length - 1; per.isNew = true; st.groupsNew++;
+        }
+      }
+      var from = si >= 0 ? si + 1 : 0, to = mats.length;
+      if (si >= 0){ for (var j=si+1;j<mats.length;j++){ if (mats[j] && isMatSection(mats[j])){ to = j; break; } } }
+      var pre = []; for (var p=from;p<to;p++){ if (mats[p] && !isMatSection(mats[p])) pre.push(p); }
+      var occ = {};
+      g.items.forEach(function(it){
+        var k2 = acNorm(it.name)+'|'+acNorm(it.spec)+'|'+acNorm(it.unit);
+        occ[k2] = (occ[k2] || 0) + 1;
+        var cands = pre.filter(function(p){ return acNorm(mats[p].name)+'|'+acNorm(mats[p].spec)+'|'+acNorm(mats[p].unit) === k2; });
+        var idx = cands[occ[k2] - 1];
+        if (idx !== undefined){
+          var m2 = mats[idx], ch = false;
+          if (it.qty != null && Number(m2.qty) !== it.qty){ m2.qty = it.qty; ch = true; }
+          if (!String(m2.note||'').trim() && it.note){ m2.note = it.note; ch = true; }
+          if (ch){ per.updated++; st.updated++; } else { per.same++; st.same++; }
+        } else {
+          mats.splice(to, 0, {no:'', name:it.name, spec:it.spec||null, unit:it.unit||null, qty:it.qty, status:null, supplier:null, note:it.note||null, reqDate:null});
+          to++; per.added++; st.added++;
+        }
+      });
+      st.per.push(per);
+    });
+    return st;
+  }
+  function acApplyTD(ord, parsed){
+    ord.items = ord.items || []; ord.progressSnapshots = ord.progressSnapshots || [];
+    var st = {clustersNew:0, added:0, updated:0, same:0, per:[]};
+    var cluName = {};
+    ord.progressSnapshots.forEach(function(s){ if (s.cluster && !cluName[acNorm(s.cluster)]) cluName[acNorm(s.cluster)] = s.cluster; });
+    ord.items.forEach(function(it){ if (it.cluster && !cluName[acNorm(it.cluster)]) cluName[acNorm(it.cluster)] = it.cluster; });
+    parsed.clusters.forEach(function(cl){
+      var per = {name: cl.name || '(không cụm)', added:0, updated:0, same:0, isNew:false};
+      var cname = cl.name ? (cluName[acNorm(cl.name)] || cl.name) : null;
+      if (cl.name && !cluName[acNorm(cl.name)]){
+        cluName[acNorm(cl.name)] = cname;
+        ord.progressSnapshots.push({cluster:cname, banve:null, vattu:null, tien:null, deliveryDate:null});
+        per.isNew = true; st.clustersNew++;
+      }
+      cl.items.forEach(function(it){
+        var note = [it.desc, it.gc].filter(Boolean).join(' — ');
+        var hit = null;
+        for (var i=0;i<ord.items.length;i++){
+          var x = ord.items[i]; if (!x) continue;
+          if (acNorm(x.cluster||'') !== acNorm(cname||'') || acNorm(x.name) !== acNorm(it.name)) continue;
+          if (it.sheet && String(x.note||'').indexOf(it.sheet) < 0) continue;
+          hit = x; break;
+        }
+        if (hit){
+          var ch = false;
+          if (!hit.team && it.team){ hit.team = it.team; ch = true; }
+          if (!hit.assignee && it.person){ hit.assignee = it.person; ch = true; }
+          if (!String(hit.note||'').trim() && note){ hit.note = note; ch = true; }
+          if (it.bv && !hit.bv){ hit.bv = true; ch = true; }
+          if (ch){ per.updated++; st.updated++; } else { per.same++; st.same++; }
+        } else {
+          ord.items.push({name:it.name, cluster:cname||null, requirement:ord.requirement||null, status:null, note:note||null, qc:null, team:it.team||null, assignee:it.person||null, bv:!!it.bv, vt:false, pdfSheet: it.sheet || null});
+          per.added++; st.added++;
+        }
+      });
+      st.per.push(per);
+    });
+    return st;
+  }
+  function acUndoSave(orderId, ord){
+    AC_UNDO[orderId] = {at: Date.now(), materials: JSON.parse(JSON.stringify(ord.materials||[])), items: JSON.parse(JSON.stringify(ord.items||[])), progressSnapshots: JSON.parse(JSON.stringify(ord.progressSnapshots||[]))};
+  }
+  function acUndoBtn(oid){ return AC_UNDO[oid] ? '<button class="btn btn-sm" data-ac-undo="'+esc(oid)+'" title="Trả lại dữ liệu như trước lần nhập AutoCAD gần nhất">↶ Hoàn tác nhập AutoCAD</button>' : ''; }
+  function openAcadModal(orderId){
+    closeAnyOpenModal();
+    var o = STATE.orders[orderId]; if (!o) return;
+    var bd = document.createElement('div'); bd.className = 'modal-backdrop';
+    bd.innerHTML = '<div class="modal wide xwide"><h3>Nhập từ AutoCAD — đơn <b>'+esc(o.code||'(chưa mã)')+'</b></h3>'+
+      '<p class="hint-txt" style="margin:0 0 8px;">Chọn <b>nhiều file PDF</b> bản vẽ (có thể chọn cả bộ 001…165) hoặc file <b>VT-….csv / TD-….csv</b> của lệnh PQXUAT. Web hiện bảng xem trước, anh bỏ tích dòng sai rồi bấm <b>Ghi vào đơn</b>. Nhập lại không trùng dòng. Sau khi ghi có nút <b>Hoàn tác</b>.</p>'+
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;"><input type="file" id="acFile" multiple accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain"><span class="hint-txt" id="acKind"></span></div>'+
+      '<textarea id="acBox" style="width:100%;height:60px;font-family:var(--font-mono);font-size:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-s);background:var(--surface-2);color:var(--text);" placeholder="Hoặc dán nội dung file CSV ở đây…"></textarea>'+
+      '<div class="hint-txt" style="margin:0 0 8px;">Tổ đội theo phân khu (sửa được, nhớ lại lần sau): '+['GC','LR','CN','VT','LD'].map(function(k){ return k+' <input data-ac-team="'+k+'" value="'+esc(AC_TEAM[k])+'" style="width:120px;">'; }).join(' ')+'</div>'+
+      '<div id="acRes" style="margin-top:8px;max-height:52vh;overflow:auto;"></div>'+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="acCancel">Đóng</button><button class="btn btn-primary" id="acGo" disabled>Ghi vào đơn</button></div></div>';
+    document.body.appendChild(bd);
+    bd.addEventListener('click', function(e){ if (e.target === bd) bd.remove(); });
+    document.getElementById('acCancel').onclick = function(){ bd.remove(); };
+    var box = document.getElementById('acBox'), res = document.getElementById('acRes'), go = document.getElementById('acGo'), kindEl = document.getElementById('acKind');
+    var cur = null, pdfB = null;
+    bd.addEventListener('change', function(e){
+      var t = e.target; var k = t && t.getAttribute && t.getAttribute('data-ac-team'); if (!k) return;
+      AC_TEAM[k] = String(t.value||'').trim() || AC_TEAM_DEF[k]; t.value = AC_TEAM[k];
+      try { localStorage.setItem('nmsx_ac_team', JSON.stringify(AC_TEAM)); } catch(err){}
+      if (pdfB){ pdfB.clusters.forEach(function(c){ c.items.forEach(function(it){ if (it.code) it.team = AC_TEAM[it.code] || it.team; }); }); pdfRender(); }
+    });
+    function clone(x){ return JSON.parse(JSON.stringify(x || [])); }
+    function table(per, a){
+      var h = '<table class="mat-table" style="font-size:12.5px;"><thead><tr><th>'+a+'</th><th>Thêm mới</th><th>Cập nhật</th><th>Giữ nguyên</th></tr></thead><tbody>';
+      per.forEach(function(p){ h += '<tr><td>'+(p.isNew?'<b>(mới)</b> ':'')+esc(p.name)+'</td><td>'+p.added+'</td><td>'+p.updated+'</td><td>'+p.same+'</td></tr>'; });
+      return h + '</tbody></table>';
+    }
+    function simOrder(){ return {materials: clone(o.materials), items: clone(o.items), progressSnapshots: clone(o.progressSnapshots), requirement: o.requirement}; }
+    function refresh(){
+      cur = null; go.disabled = true;
+      var txt = box.value;
+      if (!txt.trim()){ res.innerHTML = ''; kindEl.textContent = ''; return; }
+      var rows = acCsvParse(txt), kind = acKind(rows);
+      if (!kind){ kindEl.textContent = ''; res.innerHTML = '<span class="hint-txt" style="color:var(--bad);">Không nhận ra file. Cần file VT-….csv (có cột "Số hiệu", "Tên gọi") hoặc TD-….csv (có cột "Chức Năng", "Nhiệm vụ").</span>'; return; }
+      var sim = simOrder();
+      if (kind === 'vt'){
+        var pv = acParseVT(rows), s = acApplyVT(sim, pv);
+        kindEl.textContent = 'Nhận ra: file VẬT TƯ (VT)';
+        res.innerHTML = '<div class="hint-txt" style="margin-bottom:6px;"><b>'+s.added+'</b> dòng thêm mới · <b>'+s.updated+'</b> cập nhật · <b>'+s.same+'</b> giữ nguyên'+(s.groupsNew?' · '+s.groupsNew+' nhóm mới':'')+'</div>'+table(s.per, 'Nhóm');
+        cur = {kind:'vt', parsed:pv}; go.disabled = !(s.added || s.updated || s.groupsNew);
+      } else {
+        var pt = acParseTD(rows), s2 = acApplyTD(sim, pt);
+        kindEl.textContent = 'Nhận ra: file CÔNG VIỆC (TD)';
+        res.innerHTML = '<div class="hint-txt" style="margin-bottom:6px;"><b>'+s2.added+'</b> hạng mục thêm mới · <b>'+s2.updated+'</b> cập nhật · <b>'+s2.same+'</b> giữ nguyên'+(s2.clustersNew?' · '+s2.clustersNew+' cụm mới':'')+'</div>'+table(s2.per, 'Cụm');
+        cur = {kind:'td', parsed:pt}; go.disabled = !(s2.added || s2.updated || s2.clustersNew);
+      }
+      if (go.disabled) res.innerHTML += '<div class="hint-txt" style="margin-top:6px;">Không có gì mới để ghi — đơn đã có đủ các dòng này.</div>';
+    }
+    function pdfParsed(){
+      return {
+        groups: pdfB.groups.map(function(g){ return {name:g.name, items:g.items.filter(function(it){ return it.on && String(it.name||'').trim(); })}; }).filter(function(g){ return g.items.length; }),
+        clusters: pdfB.clusters.map(function(c){ return {name:c.name, items:c.items.filter(function(it){ return it.on; })}; }).filter(function(c){ return c.items.length; })
+      };
+    }
+    function pdfSummary(){
+      var p = pdfParsed(), sim = simOrder(), sv = acApplyVT(sim, {groups:p.groups}), st = acApplyTD(sim, {clusters:p.clusters});
+      var el = document.getElementById('acSum');
+      if (el) el.innerHTML = 'Vật tư: <b>'+sv.added+'</b> dòng mới · <b>'+sv.updated+'</b> cập nhật · <b>'+sv.same+'</b> giữ nguyên'+(sv.groupsNew?' · '+sv.groupsNew+' nhóm mới':'')+' &nbsp;|&nbsp; Công việc: <b>'+st.added+'</b> mới · <b>'+st.updated+'</b> cập nhật · <b>'+st.same+'</b> giữ nguyên';
+      go.disabled = !(sv.added || sv.updated || sv.groupsNew || st.added || st.updated || st.clustersNew);
+    }
+    function pdfRender(){
+      var yellow = 0; pdfB.groups.forEach(function(g){ g.items.forEach(function(it){ if (it.chk) yellow++; }); });
+      var nItems = pdfB.groups.reduce(function(a, g){ return a+g.items.length; }, 0), nTask = pdfB.clusters.reduce(function(a, c){ return a+c.items.length; }, 0);
+      var h = '<div class="hint-txt" style="margin-bottom:6px;">Đọc <b>'+pdfB.nSheet+'</b> trang có khung tên'+(pdfB.nVth ? ' · <b>'+pdfB.nVth+'</b> trang bảng tổng hợp VT' : '')+' · <b>'+nItems+'</b> dòng vật tư · <b>'+nTask+'</b> công việc'+(yellow ? ' · <b style="color:#8a5a00;">'+yellow+' dòng ô vàng cần kiểm tra</b>' : '')+'</div><div class="hint-txt" id="acSum" style="margin-bottom:8px;"></div>';
+      h += '<table class="mat-table" style="font-size:12.5px;"><thead><tr><th style="width:30px;"></th><th>Tên gọi</th><th>Quy cách</th><th>ĐVT</th><th style="width:70px;">SL</th><th>Ghi chú</th></tr></thead><tbody>';
+      pdfB.groups.forEach(function(g, gi){
+        h += '<tr style="font-weight:800;background:var(--cluster-bg);color:var(--cluster-fg);"><td colspan="6">'+esc(g.name)+' · '+g.items.length+' dòng</td></tr>';
+        g.items.forEach(function(it, ii){
+          h += '<tr style="'+(it.chk?'background:#fff6d6;':'')+(it.on?'':'opacity:.45;')+'"><td><input type="checkbox" data-ac-on="v:'+gi+':'+ii+'"'+(it.on?' checked':'')+' style="width:18px;height:18px;"></td><td>'+esc(it.name)+'</td><td>'+esc(it.spec)+'</td><td>'+esc(it.unit)+'</td><td><input data-ac-qty="'+gi+':'+ii+'" value="'+esc(it.qty==null?'':String(it.qty))+'" inputmode="decimal" style="width:60px;"></td><td>'+esc(it.note)+(it.why?' <b style="color:#8a5a00;">⚠ '+esc(it.why)+'</b>':'')+'</td></tr>';
+        });
+      });
+      h += '</tbody></table>';
+      if (pdfB.clusters.length){
+        h += '<h4 style="margin:14px 0 6px;">Công việc — theo cụm (HT) và tổ đội theo phân khu</h4><table class="mat-table" style="font-size:12.5px;"><thead><tr><th style="width:30px;"></th><th>Việc (tên bản vẽ)</th><th>Tổ đội</th><th>Mô tả sơ bộ</th><th>Ghi chú</th></tr></thead><tbody>';
+        pdfB.clusters.forEach(function(c, ci){
+          h += '<tr style="font-weight:800;background:var(--cluster-bg);color:var(--cluster-fg);"><td colspan="5">'+esc(c.name)+'</td></tr>';
+          c.items.forEach(function(it, ii){ h += '<tr style="'+(it.on?'':'opacity:.45;')+'"><td><input type="checkbox" data-ac-on="t:'+ci+':'+ii+'"'+(it.on?' checked':'')+' style="width:18px;height:18px;"></td><td>'+esc(it.name)+'</td><td>'+esc(it.team)+'</td><td>'+esc(it.desc)+'</td><td>'+esc(it.gc)+'</td></tr>'; });
+        });
+        h += '</tbody></table>';
+      }
+      res.innerHTML = h; pdfSummary();
+    }
+    res.addEventListener('change', function(e){
+      var t = e.target; if (!pdfB || !t) return;
+      var on = t.getAttribute && t.getAttribute('data-ac-on');
+      if (on){ var a = on.split(':'), it = (a[0] === 'v' ? pdfB.groups : pdfB.clusters)[+a[1]].items[+a[2]]; it.on = t.checked; var tr = t.closest('tr'); if (tr) tr.style.opacity = t.checked ? '' : '.45'; pdfSummary(); return; }
+      var q = t.getAttribute && t.getAttribute('data-ac-qty');
+      if (q){ var b = q.split(':'), it2 = pdfB.groups[+b[0]].items[+b[1]]; it2.qty = acNum(t.value); if (it2.qty != null){ it2.chk = false; it2.why = ''; } pdfSummary(); }
+    });
+    document.getElementById('acFile').addEventListener('change', function(e){
+      var files = Array.from((e.target.files || [])); if (!files.length) return;
+      files.sort(function(a, b){ return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+      var pdfs = files.filter(function(f){ return /\.pdf$/i.test(f.name) || f.type === 'application/pdf'; });
+      if (pdfs.length){
+        cur = null; pdfB = null; go.disabled = true; box.value = '';
+        kindEl.textContent = 'Đang đọc '+pdfs.length+' file PDF…'; res.innerHTML = '';
+        acReadPdfs(pdfs, function(name, fi, nf, pn, np){ kindEl.textContent = 'Đang đọc '+name+' ('+fi+'/'+nf+') — trang '+pn+'/'+np; }).then(function(b){
+          if (!b.nSheet){ kindEl.textContent = ''; res.innerHTML = '<span class="hint-txt" style="color:var(--bad);">Không thấy khung tên PQ trong các file này (có thể là ảnh scan hoặc chữ đã thành nét vẽ). Dùng nút "Bóc tách từ bản vẽ" hoặc "Đọc bản vẽ (AI)".</span>'; return; }
+          pdfB = b; cur = {kind:'pdf'}; kindEl.textContent = 'Nhận ra: bản vẽ AutoCAD PQ ('+b.nPages+' trang)'; pdfRender();
+        }).catch(function(err){ kindEl.textContent = ''; res.innerHTML = '<span class="hint-txt" style="color:var(--bad);">Không đọc được PDF: '+esc(String((err && err.message) || err))+'</span>'; });
+        return;
+      }
+      var rd = new FileReader(); rd.onload = function(ev){ box.value = String(ev.target.result||''); refresh(); }; rd.readAsText(files[0], 'utf-8');
+    });
+    box.addEventListener('input', refresh);
+    go.onclick = function(){
+      if (!cur) return;
+      var ord = STATE.orders[orderId], msg;
+      acUndoSave(orderId, ord);
+      if (cur.kind === 'vt'){
+        var s = acApplyVT(ord, cur.parsed);
+        patchOrder(orderId, {materials: ord.materials}); STATE.orderTab = 'vt';
+        msg = 'Đã nhập vật tư từ AutoCAD: '+s.added+' dòng mới, '+s.updated+' cập nhật.';
+      } else if (cur.kind === 'td'){
+        var s2 = acApplyTD(ord, cur.parsed);
+        syncVtSections(ord);
+        patchOrder(orderId, {items: ord.items, progressSnapshots: ord.progressSnapshots, materials: ord.materials}); STATE.orderTab = 'td';
+        msg = 'Đã nhập công việc từ AutoCAD: '+s2.added+' hạng mục mới, '+s2.updated+' cập nhật.';
+      } else {
+        var p = pdfParsed(), sv = acApplyVT(ord, {groups:p.groups}), st = acApplyTD(ord, {clusters:p.clusters});
+        patchOrder(orderId, {materials: ord.materials, items: ord.items, progressSnapshots: ord.progressSnapshots}); STATE.orderTab = 'vt';
+        msg = 'Đã nhập từ PDF: '+sv.added+' dòng vật tư mới, '+sv.updated+' cập nhật; '+st.added+' công việc mới.';
+      }
+      renderAll(); bd.remove(); toast(msg + ' (bấm "Hoàn tác nhập AutoCAD" nếu cần)', 5200);
+    };
+  }
+  document.addEventListener('click', function(e){
+    var u = e.target && e.target.closest ? e.target.closest('[data-ac-undo]') : null; if (!u) return;
+    var oid = u.getAttribute('data-ac-undo'), snap = AC_UNDO[oid], ord = STATE.orders[oid];
+    if (!snap || !ord) return;
+    patchOrder(oid, {materials: snap.materials, items: snap.items, progressSnapshots: snap.progressSnapshots});
+    delete AC_UNDO[oid]; renderAll(); toast('Đã hoàn tác lần nhập AutoCAD.', 3200);
+  });
+  /* ---- Tổ Phay tiện: ô "Tiện xong" + bộ lọc ---- */
+  function isTienItem(it){ var t = stripDiacritics((it && it.team) || ''); return /phay\s*tien/.test(t) || /(^|[^a-z])tien([^a-z]|$)/.test(t); }
+  function tienBox(it, o, idx){
+    if (!isTienItem(it)) return '';
+    var done = it.status === 'SẢN XUẤT XONG' || it.status === 'ĐÃ GIAO';
+    return '<label class="tien-chk" style="display:flex;gap:6px;align-items:center;margin-top:6px;font-weight:700;font-size:13px;white-space:nowrap;"><input type="checkbox" data-tien-done="'+idx+'" data-order="'+esc(o.id)+'"'+(done?' checked':'')+(it.status==='ĐÃ GIAO'?' disabled':'')+' style="width:20px;height:20px;"> Tiện xong</label>';
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target && e.target.closest ? e.target.closest('[data-ac-import],[data-tien-only]') : null;
+    if (!t) return;
+    if (t.hasAttribute('data-ac-import')){ if (readOnlyNote()) return; openAcadModal(t.getAttribute('data-ac-import')); return; }
+    STATE.tienOnly = !STATE.tienOnly; renderAll();
+  });
+  document.addEventListener('change', function(e){
+    var t = e.target; if (!t || !t.getAttribute || !t.hasAttribute('data-tien-done')) return;
+    var oid = t.getAttribute('data-order'), idx = parseInt(t.getAttribute('data-tien-done'), 10), ord = STATE.orders[oid];
+    if (!ord || !ord.items || !ord.items[idx]) return;
+    ord.items[idx].status = t.checked ? 'SẢN XUẤT XONG' : 'ĐANG SẢN XUẤT';
+    patchOrder(oid, {items: ord.items}); renderAll();
+    toast(t.checked ? 'Đã ghi: tiện xong "'+(ord.items[idx].name||'')+'".' : 'Đã bỏ tích tiện xong — trả về "Đang sản xuất".', 2600);
+  });
+
+
   /* ============ PDF IMPORT (materials page) ============ */
   var PDFJS_READY = null;
   function loadPdfJs(){
@@ -5623,7 +6136,7 @@
     mats.forEach(function(m){ var n = parseInt(m && m.no, 10); if (!isNaN(n) && n > maxNo) maxNo = n; });
     o.items.forEach(function(it){
       var nm = String(it && it.name || '').replace(/\s+/g,' ').trim();
-      if (!nm) return;
+      if (!nm || (it && it.pdfSheet)) return;   // việc nhập từ bản vẽ PDF: không tạo mục riêng bên Vật tư (mục đã là HT)
       var k = stripDiacritics(nm);
       if (haveSec[k]) return;
       var dup = mats.some(function(m){ return m && m.name && isMatSection(m) && secSimilar(m.name, nm); });
@@ -7284,7 +7797,7 @@
     pqdKpiRecord({run:cur.length, prod:producing, late:overdue.length, week:thisWeek.length, mat:matRows.length});
     var now = new Date(), dn = ['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'][now.getDay()];
     var _who = ''; try{ _who = (typeof pqWhoGet==='function' && pqWhoGet()) || ''; }catch(e){}
-    var h = '<div class="pqd-head"><div><h1>'+(_who ? 'Chào '+esc(_who) : 'Tổng quan sản xuất')+'</h1><div class="pqd-sub">'+dn+', '+esc(fmtDate(pqxToday()))+' · Bộ phận '+(STATE.dept==='dien'?'Điện':'Cơ khí')+' · '+act.length+' đơn trong năm</div><div class="pqd-say">'+(overdue.length ? 'Xưởng có <b class="bad">'+overdue.length+' đơn quá hạn</b> cần xử lý' : 'Không có đơn nào quá hạn')+' và <b>'+ic('ĐANG SẢN XUẤT')+' hạng mục</b> đang sản xuất.'+(holdList().length ? ' <span class="pqd-cap">('+holdList().length+' đơn tạm dừng — xem cuối trang Kế hoạch)</span>' : '')+'</div></div>'+pqdRing(pctDone, doneWait, items.length, ic('ĐANG SẢN XUẤT'), overdue.length)+'<div class="pqd-bar" style="padding:0;"><button class="btn" data-pq="go-tasks">Phân công công việc</button><button class="btn" data-pq="go-pr">Đề nghị mua'+(prOpen?' ('+prOpen+' phiếu đang mở)':'')+'</button></div></div>';
+    var h = '<div class="pqd-head"><div><h1>'+(_who ? 'Chào '+esc(_who) : 'Tổng quan sản xuất')+'</h1><div class="pqd-sub">'+dn+', '+esc(fmtDate(pqxToday()))+' · Bộ phận '+(STATE.dept==='dien'?'Điện':'Cơ khí')+' · '+act.length+' đơn trong năm</div><div class="pqd-say">'+(overdue.length ? 'Xưởng có <b class="bad">'+overdue.length+' đơn quá hạn</b> cần xử lý' : 'Không có đơn nào quá hạn')+' và <b>'+ic('ĐANG SẢN XUẤT')+' hạng mục</b> đang sản xuất.'+(holdList().length ? ' <span class="pqd-cap">('+holdList().length+' đơn tạm hoãn — xem cuối trang Kế hoạch)</span>' : '')+'</div></div>'+pqdRing(pctDone, doneWait, items.length, ic('ĐANG SẢN XUẤT'), overdue.length)+'<div class="pqd-bar" style="padding:0;"><button class="btn" data-pq="go-tasks">Phân công công việc</button><button class="btn" data-pq="go-pr">Đề nghị mua'+(prOpen?' ('+prOpen+' phiếu đang mở)':'')+'</button></div></div>';
     h += pqdTiles(cur, producing, overdue, thisWeek, matRows.length, mc, pctDone, doneWait, items.length);
     var _oldKpis = '<div class="pqd-kpis">'+
       pqdKpi('Đơn đang làm', cur.length, 'run', 'none', 'M7 3h10l3 4v14H4V7zM8 12h8M8 16h5', '', ' data-pq="go-current"')+
@@ -7292,11 +7805,11 @@
       pqdKpi('Quá hạn giao', overdue.length, 'late', 'bad', 'M12 8v5M12 17h.01M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', 'bad', ' data-pq="go-plan"')+
       pqdKpi('Giao trong tuần này', thisWeek.length, 'week', 'none', 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4', 'warn', ' data-pq="go-lich"')+
       pqdKpi('Dòng vật tư cần mua', matRows.length, 'mat', 'bad', 'M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8', 'warn', ' data-goto-mrp="1"')+'</div>';
-    h += '<div class="pqd-grid"><div class="s8">'+pqdTrend(act)+'</div><div class="s4">'+pqdDonutCard('Hạng mục đang làm', items.length+' hạng mục · '+cur.length+' đơn', [
+    h += '<div class="pqd-grid"><div class="s8">'+pqdTrend(act)+'</div><div class="s4">'+pqdDonutCard('Hạng mục đang làm', items.length+' hạng mục · '+cur.length+' đơn'+(holdList().length ? ' · '+holdList().length+' đơn tạm hoãn' : ''), [
         {v:doneWait, color:'var(--st-xuatxong-bg)', label:'Xong / chờ giao'},
         {v:ic('ĐANG SẢN XUẤT'), color:'var(--st-dangsx-bg)', label:'Đang sản xuất'},
         {v:ic('CHƯA SẢN XUẤT'), color:'var(--st-chuasx-bg)', label:'Chưa sản xuất'},
-        {v:ic('TẠM HOÃN'), color:'var(--st-tamhoan-bg)', label:'Tạm hoãn'}], pctDone+'%', 'đã xong')+'</div>';
+        {v:ic('TẠM HOÃN')+heldItemCount(), color:'var(--st-tamhoan-bg)', label:'Tạm hoãn'}], pctDone+'%', 'đã xong')+'</div>';
     h += pqdTaskStrip();
     // Top đơn trễ
     var late = '<div class="panel pqd-card"><div class="panel-head"><h2>Đơn trễ nhiều nhất</h2><span class="pqd-meta">'+overdue.length+' đơn quá hạn</span></div><div class="panel-body">';
@@ -8552,10 +9065,11 @@
       ((z.tokenSet && z.secretSet) ? '<button class="btn btn-sm btn-primary" data-xh="register">Đăng ký webhook với Zalo</button>' : '')+'</div></div></details>';
     return h;
   }
+  function xhHeldMsg(items){ var codes = []; (items||[]).forEach(function(it){ var o = it && it.orderId ? STATE.orders[it.orderId] : null; if (o && isHeld(o) && codes.indexOf(o.code||o.id) < 0) codes.push(o.code||o.id); }); return codes.length ? 'Đơn '+codes.join(', ')+' đang TẠM HOÃN nên chưa mua / xuất vật tư. Muốn làm tiếp: bấm ▶ Tiếp tục ở mục Tạm hoãn (cuối trang Kế hoạch).' : ''; }
   function xhOrderSelect(it, i, id, locked){
     var cur = it.orderId||'', os = xhOrders(), found = !cur;
     var s = '<select class="pqd-inp" data-xh-f="orderId" data-id="'+esc(id)+'" data-i="'+i+'"'+(locked?' disabled':'')+'><option value="">— chọn công trình —</option>';
-    var optOf = function(o){ if (o.id===cur) found = true; return '<option value="'+esc(o.id)+'"'+(o.id===cur?' selected':'')+'>'+esc(pqxOrderLabel(o))+(o.dept==='dien'?' (Điện)':'')+'</option>'; };
+    var optOf = function(o){ if (o.id===cur) found = true; return '<option value="'+esc(o.id)+'"'+(o.id===cur?' selected':'')+'>'+esc(pqxOrderLabel(o))+(o.dept==='dien'?' (Điện)':'')+(isHeld(o)?' ⏸ ĐANG TẠM HOÃN':'')+'</option>'; };
     s += os.filter(function(o){ return rollupStatus(o)!=='ĐÃ GIAO'; }).map(optOf).join('');
     var dlv = os.filter(function(o){ return rollupStatus(o)==='ĐÃ GIAO'; });
     if (dlv.length) s += '<optgroup label="Đơn ĐÃ GIAO (bảo hành / thay thế sau bàn giao)">'+dlv.map(optOf).join('')+'</optgroup>';
@@ -8731,6 +9245,7 @@
     if (a==='approve'){
       var ok = (d.items||[]).some(function(i){ return (i.name||'').trim(); });
       if (!ok) return xhErr(id, 'Chưa có dòng vật tư nào để duyệt.');
+      var hz = xhHeldMsg(d.items); if (hz) return xhErr(id, hz);
       d.status = 'approved'; d.approvedBy = who; d.approvedAt = Date.now(); xhSave(d); return renderAll();
     }
     if (a==='reject'){ return showConfirmModal('Từ chối yêu cầu '+id+'?', function(){ d.status = 'rejected'; d.rejectedBy = who; xhSave(d); renderAll(); }); }
@@ -8740,6 +9255,7 @@
       var its = (d.items||[]).filter(function(i){ return (i.name||'').trim(); });
       if (!its.length) return xhErr(id, 'Chưa có dòng vật tư nào.');
       for (var q=0;q<its.length;q++){ if (!its[q].orderId || !STATE.orders[its[q].orderId]) return xhErr(id, 'Dòng "'+its[q].name+'" chưa chọn công trình.'); }
+      var hz2 = xhHeldMsg(its); if (hz2) return xhErr(id, hz2);
       return showConfirmModal('Điền '+its.length+' dòng vào VT của đơn và lập phiếu đề nghị mua (tình trạng "Yêu cầu đặt")? Có thể hoàn tác sau.', function(){
         xhPost('/api/zalo/apply/'+encodeURIComponent(id), {items:its}).then(function(j){ if (j.ok && j.doc){ PQX.xh[id] = j.doc; renderAll(); toast('Đã điền vào VT và lập phiếu '+((j.doc.applied||{}).purchaseId||'')+'.', 3600); } else toast('Không điền được: '+(j.error||'lỗi'), 4600); });
       });
@@ -9640,7 +10156,7 @@ function stockMatch(name, spec, rows) {
     if (!auOwner()) return '';
     if (!CVR.d){ cvRemindLoad(); return '<div class="panel" style="margin-bottom:14px;"><div class="panel-head"><h2>Nhắc việc tự động qua Zalo</h2><span class="pqd-cap">đang tải…</span></div></div>'; }
     var d = CVR.d, chats = d.chats || [];
-    var opts = '<option value="">— chọn nhóm / cuộc trò chuyện nhận nhắc —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===d.chatId?' selected':'')+'>'+esc((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5))+'</option>'; }).join('');
+    var opts = '<option value="">— chọn nhóm / cuộc trò chuyện nhận nhắc —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===d.chatId?' selected':'')+'>'+esc(c.name ? ('✅ '+c.name+' · …'+String(c.id).slice(-5)) : ((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5)))+'</option>'; }).join('');
     var hrs = ''; for (var h=5; h<=18; h++) hrs += '<option value="'+h+'"'+(h===d.hour?' selected':'')+'>'+(h<10?'0':'')+h+'</option>';
     return '<div class="panel" style="margin-bottom:14px;"><div class="panel-head" style="flex-wrap:wrap;gap:10px;"><h2>Nhắc việc tự động qua Zalo</h2><span class="pqd-cap">'+(d.on ? '<b style="color:var(--good,#1f8a4c);">ĐANG BẬT</b> — gửi mỗi ngày lúc '+(d.hour<10?'0':'')+d.hour+':'+(d.minute<10?'0':'')+d.minute+(d.lastDate ? ' · lần gần nhất '+esc(d.lastDate) : '') : '<b>ĐANG TẮT</b>')+'</span></div><div class="panel-body" style="padding:12px 16px;">'+
       '<div class="pqd-cap" style="margin-bottom:8px;">Mỗi sáng bot gửi vào nhóm Zalo danh sách việc <b>quá hạn</b>, <b>đến hạn hôm nay</b> và <b>trong 7 ngày tới</b>, xếp theo từng người. (Bot chỉ thấy các nhóm đã có người nhắn tên bot ít nhất 1 lần.)</div>'+
@@ -10078,20 +10594,20 @@ function stockMatch(name, spec, rows) {
     XS.r0 = a; XS.r1 = rEnd; XS.c0 = c0; XS.c1 = cEnd;
     xsApply(XS.kind, ops, 'Đã dán '+ops.length+' ô');
   });
-  /* ===== 08q: TẠM DỪNG đơn (ẩn khỏi Kế hoạch / quá hạn, bot nhắc sáng thứ Hai) · ẩn mục Công việc + Đọc kế hoạch ở Cơ khí · chọn vùng bằng cảm ứng ===== */
+  /* ===== 08q: TẠM HOÃN đơn (ẩn khỏi Kế hoạch / quá hạn, bot nhắc sáng thứ Hai) · ẩn mục Công việc + Đọc kế hoạch ở Cơ khí · chọn vùng bằng cảm ứng ===== */
   function isHeld(o){ return !!(o && o.hold && o.hold.since); }
   function holdList(){ return activeOrders().filter(function(o){ return isHeld(o) && rollupStatus(o)!=='ĐÃ GIAO'; }).sort(function(a,b){ return a.hold.since < b.hold.since ? 1 : -1; }); }
-  function holdBtn(o){ return '<button class="btn btn-sm" type="button" data-hold="'+esc(o.id)+'" title="Tạm dừng đơn này: không hiện ở Kế hoạch / quá hạn nữa, bot nhắc nhóm vào sáng thứ Hai" style="margin-left:8px;white-space:nowrap;">⏸ Tạm dừng</button>'; }
+  function holdBtn(o){ return '<button class="btn btn-sm" type="button" data-hold="'+esc(o.id)+'" title="Tạm hoãn đơn này: không hiện ở Kế hoạch / quá hạn nữa, bot nhắc nhóm vào sáng thứ Hai" style="margin-left:8px;white-space:nowrap;">⏸ Tạm hoãn</button>'; }
   function holdAsk(id){
     var o = STATE.orders[id]; if (!o || readOnlyNote()) return;
-    var bd = auModal('<h3>Tạm dừng đơn '+esc(o.code||'')+'</h3><div class="pqd-cap" style="margin-bottom:8px;">'+esc(orderTitle(o))+'</div>'+
-      '<div class="pqd-cap">Đơn tạm dừng sẽ <b>không hiện</b> ở Kế hoạch, Quá hạn, Vật tư cần mua, Lịch tháng. Bot sẽ nhắc cả nhóm vào <b>sáng thứ Hai</b> hàng tuần để kiểm tra lại. Khi làm lại: bấm <b>▶ Tiếp tục</b> ở mục Tạm dừng (cuối trang Kế hoạch).</div>'+
+    var bd = auModal('<h3>Tạm hoãn đơn '+esc(o.code||'')+'</h3><div class="pqd-cap" style="margin-bottom:8px;">'+esc(orderTitle(o))+'</div>'+
+      '<div class="pqd-cap">Đơn tạm hoãn sẽ <b>không hiện</b> ở Kế hoạch, Quá hạn, Vật tư cần mua, Lịch tháng. Bot sẽ nhắc cả nhóm vào <b>sáng thứ Hai</b> hàng tuần để kiểm tra lại. Khi làm lại: bấm <b>▶ Tiếp tục</b> ở mục Tạm hoãn (cuối trang Kế hoạch).</div>'+
       '<label class="pqd-cap" style="display:block;margin-top:10px;">Lý do (không bắt buộc)<input class="pqd-inp" id="holdWhy" style="width:100%;" maxlength="160" autocomplete="off" placeholder="vd: khách chưa chốt, chờ thanh toán, chờ bản vẽ…"></label>'+
-      '<div class="modal-actions"><button class="btn btn-ghost" id="holdNo" type="button">Hủy</button><button class="btn btn-primary" id="holdYes" type="button">⏸ Tạm dừng đơn này</button></div>');
+      '<div class="modal-actions"><button class="btn btn-ghost" id="holdNo" type="button">Hủy</button><button class="btn btn-primary" id="holdYes" type="button">⏸ Tạm hoãn đơn này</button></div>');
     var why = bd.querySelector('#holdWhy'); setTimeout(function(){ try { why.focus(); } catch(e){} }, 30);
     var go = function(){
       patchOrder(id, {hold:{since:pqxToday(), reason:String(why.value||'').trim().slice(0,160), by:pqWhoGet()||''}});
-      bd.remove(); renderAll(); toast('Đã tạm dừng đơn '+(o.code||'')+'. Đơn nằm ở mục "Tạm dừng" cuối trang Kế hoạch.', 4200);
+      bd.remove(); renderAll(); toast('Đã tạm hoãn đơn '+(o.code||'')+'. Đơn nằm ở mục "Tạm hoãn" cuối trang Kế hoạch.', 4200);
     };
     bd.querySelector('#holdYes').onclick = go; bd.querySelector('#holdNo').onclick = function(){ bd.remove(); };
     why.addEventListener('keydown', function(e){ if (e.key==='Enter'){ e.preventDefault(); go(); } });
@@ -10105,8 +10621,8 @@ function stockMatch(name, spec, rows) {
     if (!(window.NMSX_AUTH && window.NMSX_AUTH.on) || !auOwner()) return '';
     if (!HM.d){ holdLoad(); return '<div class="pqd-cap" style="padding:10px 14px;">Đang tải cài đặt nhắc Zalo…</div>'; }
     var d = HM.d, h = d.hold || {}, chats = d.chats || [], cur = h.chatId || d.chatId || '';
-    var opts = '<option value="">— chọn nhóm Zalo nhận nhắc —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===cur?' selected':'')+'>'+esc((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5))+'</option>'; }).join('');
-    return '<div style="padding:10px 14px;border-top:1px solid var(--border,#dde1dd);"><div class="pqd-cap" style="margin-bottom:6px;">'+(h.on ? '<b style="color:var(--good,#1f8a4c);">ĐANG BẬT</b> — mỗi sáng thứ Hai 7:30 bot nhắc nhóm danh sách đơn tạm dừng.' : '<b>ĐANG TẮT</b> — bật để bot nhắc nhóm vào 7:30 sáng thứ Hai hàng tuần (chỉ gửi khi có đơn tạm dừng).')+'</div>'+
+    var opts = '<option value="">— chọn nhóm Zalo nhận nhắc —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===cur?' selected':'')+'>'+esc(c.name ? ('✅ '+c.name+' · …'+String(c.id).slice(-5)) : ((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5)))+'</option>'; }).join('');
+    return '<div style="padding:10px 14px;border-top:1px solid var(--border,#dde1dd);"><div class="pqd-cap" style="margin-bottom:6px;">'+(h.on ? '<b style="color:var(--good,#1f8a4c);">ĐANG BẬT</b> — mỗi sáng thứ Hai 7:30 bot nhắc nhóm danh sách đơn tạm hoãn.' : '<b>ĐANG TẮT</b> — bật để bot nhắc nhóm vào 7:30 sáng thứ Hai hàng tuần (chỉ gửi khi có đơn tạm hoãn).')+'</div>'+
       '<div class="pqd-bar" style="padding:0;flex-wrap:wrap;gap:10px;"><select id="hmChat" class="pqd-inp" style="width:auto;max-width:420px;">'+opts+'</select>'+
       '<label class="pqd-cap" style="display:inline-flex;gap:6px;align-items:center;"><input type="checkbox" id="hmOn"'+(h.on?' checked':'')+'> Bật nhắc sáng thứ Hai</label>'+
       '<button class="btn btn-primary btn-sm" id="hmSave" type="button">Lưu</button><button class="btn btn-sm" id="hmPrev" type="button">Xem trước nội dung</button><button class="btn btn-sm" id="hmNow" type="button">Gửi thử ngay</button></div><div class="pqd-cap" id="hmMsg" style="min-height:18px;margin-top:6px;">'+esc(HM.msg||'')+'</div></div>';
@@ -10115,9 +10631,9 @@ function stockMatch(name, spec, rows) {
     var L = holdList();
     var rows = L.map(function(o){
       var snap = headlineSnapshot(o), dd = snap && snap.deliveryDate ? snap.deliveryDate : '';
-      return '<div class="plan-row" data-goto-td="'+esc(o.id)+'"><span class="code">'+esc(o.code||'—')+'</span><span class="title">'+esc(orderTitle(o))+planCust(o)+'</span>'+(dd ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(dd))+'</span> ' : '')+'<span class="pill pill-warn" style="white-space:nowrap;">Tạm dừng từ '+esc(fmtDate(o.hold.since))+'</span>'+(o.hold.reason ? ' <span class="pqd-cap" style="margin-left:6px;">'+esc(o.hold.reason)+'</span>' : '')+'<button class="btn btn-sm" type="button" data-unhold="'+esc(o.id)+'" style="margin-left:8px;white-space:nowrap;">▶ Tiếp tục</button></div>';
+      return '<div class="plan-row" data-goto-td="'+esc(o.id)+'"><span class="code">'+esc(o.code||'—')+'</span><span class="title">'+esc(orderTitle(o))+planCust(o)+'</span>'+(dd ? '<span class="pill pill-neutral" style="white-space:nowrap;">Giao '+esc(fmtDate(dd))+'</span> ' : '')+'<span class="pill pill-warn" style="white-space:nowrap;">Tạm hoãn từ '+esc(fmtDate(o.hold.since))+'</span>'+(o.hold.reason ? ' <span class="pqd-cap" style="margin-left:6px;">'+esc(o.hold.reason)+'</span>' : '')+'<button class="btn btn-sm" type="button" data-unhold="'+esc(o.id)+'" style="margin-left:8px;white-space:nowrap;">▶ Tiếp tục</button></div>';
     }).join('');
-    return '<details class="plan-week" id="holdDet"'+(STATE.holdOpen?' open':'')+'><summary class="plan-week-head" style="cursor:pointer;">⏸ Tạm dừng — chưa sản xuất <span style="font-weight:600;opacity:.85;">('+L.length+' đơn)</span></summary><div class="plan-week-body">'+(rows || '<div class="empty-note">Chưa có đơn nào tạm dừng. Ở mỗi dòng của Kế hoạch có nút <b>⏸ Tạm dừng</b>.</div>')+holdPanel()+'</div></details>';
+    return '<details class="plan-week" id="holdDet"'+(STATE.holdOpen?' open':'')+'><summary class="plan-week-head" style="cursor:pointer;">⏸ Tạm hoãn — chưa sản xuất <span style="font-weight:600;opacity:.85;">('+L.length+' đơn)</span></summary><div class="plan-week-body">'+(rows || '<div class="empty-note">Chưa có đơn nào tạm hoãn. Ở mỗi dòng của Kế hoạch có nút <b>⏸ Tạm hoãn</b>.</div>')+holdPanel()+'</div></details>';
   }
   document.addEventListener('click', function(e){
     var b = e.target.closest && e.target.closest('[data-hold],[data-unhold]'); if (!b) return;
@@ -10131,15 +10647,15 @@ function stockMatch(name, spec, rows) {
     var b = e.target.closest ? e.target.closest('#hmSave,#hmNow,#hmPrev') : null; if (!b) return;
     var $ = function(id){ return document.getElementById(id); };
     var msg = function(t, bad){ HM.msg = t; var m = $('hmMsg'); if (m){ m.style.color = bad ? 'var(--bad,#c0362c)' : 'var(--good,#1f8a4c)'; m.textContent = t; } };
-    if (b.id==='hmPrev'){ return auApi('/api/zalo/remind/hold/preview').then(function(j){ if (!j.ok) return msg(j.error||'Không xem được.', true); var bd = auModal('<h3>Tin bot sẽ gửi sáng thứ Hai</h3><div class="pqd-cap">'+(j.count ? j.count+' đơn đang tạm dừng.' : 'Hiện chưa có đơn tạm dừng nên bot sẽ không gửi gì.')+'</div><pre style="white-space:pre-wrap;font:inherit;font-size:13px;max-height:55vh;overflow:auto;background:var(--surface-2,#f1f3f4);padding:10px 12px;border-radius:8px;">'+esc((j.parts||[]).join('\n\n— — —\n\n')||'(trống)')+'</pre><div class="modal-actions"><button class="btn btn-ghost" id="hmPrevX" type="button">Đóng</button></div>', true); $('hmPrevX').onclick = function(){ bd.remove(); }; }); }
+    if (b.id==='hmPrev'){ return auApi('/api/zalo/remind/hold/preview').then(function(j){ if (!j.ok) return msg(j.error||'Không xem được.', true); var bd = auModal('<h3>Tin bot sẽ gửi sáng thứ Hai</h3><div class="pqd-cap">'+(j.count ? j.count+' đơn đang tạm hoãn.' : 'Hiện chưa có đơn tạm hoãn nên bot sẽ không gửi gì.')+'</div><pre style="white-space:pre-wrap;font:inherit;font-size:13px;max-height:55vh;overflow:auto;background:var(--surface-2,#f1f3f4);padding:10px 12px;border-radius:8px;">'+esc((j.parts||[]).join('\n\n— — —\n\n')||'(trống)')+'</pre><div class="modal-actions"><button class="btn btn-ghost" id="hmPrevX" type="button">Đóng</button></div>', true); $('hmPrevX').onclick = function(){ bd.remove(); }; }); }
     var body = {on:$('hmOn').checked, chatId:$('hmChat').value};
     if (b.id==='hmSave'){
       if (body.on && !body.chatId) return msg('Chọn nhóm Zalo nhận nhắc trước khi bật.', true);
       auPost('/api/zalo/remind/hold', body).then(function(j){ if (j.ok){ HM.d = null; msg('Đã lưu.'); holdLoad(); } else msg(j.error||'Không lưu được.', true); });
     } else {
       if (!body.chatId) return msg('Chọn nhóm Zalo trước.', true);
-      if (!window.confirm('Gửi NGAY danh sách đơn tạm dừng vào nhóm Zalo đã chọn?')) return;
-      msg('Đang gửi…'); auPost('/api/zalo/remind/hold/now', {chatId:body.chatId}).then(function(j){ msg(j.ok ? (j.parts ? 'Đã gửi '+j.parts+' tin vào nhóm.' : 'Chưa có đơn tạm dừng nên không gửi.') : (j.error||'Không gửi được.'), !j.ok); });
+      if (!window.confirm('Gửi NGAY danh sách đơn tạm hoãn vào nhóm Zalo đã chọn?')) return;
+      msg('Đang gửi…'); auPost('/api/zalo/remind/hold/now', {chatId:body.chatId}).then(function(j){ msg(j.ok ? (j.parts ? 'Đã gửi '+j.parts+' tin vào nhóm.' : 'Chưa có đơn tạm hoãn nên không gửi.') : (j.error||'Không gửi được.'), !j.ok); });
     }
   });
   (function holdStyle(){
@@ -10494,7 +11010,7 @@ function stockMatch(name, spec, rows) {
     if (!(window.NMSX_AUTH && window.NMSX_AUTH.on) || !auOwner()) return '';
     if (!HM.d) return '';
     var d = HM.d, w = d.week || {}, chats = d.chats || [], cur = w.chatId || '';
-    var opts = '<option value="">— chọn nhóm Zalo nhận báo cáo —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===cur?' selected':'')+'>'+esc((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5))+'</option>'; }).join('');
+    var opts = '<option value="">— chọn nhóm Zalo nhận báo cáo —</option>'+chats.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===cur?' selected':'')+'>'+esc(c.name ? ('✅ '+c.name+' · …'+String(c.id).slice(-5)) : ((c.type==='GROUP'?'Nhóm Zalo':'Chat riêng')+' · tin gần nhất của '+(c.last||'?')+' · …'+String(c.id).slice(-5)))+'</option>'; }).join('');
     return '<div class="panel" style="margin-top:14px;padding:12px 14px;"><div class="panel-head" style="padding:0 0 8px;border:none;"><h2>📊 Báo cáo tuần — đăng nhóm Zalo 7:00 sáng thứ Hai</h2></div>'+
       '<div class="pqd-cap" style="margin-bottom:8px;">'+(w.on ? '<b style="color:var(--good,#1f8a4c);">ĐANG BẬT</b> — ' : '<b>ĐANG TẮT</b> — ')+'mỗi sáng thứ Hai 7:00 bot tự lấy dữ liệu và đăng lên nhóm: <b>ảnh dashboard tiến độ</b> + <b>1 tin tóm tắt lịch thử máy &amp; xuất hàng</b> (Cơ khí + Điện gộp chung) cho các công trình đến hạn trong 2 tuần tới. Đơn đã giao và đơn tạm dừng không đưa vào; ngày giao lấy theo lịch đã chốt ở "Đổi lịch". Bot chỉ thấy nhóm đã có người nhắn tên bot ít nhất 1 lần.</div>'+
       '<div class="pqd-bar" style="padding:0;flex-wrap:wrap;gap:10px;"><select id="wkChat" class="pqd-inp" style="width:auto;max-width:420px;">'+opts+'</select>'+

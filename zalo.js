@@ -826,8 +826,10 @@ module.exports = function (ctx) {
     const out = {}, L = ctx.loadColl('zalo_log'), X = ctx.loadColl('xuathang');
     Object.keys(L).sort().forEach(function (k) { try { const e = extract(L[k].body || {}); if (e.chatId) out[e.chatId] = { id: e.chatId, type: e.chatType, last: e.fromName || (out[e.chatId] && out[e.chatId].last) || '' }; } catch (er) {} });
     Object.keys(X).sort().forEach(function (k) { const d = X[k]; if (d && d.chatId) out[d.chatId] = { id: d.chatId, type: d.chatType || (out[d.chatId] && out[d.chatId].type) || '', last: d.fromName || (out[d.chatId] && out[d.chatId].last) || '' }; });
-    return Object.keys(out).map(function (k) { return out[k]; });
+    const CN = (ctx.loadColl('zalo_meta').chatNames) || {};
+    return Object.keys(out).map(function (k) { const c = out[k]; if (CN[c.id]) c.name = String(CN[c.id]); return c; });
   }
+  function setChatName(id, name) { id = String(id || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80); name = String(name || '').trim().slice(0, 60); if (!id) return false; const M = ctx.loadColl('zalo_meta'); M.chatNames = M.chatNames || {}; if (name) M.chatNames[id] = name; else delete M.chatNames[id]; ctx.saveColl('zalo_meta', M); return true; }
   function dayDiff(iso, today) { const a = Date.parse(String(iso).slice(0, 10) + 'T00:00:00Z'), b = Date.parse(today + 'T00:00:00Z'); return isFinite(a) && isFinite(b) ? Math.round((a - b) / 86400000) : null; }
   function remindParts() {
     const T = ctx.loadColl('tasks'), O = ctx.loadColl('orders'), today = vnToday();
@@ -1220,5 +1222,5 @@ module.exports = function (ctx) {
   }
 
   function extSend(chatId, text) { return sendText(chatId, BOT_TAG + String(text || '')); }
-  return { handle: handle, ext: { chats: seenChats, send: extSend, weekPreview: function () { const B = weekBuild(nextMon()); return { base: B.D.base, count: B.D.P.length, pendingCount: (B.D.pending || []).length, parts: [B.M.tin1, B.M.tin2].filter(Boolean) }; }, weekPng: function () { return REPORT.dashboardPng(weekBuild(nextMon()).D); } }, _test: { stockFor: stockFor, stockLine: stockLine, buyLine: buyLine, weekSend: weekSend, weekTick: weekTick, reportChunks: reportChunks, remindParts: remindParts, holdParts: holdParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
+  return { handle: handle, ext: { chats: seenChats, setChatName: setChatName, send: extSend, weekPreview: function () { const B = weekBuild(nextMon()); return { base: B.D.base, count: B.D.P.length, pendingCount: (B.D.pending || []).length, parts: [B.M.tin1, B.M.tin2].filter(Boolean) }; }, weekPng: function () { return REPORT.dashboardPng(weekBuild(nextMon()).D); } }, _test: { stockFor: stockFor, stockLine: stockLine, buyLine: buyLine, weekSend: weekSend, weekTick: weekTick, reportChunks: reportChunks, remindParts: remindParts, holdParts: holdParts, ruleParse: ruleParse, extract: extract, findPhotoUrl: findPhotoUrl, mediaTypeOf: mediaTypeOf } };
 };
