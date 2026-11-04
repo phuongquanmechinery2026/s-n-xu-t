@@ -1647,7 +1647,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-11-03a-may';
+  var BUILD_ID = '2026-11-04a-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2927,6 +2927,7 @@
     html += '<div class="op-title-row"><h1>'+esc(orderTitle(o))+'</h1>'+(o.code?'<span class="op-code-tag">'+esc(o.code)+'</span>':'<span class="op-code-tag">chưa có mã</span>')+remainingPillForOrder(o)+'</div>';
     html += '<div class="op-sub">'+esc(o.customerInfo||'')+'</div>';
     html += '</div>';
+    html += acLogBtn(o);
     if (!o.legacy && rollupStatus(o)!=='ĐÃ GIAO'){
       html += '<button class="btn-done-order" data-mark-order-done="'+esc(o.id)+'" style="margin-left:auto;">✓ Hoàn tất đơn (đánh dấu Đã giao)</button>';
     }
@@ -5027,10 +5028,11 @@
     });
     clusters.sort(function(a, b){ return (parseInt((a.ht||'').slice(2), 10) || 999) - (parseInt((b.ht||'').slice(2), 10) || 999); });
     groups = groups.filter(function(g){ return g.items.length; });
-    return {groups:groups, clusters:clusters, nTable:nVth ? nVth : nTable, nVth:nVth};
+    var sheetList = pages.filter(function(p){ return p && !p.isVTH && p.sheet; }).map(function(p){ return {sheet:p.sheet, code:p.code, ten:p.ten, hm:p.cum, team: AC_NOTASK[p.code] ? '' : (AC_TEAM[p.code] || '')}; });
+    return {groups:groups, clusters:clusters, sheetList:sheetList, nTable:nVth ? nVth : nTable, nVth:nVth};
   }
   function acReadPdfs(files, onProgress){
-    var pages = [], chars = 0, nPages = 0, fileCount = files.length, fi = 0;
+    var pages = [], chars = 0, nPages = 0, fileCount = files.length, fi = 0, fileNames = files.map(function(f){ return f.name; });
     return files.reduce(function(chain, f){
       return chain.then(function(){
         fi++;
@@ -5045,7 +5047,7 @@
           return inner;
         });
       });
-    }, Promise.resolve()).then(function(){ var b = acPdfBuild(pages); b.nPages = nPages; b.nText = chars; b.nSheet = pages.filter(function(p){ return p; }).length; return b; });
+    }, Promise.resolve()).then(function(){ var b = acPdfBuild(pages); b.files = fileNames; b.nPages = nPages; b.nText = chars; b.nSheet = pages.filter(function(p){ return p; }).length; return b; });
   }
   function acApplyVT(ord, parsed){
     ord.materials = ord.materials || [];
@@ -5126,7 +5128,44 @@
   function acUndoSave(orderId, ord){
     AC_UNDO[orderId] = {at: Date.now(), materials: JSON.parse(JSON.stringify(ord.materials||[])), items: JSON.parse(JSON.stringify(ord.items||[])), progressSnapshots: JSON.parse(JSON.stringify(ord.progressSnapshots||[]))};
   }
-  function acUndoBtn(oid){ return AC_UNDO[oid] ? '<button class="btn btn-sm" data-ac-undo="'+esc(oid)+'" title="Trả lại dữ liệu như trước lần nhập AutoCAD gần nhất">↶ Hoàn tác nhập AutoCAD</button>' : ''; }
+  function acLogBtn(o){ var n = ((o && o.acLog) || []).length; return '<button class="btn btn-sm" data-ac-log="'+esc(o.id)+'" title="Xem các lần nhập PDF / AutoCAD và danh sách tờ đã đọc">📄 Dữ liệu PDF'+(n?' ('+n+')':'')+'</button>'; }
+  function acUndoBtn(oid){ var o = STATE.orders[oid]; return (AC_UNDO[oid] ? '<button class="btn btn-sm" data-ac-undo="'+esc(oid)+'" title="Trả lại dữ liệu như trước lần nhập AutoCAD gần nhất">↶ Hoàn tác nhập AutoCAD</button>' : '') + (o ? acLogBtn(o) : ''); }
+  function acLogAdd(ord, entry){
+    ord.acLog = ord.acLog || [];
+    ord.acLog.forEach(function(e){ delete e.sheets; });   // chỉ giữ danh sách tờ của lần nhập gần nhất (cho nhẹ dữ liệu)
+    ord.acLog.push(entry);
+    if (ord.acLog.length > 30) ord.acLog = ord.acLog.slice(-30);
+  }
+  function acWho(){ try { return (typeof pqWhoGet === 'function' && pqWhoGet()) || ''; } catch(e){ return ''; } }
+  function openAcadLog(orderId){
+    closeAnyOpenModal();
+    var o = STATE.orders[orderId]; if (!o) return;
+    var list = (o.acLog || []).slice().reverse();
+    var bd = document.createElement('div'); bd.className = 'modal-backdrop';
+    var h = '<div class="modal wide xwide"><h3>Dữ liệu nhập từ bản vẽ — đơn <b>'+esc(o.code||'(chưa mã)')+'</b></h3>';
+    if (!list.length){ h += '<div class="empty-note">Chưa có lần nhập PDF / AutoCAD nào cho đơn này.</div>'; }
+    list.forEach(function(e, idx){
+      var when = e.at ? new Date(e.at).toLocaleString('vi-VN') : '';
+      var kind = e.kind === 'pdf' ? 'PDF bản vẽ' : (e.kind === 'csv-vt' ? 'CSV vật tư (PQXUAT)' : 'CSV công việc (PQXUAT)');
+      h += '<div class="panel" style="margin:10px 0;padding:10px 12px;">';
+      h += '<div style="font-weight:700;">'+esc(when)+' · '+esc(e.by||'—')+' · '+esc(kind)+(idx===0?' <span class="pqd-cap">(gần nhất)</span>':'')+'</div>';
+      if (e.files && e.files.length) h += '<div class="pqd-cap" style="margin:4px 0;">File: '+e.files.map(function(f){ return esc(f); }).join(', ')+'</div>';
+      var vt = e.vt || {}, td = e.td || {};
+      h += '<div class="hint-txt" style="margin:4px 0;">'+(e.kind==='pdf' ? 'Đọc '+(e.nSheet||0)+' trang có khung tên, '+(e.nVth||0)+' trang bảng tổng hợp VT. ' : '')+'Vật tư: <b>'+(vt.added||0)+'</b> mới · <b>'+(vt.updated||0)+'</b> cập nhật · <b>'+(vt.same||0)+'</b> giữ nguyên · Công việc: <b>'+(td.added||0)+'</b> mới · <b>'+(td.updated||0)+'</b> cập nhật · <b>'+(td.same||0)+'</b> giữ nguyên</div>';
+      if (e.sheets && e.sheets.length){
+        h += '<div style="max-height:40vh;overflow:auto;margin-top:6px;"><table class="mat-table" style="font-size:12.5px;"><thead><tr><th>Tờ</th><th>Tên bản vẽ</th><th>Cụm / HT</th><th>Tổ đội</th></tr></thead><tbody>';
+        e.sheets.forEach(function(sh){ h += '<tr><td>'+esc(sh.sheet)+'</td><td>'+esc(sh.ten||'')+'</td><td>'+esc(sh.hm||'')+'</td><td>'+esc(sh.team||'—')+'</td></tr>'; });
+        h += '</tbody></table></div>';
+      }
+      h += '</div>';
+    });
+    h += '<div class="modal-actions"><button class="btn btn-ghost" id="acLogX">Đóng</button></div></div>';
+    bd.innerHTML = h;
+    document.body.appendChild(bd);
+    bd.addEventListener('click', function(ev){ if (ev.target === bd) bd.remove(); });
+    document.getElementById('acLogX').onclick = function(){ bd.remove(); };
+  }
+
   function openAcadModal(orderId){
     closeAnyOpenModal();
     var o = STATE.orders[orderId]; if (!o) return;
@@ -5239,21 +5278,28 @@
       acUndoSave(orderId, ord);
       if (cur.kind === 'vt'){
         var s = acApplyVT(ord, cur.parsed);
-        patchOrder(orderId, {materials: ord.materials}); STATE.orderTab = 'vt';
+        acLogAdd(ord, {at: Date.now(), by: acWho(), kind:'csv-vt', files: [], vt:{added:s.added, updated:s.updated, same:s.same, groupsNew:s.groupsNew}, td:{}});
+        patchOrder(orderId, {materials: ord.materials, acLog: ord.acLog}); STATE.orderTab = 'vt';
         msg = 'Đã nhập vật tư từ AutoCAD: '+s.added+' dòng mới, '+s.updated+' cập nhật.';
       } else if (cur.kind === 'td'){
         var s2 = acApplyTD(ord, cur.parsed);
         syncVtSections(ord);
-        patchOrder(orderId, {items: ord.items, progressSnapshots: ord.progressSnapshots, materials: ord.materials}); STATE.orderTab = 'td';
+        acLogAdd(ord, {at: Date.now(), by: acWho(), kind:'csv-td', files: [], vt:{}, td:{added:s2.added, updated:s2.updated, same:s2.same, clustersNew:s2.clustersNew}});
+        patchOrder(orderId, {items: ord.items, progressSnapshots: ord.progressSnapshots, materials: ord.materials, acLog: ord.acLog}); STATE.orderTab = 'td';
         msg = 'Đã nhập công việc từ AutoCAD: '+s2.added+' hạng mục mới, '+s2.updated+' cập nhật.';
       } else {
         var p = pdfParsed(), sv = acApplyVT(ord, {groups:p.groups}), st = acApplyTD(ord, {clusters:p.clusters});
-        patchOrder(orderId, {materials: ord.materials, items: ord.items, progressSnapshots: ord.progressSnapshots}); STATE.orderTab = 'vt';
+        acLogAdd(ord, {at: Date.now(), by: acWho(), kind:'pdf', files: pdfB.files || [], nSheet: pdfB.nSheet, nVth: pdfB.nVth, nPages: pdfB.nPages, vt:{added:sv.added, updated:sv.updated, same:sv.same, groupsNew:sv.groupsNew}, td:{added:st.added, updated:st.updated, same:st.same, clustersNew:st.clustersNew}, sheets: pdfB.sheetList || []});
+        patchOrder(orderId, {materials: ord.materials, items: ord.items, progressSnapshots: ord.progressSnapshots, acLog: ord.acLog}); STATE.orderTab = 'vt';
         msg = 'Đã nhập từ PDF: '+sv.added+' dòng vật tư mới, '+sv.updated+' cập nhật; '+st.added+' công việc mới.';
       }
       renderAll(); bd.remove(); toast(msg + ' (bấm "Hoàn tác nhập AutoCAD" nếu cần)', 5200);
     };
   }
+  document.addEventListener('click', function(e){
+    var lg = e.target && e.target.closest ? e.target.closest('[data-ac-log]') : null;
+    if (lg){ openAcadLog(lg.getAttribute('data-ac-log')); return; }
+  });
   document.addEventListener('click', function(e){
     var u = e.target && e.target.closest ? e.target.closest('[data-ac-undo]') : null; if (!u) return;
     var oid = u.getAttribute('data-ac-undo'), snap = AC_UNDO[oid], ord = STATE.orders[oid];
