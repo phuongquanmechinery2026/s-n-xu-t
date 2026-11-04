@@ -1647,7 +1647,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-11-04a-may';
+  var BUILD_ID = '2026-11-04b-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2863,7 +2863,7 @@
         html += '<td class="c-stt" rowspan="'+totalRows+'">'+stt+'</td>';
         html += '<td class="c-code" rowspan="'+totalRows+'">'+ (o.legacy
             ? '<button class="btn btn-sm" data-promote="'+esc(o.id)+'">Gán mã…</button>'
-            : '<button class="code-link" data-goto-vt="'+esc(o.id)+'" title="Xem vật tư">'+esc(o.code)+'</button>') +'</td>';
+            : '<button class="code-link" data-goto-vt="'+esc(o.id)+'" title="Xem vật tư">'+esc(o.code)+'</button>'+((o.acLog && o.acLog.length) ? '<br><button class="btn btn-sm" data-ac-log="'+esc(o.id)+'" title="Xem dữ liệu đã nhập từ PDF / AutoCAD" style="margin-top:4px;font-size:11px;padding:2px 7px;">📄 PDF ('+o.acLog.length+')</button>' : '')) +'</td>';
         html += '<td class="c-customer" rowspan="'+totalRows+'">'+customerCell(o)+'</td>';
         headerDone = true;
       }
