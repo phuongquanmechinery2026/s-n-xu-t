@@ -125,6 +125,57 @@ function readBody(req) {
 // Dang ky / dang nhap / lich su chinh sua (xem auth.js). Chua co tai khoan chu thi moi thu mo nhu cu.
 const auth = require('./auth.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR });
 const zalo = require('./zalo.js')({ loadColl: loadColl, saveColl: saveColl, readBody: readBody, sendJson: sendJson, sendBytes: sendBytes, DATA_DIR: DATA_DIR, sessionOf: auth.sessionOf, authOn: auth.authOn });
+// File PDF gốc của đơn (hợp đồng / đơn hàng / bản vẽ): lưu trên đĩa dữ liệu, mở xem lại bất cứ lúc nào.
+// data/order_files/<mã đơn>/index.json + <id>.pdf. Trùng nội dung (cùng sha1) thì không lưu lại.
+async function handleOfile(req, res, u, rawOid, fid, method, viaExt) {
+  const oid = String(rawOid || '');
+  const safe = oid.replace(/[^A-Za-z0-9_\-.]/g, '_').slice(0, 80);
+  if (!safe) return sendJson(res, 400, { error: 'thiếu mã đơn' });
+  const dir = path.join(DATA_DIR, 'order_files', safe), idxF = path.join(dir, 'index.json');
+  const loadIdx = function () { try { return JSON.parse(fs.readFileSync(idxF, 'utf8')); } catch (e) { return []; } };
+  if (!fid && method === 'GET') return sendJson(res, 200, { files: loadIdx() });
+  if (!fid && method === 'PUT') {
+    const O = loadColl('orders'), ord = O[oid];
+    if (!ord) return sendJson(res, 404, { error: 'Chưa có đơn ' + oid + ' trên máy chủ' });
+    if (!viaExt && auth.authOn()) { const dn = auth.canWrite(req, 'orders', oid, ord, ord, 'PUT'); if (dn) return sendJson(res, 403, { error: dn, perm: true }); }
+    const chunks = []; let size = 0, tooBig = false;
+    await new Promise(function (resolve, reject) {
+      req.on('data', function (c) { size += c.length; if (size > 80 * 1024 * 1024) { tooBig = true; return; } chunks.push(c); });
+      req.on('end', resolve); req.on('error', reject);
+    });
+    if (tooBig) return sendJson(res, 413, { error: 'File quá 80 MB' });
+    const buf = Buffer.concat(chunks);
+    if (buf.length < 100 || buf.slice(0, 4).toString('latin1') !== '%PDF') return sendJson(res, 400, { error: 'Không phải file PDF' });
+    const name = String(u.searchParams.get('name') || 'file.pdf').replace(/[\\/:*?"<>|\r\n]+/g, '_').slice(0, 160);
+    const kind = String(u.searchParams.get('kind') || 'khac').replace(/[^a-z_]/g, '').slice(0, 20) || 'khac';
+    const hash = require('crypto').createHash('sha1').update(buf).digest('hex').slice(0, 16);
+    const idx = loadIdx(), dup = idx.filter(function (f) { return f.hash === hash; })[0];
+    if (dup) return sendJson(res, 200, { ok: true, dup: true, file: dup, files: idx });
+    fs.mkdirSync(dir, { recursive: true });
+    const id = Date.now().toString(36) + '-' + hash + '.pdf';
+    fs.writeFileSync(path.join(dir, id), buf);
+    const who = (req.nmsxUser && (req.nmsxUser.name || req.nmsxUser.username)) || '';
+    const rec = { id: id, name: name, kind: kind, size: buf.length, at: Date.now(), by: who, hash: hash };
+    idx.push(rec); fs.writeFileSync(idxF, JSON.stringify(idx));
+    return sendJson(res, 200, { ok: true, file: rec, files: idx });
+  }
+  if (fid && method === 'GET') {
+    const rec = loadIdx().filter(function (f) { return f.id === fid; })[0];
+    if (!rec) return sendJson(res, 404, { error: 'Không có file' });
+    const b = fs.readFileSync(path.join(dir, rec.id));
+    res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': b.length, 'Content-Disposition': "inline; filename*=UTF-8''" + encodeURIComponent(rec.name), 'Cache-Control': 'private, max-age=3600' });
+    return res.end(b);
+  }
+  if (fid && method === 'DELETE') {
+    if (!viaExt && auth.authOn() && !(req.nmsxUser && req.nmsxUser.role === 'owner')) return sendJson(res, 403, { error: 'Chỉ chủ nhà máy được xoá file' });
+    const idx = loadIdx(), rec = idx.filter(function (f) { return f.id === fid; })[0];
+    if (!rec) return sendJson(res, 404, { error: 'Không có file' });
+    try { fs.unlinkSync(path.join(dir, rec.id)); } catch (e) {}
+    const left = idx.filter(function (f) { return f.id !== fid; }); fs.writeFileSync(idxF, JSON.stringify(left));
+    return sendJson(res, 200, { ok: true, files: left });
+  }
+  return sendJson(res, 405, { error: 'method' });
+}
 
 // Lam sach chu trong vat tu truoc khi luu: chu tieng Viet chuan NFC, bo xuong dong trong o (copy tu Sheet hay co "\n" lam dinh chu: "80\ndày" -> "80dày")
 function cleanOrderDoc(o) {
@@ -285,6 +336,7 @@ const server = http.createServer(function (req, res) {
           return sendBytes(res, 204, 'text/plain', Buffer.alloc(0));
         }
       }
+      if ((mx = p.match(/^\/api\/ext\/ofile\/([^/]+)(?:\/([^/]+))?$/))) return handleOfile(req, res, u, decodeURIComponent(mx[1]), mx[2] ? decodeURIComponent(mx[2]) : '', method, true);
       if (p === '/api/ext/chats' && method === 'GET') return sendJson(res, 200, { chats: zalo.ext.chats() });
       if (p === '/api/ext/chatname' && method === 'POST') {
         const b = JSON.parse((await readBody(req)) || '{}');
@@ -308,6 +360,7 @@ const server = http.createServer(function (req, res) {
     }
 
     if (p === '/api/ping') return sendJson(res, 200, { ok: true, app: 'nmsx-pq', port: PORT, env: 'render' });
+    { const mo = p.match(/^\/api\/ofile\/([^/]+)(?:\/([^/]+))?$/); if (mo) return handleOfile(req, res, u, decodeURIComponent(mo[1]), mo[2] ? decodeURIComponent(mo[2]) : '', method, false); }
 
     // Tai lai Sheet Dien truc tiep tu Google (cong khai, khong can dang nhap)
     // xuong dung vi tri /_local/electric.xlsx tren may chu Render — de nut

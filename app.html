@@ -1647,7 +1647,7 @@
   var GSHEET_FILE_ID = '1Bv52mTMVe81_rxulBOW-Vdoj7bVyvAArbqEdmW7Y9fU';
 
   /* ===== BẢN DỰNG — để biết máy anh đang chạy đúng bản mới hay bản cũ bị trình duyệt lưu tạm ===== */
-  var BUILD_ID = '2026-11-04b-may';
+  var BUILD_ID = '2026-11-04c-may';
 
   /* ===== LƯU DỰ PHÒNG NGAY TRÊN MÁY NÀY (localStorage) =====
      Dù kho dữ liệu chung (db) có trục trặc gì, MỌI thay đổi vẫn ghi ngay vào
@@ -2863,7 +2863,7 @@
         html += '<td class="c-stt" rowspan="'+totalRows+'">'+stt+'</td>';
         html += '<td class="c-code" rowspan="'+totalRows+'">'+ (o.legacy
             ? '<button class="btn btn-sm" data-promote="'+esc(o.id)+'">Gán mã…</button>'
-            : '<button class="code-link" data-goto-vt="'+esc(o.id)+'" title="Xem vật tư">'+esc(o.code)+'</button>'+((o.acLog && o.acLog.length) ? '<br><button class="btn btn-sm" data-ac-log="'+esc(o.id)+'" title="Xem dữ liệu đã nhập từ PDF / AutoCAD" style="margin-top:4px;font-size:11px;padding:2px 7px;">📄 PDF ('+o.acLog.length+')</button>' : '')) +'</td>';
+            : '<button class="code-link" data-goto-vt="'+esc(o.id)+'" title="Xem vật tư">'+esc(o.code)+'</button>'+((o.acLog && o.acLog.length) ? '<br><button class="btn btn-sm" data-ac-log="'+esc(o.id)+'" title="Xem dữ liệu đã nhập từ PDF / AutoCAD" style="margin-top:4px;font-size:11px;padding:2px 7px;">📄 PDF ('+o.acLog.length+')</button>' : '')+ofBtn(o, true)) +'</td>';
         html += '<td class="c-customer" rowspan="'+totalRows+'">'+customerCell(o)+'</td>';
         headerDone = true;
       }
@@ -2927,7 +2927,7 @@
     html += '<div class="op-title-row"><h1>'+esc(orderTitle(o))+'</h1>'+(o.code?'<span class="op-code-tag">'+esc(o.code)+'</span>':'<span class="op-code-tag">chưa có mã</span>')+remainingPillForOrder(o)+'</div>';
     html += '<div class="op-sub">'+esc(o.customerInfo||'')+'</div>';
     html += '</div>';
-    html += acLogBtn(o);
+    html += acLogBtn(o) + ofBtn(o);
     if (!o.legacy && rollupStatus(o)!=='ĐÃ GIAO'){
       html += '<button class="btn-done-order" data-mark-order-done="'+esc(o.id)+'" style="margin-left:auto;">✓ Hoàn tất đơn (đánh dấu Đã giao)</button>';
     }
@@ -4281,8 +4281,10 @@
     backdrop.addEventListener('click', function(e){ if (e.target===backdrop) backdrop.remove(); });
     document.getElementById('nfCancel').onclick = function(){ backdrop.remove(); };
     document.getElementById('nfDrop').addEventListener('click', function(e){ if (e.target.tagName!=='INPUT') document.getElementById('nfFile').click(); });
+    var nfPdfFile = null;
     document.getElementById('nfFile').addEventListener('change', function(e){
       var f = e.target.files[0]; if (!f) return;
+      nfPdfFile = f;
       var statusEl = document.getElementById('nfStatus');
       statusEl.innerHTML = '<span class="spinner"></span> Đang đọc PDF…';
       readPdfAndParse(f).then(function(res){
@@ -4349,6 +4351,7 @@
         made.push({id:id, label:(dp==='dien'?'Điện':'Cơ khí')});
       });
       if (!made.length){ toast('Mã đơn hàng này đã tồn tại ('+skipped.join(', ')+').'); return; }
+      if (nfPdfFile) made.forEach(function(x){ ofUpload(x.id, nfPdfFile, 'hopdong'); });
       backdrop.remove();
       openOrder(made[0].id, 'td');
       toast('Đã thêm đơn '+made.map(function(x){ return x.label; }).join(' + ')+' '+code+(skipped.length ? ' (bỏ qua vì đã có: '+skipped.join(', ')+')' : ''), 4200);
@@ -5129,7 +5132,7 @@
     AC_UNDO[orderId] = {at: Date.now(), materials: JSON.parse(JSON.stringify(ord.materials||[])), items: JSON.parse(JSON.stringify(ord.items||[])), progressSnapshots: JSON.parse(JSON.stringify(ord.progressSnapshots||[]))};
   }
   function acLogBtn(o){ var n = ((o && o.acLog) || []).length; return '<button class="btn btn-sm" data-ac-log="'+esc(o.id)+'" title="Xem các lần nhập PDF / AutoCAD và danh sách tờ đã đọc">📄 Dữ liệu PDF'+(n?' ('+n+')':'')+'</button>'; }
-  function acUndoBtn(oid){ var o = STATE.orders[oid]; return (AC_UNDO[oid] ? '<button class="btn btn-sm" data-ac-undo="'+esc(oid)+'" title="Trả lại dữ liệu như trước lần nhập AutoCAD gần nhất">↶ Hoàn tác nhập AutoCAD</button>' : '') + (o ? acLogBtn(o) : ''); }
+  function acUndoBtn(oid){ var o = STATE.orders[oid]; return (AC_UNDO[oid] ? '<button class="btn btn-sm" data-ac-undo="'+esc(oid)+'" title="Trả lại dữ liệu như trước lần nhập AutoCAD gần nhất">↶ Hoàn tác nhập AutoCAD</button>' : '') + (o ? acLogBtn(o) + ofBtn(o) : ''); }
   function acLogAdd(ord, entry){
     ord.acLog = ord.acLog || [];
     ord.acLog.forEach(function(e){ delete e.sheets; });   // chỉ giữ danh sách tờ của lần nhập gần nhất (cho nhẹ dữ liệu)
@@ -5181,7 +5184,7 @@
     bd.addEventListener('click', function(e){ if (e.target === bd) bd.remove(); });
     document.getElementById('acCancel').onclick = function(){ bd.remove(); };
     var box = document.getElementById('acBox'), res = document.getElementById('acRes'), go = document.getElementById('acGo'), kindEl = document.getElementById('acKind');
-    var cur = null, pdfB = null;
+    var cur = null, pdfB = null, acPdfFiles = [];
     bd.addEventListener('change', function(e){
       var t = e.target; var k = t && t.getAttribute && t.getAttribute('data-ac-team'); if (!k) return;
       AC_TEAM[k] = String(t.value||'').trim() || AC_TEAM_DEF[k]; t.value = AC_TEAM[k];
@@ -5225,7 +5228,7 @@
       var p = pdfParsed(), sim = simOrder(), sv = acApplyVT(sim, {groups:p.groups}), st = acApplyTD(sim, {clusters:p.clusters});
       var el = document.getElementById('acSum');
       if (el) el.innerHTML = 'Vật tư: <b>'+sv.added+'</b> dòng mới · <b>'+sv.updated+'</b> cập nhật · <b>'+sv.same+'</b> giữ nguyên'+(sv.groupsNew?' · '+sv.groupsNew+' nhóm mới':'')+' &nbsp;|&nbsp; Công việc: <b>'+st.added+'</b> mới · <b>'+st.updated+'</b> cập nhật · <b>'+st.same+'</b> giữ nguyên';
-      go.disabled = !(sv.added || sv.updated || sv.groupsNew || st.added || st.updated || st.clustersNew);
+      go.disabled = false;   // luôn ghi được: dù dữ liệu không đổi vẫn lưu file PDF gốc + nhật ký
     }
     function pdfRender(){
       var yellow = 0; pdfB.groups.forEach(function(g){ g.items.forEach(function(it){ if (it.chk) yellow++; }); });
@@ -5260,6 +5263,7 @@
       var files = Array.from((e.target.files || [])); if (!files.length) return;
       files.sort(function(a, b){ return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
       var pdfs = files.filter(function(f){ return /\.pdf$/i.test(f.name) || f.type === 'application/pdf'; });
+      acPdfFiles = pdfs;
       if (pdfs.length){
         cur = null; pdfB = null; go.disabled = true; box.value = '';
         kindEl.textContent = 'Đang đọc '+pdfs.length+' file PDF…'; res.innerHTML = '';
@@ -5291,6 +5295,7 @@
         var p = pdfParsed(), sv = acApplyVT(ord, {groups:p.groups}), st = acApplyTD(ord, {clusters:p.clusters});
         acLogAdd(ord, {at: Date.now(), by: acWho(), kind:'pdf', files: pdfB.files || [], nSheet: pdfB.nSheet, nVth: pdfB.nVth, nPages: pdfB.nPages, vt:{added:sv.added, updated:sv.updated, same:sv.same, groupsNew:sv.groupsNew}, td:{added:st.added, updated:st.updated, same:st.same, clustersNew:st.clustersNew}, sheets: pdfB.sheetList || []});
         patchOrder(orderId, {materials: ord.materials, items: ord.items, progressSnapshots: ord.progressSnapshots, acLog: ord.acLog}); STATE.orderTab = 'vt';
+        ofUploadMany(orderId, acPdfFiles, 'banve');
         msg = 'Đã nhập từ PDF: '+sv.added+' dòng vật tư mới, '+sv.updated+' cập nhật; '+st.added+' công việc mới.';
       }
       renderAll(); bd.remove(); toast(msg + ' (bấm "Hoàn tác nhập AutoCAD" nếu cần)', 5200);
@@ -5306,6 +5311,80 @@
     if (!snap || !ord) return;
     patchOrder(oid, {materials: snap.materials, items: snap.items, progressSnapshots: snap.progressSnapshots});
     delete AC_UNDO[oid]; renderAll(); toast('Đã hoàn tác lần nhập AutoCAD.', 3200);
+  });
+  /* ---- File PDF gốc của đơn (BUILD 2026-11-04c): lưu trên máy chủ khi lên đơn / Đọc PDF / Nhập từ AutoCAD; nút "📎 PDF gốc" để mở xem lại ---- */
+  var OF_KIND = {hopdong:'Đơn hàng / hợp đồng', banve:'Bản vẽ', khac:'Khác'};
+  function ofUpload(orderId, file, kind, tries){
+    tries = tries || 0;
+    var url = '/api/ofile/'+encodeURIComponent(orderId)+'?name='+encodeURIComponent(file.name||'file.pdf')+'&kind='+encodeURIComponent(kind||'khac');
+    return fetch(url, {method:'PUT', headers:{'Content-Type':'application/pdf'}, body:file})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'HTTP '+r.status}; }).then(function(j){ j._st = r.status; return j; }); })
+      .then(function(j){
+        if (j && j.ok){ ofSetCount(orderId, (j.files||[]).length); return j; }
+        if (j && j._st === 404 && tries < 6) return new Promise(function(res){ setTimeout(res, 1500); }).then(function(){ return ofUpload(orderId, file, kind, tries+1); });
+        toast('Chưa lưu được file PDF "'+(file.name||'')+'": '+((j && j.error) || 'lỗi'), 5200); return j;
+      })
+      .catch(function(){ toast('Chưa lưu được file PDF "'+(file.name||'')+'" (mất kết nối).', 5200); return {ok:false}; });
+  }
+  function ofUploadMany(orderId, files, kind){
+    var list = Array.prototype.slice.call(files || []).filter(function(f){ return f && (/\.pdf$/i.test(f.name) || f.type === 'application/pdf'); });
+    if (!list.length) return Promise.resolve([]);
+    toast('Đang lưu '+list.length+' file PDF vào đơn…', 2500);
+    return list.reduce(function(ch, f){ return ch.then(function(acc){ return ofUpload(orderId, f, kind).then(function(j){ acc.push(j); return acc; }); }); }, Promise.resolve([]))
+      .then(function(rs){ var ok = rs.filter(function(j){ return j && j.ok; }).length; if (ok) toast('Đã lưu '+ok+' file PDF gốc vào đơn — bấm "📎 PDF gốc" để xem lại.', 3600); return rs; });
+  }
+  function ofSetCount(orderId, n){
+    var o = STATE.orders[orderId]; if (!o || o.pdfN === n) return;
+    patchOrder(orderId, {pdfN: n});
+    if (!document.querySelector('.modal-backdrop')) renderAll();
+  }
+  function ofBtn(o, small){
+    var n = (o && o.pdfN) || 0;
+    if (small) return n ? '<br><button class="btn btn-sm" data-of-open="'+esc(o.id)+'" title="Mở lại file PDF gốc đã dùng để lên đơn / nhập bản vẽ" style="margin-top:4px;font-size:11px;padding:2px 7px;">📎 PDF gốc ('+n+')</button>' : '';
+    return '<button class="btn btn-sm" data-of-open="'+esc(o.id)+'" title="Mở lại file PDF gốc đã dùng để lên đơn / nhập bản vẽ">📎 PDF gốc'+(n?' ('+n+')':'')+'</button>';
+  }
+  function ofFmtSize(b){ return b >= 1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1, Math.round(b/1024))+' KB'; }
+  function openOfiles(orderId){
+    closeAnyOpenModal();
+    var o = STATE.orders[orderId]; if (!o) return;
+    var bd = document.createElement('div'); bd.className = 'modal-backdrop';
+    bd.innerHTML = '<div class="modal wide"><h3>File PDF gốc — đơn <b>'+esc(o.code||'(chưa mã)')+'</b></h3>'+
+      '<p class="hint-txt" style="margin:0 0 8px;">Các file PDF đã dùng khi lên đơn, "Đọc PDF" và "Nhập từ AutoCAD" được lưu ở đây. Bấm <b>Mở</b> để xem lại, đối chiếu xem đơn / VT / TD có nhập sai không.</p>'+
+      '<div id="ofList"><span class="hint-txt">Đang tải danh sách…</span></div>'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;"><label class="btn btn-sm" style="cursor:pointer;">+ Thêm file PDF<input type="file" id="ofAdd" accept="application/pdf" multiple style="display:none;"></label>'+
+      '<select id="ofKind" class="pqd-inp" style="width:auto;"><option value="hopdong">Đơn hàng / hợp đồng</option><option value="banve">Bản vẽ</option><option value="khac">Khác</option></select></div>'+
+      '<div class="modal-actions"><button class="btn btn-ghost" id="ofX">Đóng</button></div></div>';
+    document.body.appendChild(bd);
+    bd.addEventListener('click', function(ev){ if (ev.target === bd) bd.remove(); });
+    document.getElementById('ofX').onclick = function(){ bd.remove(); };
+    var listEl = document.getElementById('ofList');
+    function draw(files){
+      files = (files || []).slice().sort(function(a, b){ return (b.at||0) - (a.at||0); });
+      if (!files.length){ listEl.innerHTML = '<div class="empty-note">Chưa có file PDF nào được lưu cho đơn này. Từ nay khi lên đơn bằng PDF, bấm "Đọc PDF" hoặc "Nhập từ AutoCAD", file sẽ tự lưu vào đây. File cũ thì bấm "+ Thêm file PDF".</div>'; return; }
+      var tq = auTq(), h = '<table class="mat-table" style="font-size:13px;"><thead><tr><th>File</th><th>Loại</th><th>Dung lượng</th><th>Lưu lúc</th><th>Người lưu</th><th></th></tr></thead><tbody>';
+      files.forEach(function(f){
+        var href = '/api/ofile/'+encodeURIComponent(orderId)+'/'+encodeURIComponent(f.id)+tq;
+        h += '<tr><td>'+esc(f.name)+'</td><td>'+esc(OF_KIND[f.kind]||f.kind||'')+'</td><td>'+ofFmtSize(f.size||0)+'</td><td>'+esc(f.at ? new Date(f.at).toLocaleString('vi-VN') : '')+'</td><td>'+esc(f.by||'—')+'</td>'+
+          '<td style="white-space:nowrap;"><a class="btn btn-sm btn-primary" href="'+esc(href)+'" target="_blank" rel="noopener">Mở</a>'+(auOwner() || !auOn() ? ' <button class="btn btn-sm btn-danger" data-of-del="'+esc(f.id)+'">Xoá</button>' : '')+'</td></tr>';
+      });
+      listEl.innerHTML = h + '</tbody></table>';
+    }
+    function load(){ auApi('/api/ofile/'+encodeURIComponent(orderId)).then(function(j){ if (j && j.files){ draw(j.files); ofSetCount(orderId, j.files.length); } else listEl.innerHTML = '<span class="hint-txt" style="color:var(--bad);">Không tải được danh sách: '+esc((j && j.error) || 'lỗi')+'</span>'; }); }
+    listEl.addEventListener('click', function(ev){
+      var d = ev.target.closest ? ev.target.closest('[data-of-del]') : null; if (!d) return;
+      if (!window.confirm('Xoá file PDF này khỏi đơn? (Không ảnh hưởng VT / TD đã nhập)')) return;
+      fetch('/api/ofile/'+encodeURIComponent(orderId)+'/'+encodeURIComponent(d.getAttribute('data-of-del')), {method:'DELETE'}).then(function(r){ return r.json(); }).then(function(j){ if (j && j.ok){ draw(j.files); ofSetCount(orderId, j.files.length); } else toast('Không xoá được: '+((j && j.error)||'lỗi'), 4000); });
+    });
+    document.getElementById('ofAdd').addEventListener('change', function(e){
+      var fs = e.target.files; if (!fs || !fs.length) return;
+      listEl.innerHTML = '<span class="hint-txt">Đang tải lên '+fs.length+' file…</span>';
+      ofUploadMany(orderId, fs, document.getElementById('ofKind').value).then(load);
+    });
+    load();
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('[data-of-open]') : null; if (!b) return;
+    openOfiles(b.getAttribute('data-of-open'));
   });
   /* ---- Tổ Phay tiện: ô "Tiện xong" + bộ lọc ---- */
   function isTienItem(it){ var t = stripDiacritics((it && it.team) || ''); return /phay\s*tien/.test(t) || /(^|[^a-z])tien([^a-z]|$)/.test(t); }
@@ -5586,8 +5665,10 @@
     backdrop.addEventListener('click', function(e){ if (e.target===backdrop) backdrop.remove(); });
     document.getElementById('pdfCancel').onclick = function(){ backdrop.remove(); };
     document.getElementById('pdfDrop').addEventListener('click', function(e){ if (e.target.tagName!=='INPUT') document.getElementById('pdfFile').click(); });
+    var pdfSrcFile = null;
     document.getElementById('pdfFile').addEventListener('change', function(e){
       var f = e.target.files[0]; if (!f) return;
+      pdfSrcFile = f;
       parsedRows = [];                       // reset — không dùng lại kết quả PDF lần trước
       document.getElementById('pdfAdd').disabled = true;
       document.getElementById('pdfResult').innerHTML = '';
@@ -5628,6 +5709,7 @@
       pdfApplyRows(ord, clean);
       var added = (ord.items||[]).length - before;
       patchOrder(orderId, {items: ord.items, materials: ord.materials});
+      if (pdfSrcFile) ofUpload(orderId, pdfSrcFile, 'hopdong');
       STATE.orderTab = 'td';
       renderAll();
       backdrop.remove();
