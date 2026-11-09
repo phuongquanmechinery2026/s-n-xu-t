@@ -121,6 +121,13 @@ module.exports = function (ctx) {
     };
   }
 
+  // Zalo also delivers group replies that quote the bot. Only a direct @mention
+  // may start an order, stock lookup, or group response.
+  function groupMentionsBot(x) {
+    if (String(x.chatType || '').toUpperCase() !== 'GROUP') return true;
+    return /@\s*bot\s+tro\s+li\s+san\s+xuat\b/.test(stripD(x.text || ''));
+  }
+
   /* ---------------- Tach dong bang quy tac (khong AI) ---------------- */
   const RULES = require('./rules.js');
   function ruleParse(text) { return RULES.parseMessage(text); }
@@ -988,6 +995,7 @@ module.exports = function (ctx) {
         logRaw(body, x.event);
         if (!(x.text || x.photoUrl) || !x.chatId) return true;
         if (x.event && !/message/i.test(x.event)) return true;
+        if (!groupMentionsBot(x)) return true;
         if (seenBefore(x.messageId)) return true;
         processMessage(x);
       } catch (e) {}
